@@ -11,15 +11,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <unicode/utf.h>
+#include <unicode/unistr.h>
+
 using namespace std;
 
-typedef map<string, double> Dict;
-typedef deque<string> word_list;
+typedef icu::UnicodeString UnicodeString;
+typedef map<UnicodeString, double> Dict;
+typedef deque<UnicodeString> word_list;
 
-vector<string> &split(istream &is, char delim, vector<string> &elems) {
+vector<UnicodeString> &split(FILE* istream, char delim, vector<UnicodeString> &elems) {
+
+    char* nextword = NULL; 
+    int size = 0;
+    getline(&nextword,&size,istream);
     string mystring;
     getline(is,mystring);
     stringstream ss(mystring);
+
     string word;
     while(getline(ss,word,delim)){
         elems.push_back(word);
@@ -27,7 +36,7 @@ vector<string> &split(istream &is, char delim, vector<string> &elems) {
     return elems;
 }
 
-vector<string> split(istream &s, char delim) {
+vector<string> split(FILE* istream, char delim) {
     vector<string> elems;
     return split(s, delim, elems);
 }
