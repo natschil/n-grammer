@@ -41,7 +41,7 @@ void writeDict(Dict& D, const double corpussize)
   for (Dict::iterator i = D.begin(); i != D.end(); i++) {
     word = i->first;
     freq = i->second;
-    if (1 || freq >3) {
+    if ( freq >3) {
       cout << word << "\t" << freq  << "\t" << (freq*1000000.0)/corpussize << endl;
     }
   }
@@ -83,35 +83,40 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize)
 		for(vector<string>::iterator i =elems.begin(); i!=elems.end();++i)
 		{
 			string word = *i;
-			word.erase(remove_if(word.begin(),word.end(),&IsNonAlpha),word.end());
-			transform(word.begin(),word.end(),word.begin(),::tolower);
 	
-			if(!word.size() ||  word.size() > 40 || word == "---END.OF.DOCUMENT---")
+			if(!word.size() ||  (word.size() > 40) || (word == "---END.OF.DOCUMENT---"))
 			{
 				continue;
 			}
+
+			word.erase(remove_if(word.begin(),word.end(),&IsNonAlpha),word.end());
+			transform(word.begin(),word.end(),word.begin(),::tolower);
+
+			if(!word.size())
+				continue;
+
 			totalwords++;
 
 			//We add the word to our list.
-			my_n_words.push_front(word);
+			my_n_words.push_back(word);
 			if(my_n_words.size() < ngramsize)
 				continue;
 
 			if(my_n_words.size() > ngramsize) //We can't do this every time because else we forget the first case.
-				my_n_words.pop_back();
+				my_n_words.pop_front();
 	
 			//We join the words, TODO: Optimize this a lot.
 			string finalstring = string("");
 			int first = 1;
-			for(word_list::reverse_iterator j = my_n_words.rbegin(); j != my_n_words.rend();j++)
+			for(word_list::iterator j = my_n_words.begin(); j != my_n_words.end();j++)
 			{
 				if(!first)
 					finalstring += (" " + *j);
-				else	finalstring += *j;
+				else
+					finalstring += *j;
 				
 				first = 0;
 			}
-			//TODO: Remove the extra space at the end, though it doesn't really matter.
 	
 			mark_ngram_occurance(lexicon,finalstring);	
 		}
