@@ -11,47 +11,89 @@
 #include <stdlib.h>
 #include <string.h>
 
+//#define U_CHARSET_IS_UTF8 1
 #include <unicode/utf.h>
+#include <unicode/uchar.h>
 #include <unicode/unistr.h>
+#include <unicode/normalizer2.h>
+#include <unicode/ustdio.h>
 
 using namespace std;
 
-typedef icu::UnicodeString UnicodeString;
+
 typedef map<UnicodeString, double> Dict;
 typedef deque<UnicodeString> word_list;
 
-vector<UnicodeString> &split(FILE* istream, char delim, vector<UnicodeString> &elems) {
+typedef icu::UnicodeString UnicodeString;
 
-    char* nextword = NULL; 
-    int size = 0;
-    getline(&nextword,&size,istream);
-    string mystring;
-    getline(is,mystring);
-    stringstream ss(mystring);
 
-    string word;
-    while(getline(ss,word,delim)){
-        elems.push_back(word);
+UnicodeString* getnextword(FILE* istream)
+{
+
+    int wordlength = 0; 
+
+    vector <UChar32> word;
+    UFILE*  f = u_fadopt(istream, "UTF-8", NULL);
+    UChar32 character;
+    //See http://icu-project.org/apiref/icu4c/ustdio_8h.html#a48b9be06c611643848639fa4c22a16f4
+    while(((character = u_fgetcx(f)) != U_EOF))
+    {
+	//We now check whether or not the character is a whitespace character:
+	if(u_isUWhiteSpace(character))
+	{
+		if(!wordlength) //We ignnore preceding whitespace.
+			continue;
+		else //We have reached the end of the word
+			break;
+	}else
+	{
+		if(u_isUAlphabetic(character))
+		{
+			wordlength++;
+			word.push_back(character);
+		}else if(u_hasBinaryProperty(character, UCHAR_HYPHEN))
+		{
+			//We treat hyphens like we treat normal characters..
+			wordlength++;
+			word.push_back(character);
+		}else//We ignore it.
+		{
+
+		}
+	}
+
     }
-    return elems;
-}
 
-vector<string> split(FILE* istream, char delim) {
-    vector<string> elems;
-    return split(s, delim, elems);
+    if(wordlength)
+    {
+	UnicodeString* result = new UnicodeString((int32_t) wordlength,'\0',0);
+
+	while(wordlength--)
+	{
+		result += word.back();
+		word.pop_back();
+	}
+
+	//At this point we have a unicode string. However, normalization issues are still present.
+	//Note that we nevertheless return the string because it is more efficient to normalize while we merge.
+	
+	return result;
+   }else
+    return NULL;
 }
 
 void writeDict(Dict& D, const double corpussize)
 {
-  string word;
+  UnicodeString word;
   double freq;
   cout << "Word\tRawFreq\tFreqPerMillion\n";
   cout.precision(8);
   for (Dict::iterator i = D.begin(); i != D.end(); i++) {
-    word = i->first;
+    string myword;
+    (i->first).toUTF8String(myword);
     freq = i->second;
     if ( freq >3) {
-      cout << word << "\t" << freq  << "\t" << (freq*1000000.0)/corpussize << endl;
+      cout << myword << "\t" << freq  << "\t" << (freq*1000000.0)/corpussize << endl;
     }
   }
 }
@@ -62,7 +104,7 @@ static bool IsNonAlpha(const char& c)
 }
 
 
-Dict &mark_ngram_occurance(Dict &lexicon, string new_ngram)
+Dict &mark_ngram_occurance(Dict &lexicon, UnicodeString new_ngram)
 {
 	//TODO: Think about the fact that this has to lookup new_ngram in lexicon twice.
 	if(lexicon.find(new_ngram) != lexicon.end())
@@ -72,42 +114,47 @@ Dict &mark_ngram_occurance(Dict &lexicon, string new_ngram)
 	return lexicon;
 }
 
+
 double analyze_ngrams(Dict &lexicon,unsigned int ngramsize)
 {
 	int count = 0;
 	int totalwords = 0;
 
+	UErrorCode e;
+
+
+
 	word_list my_n_words;  
 	do
 	{
-		vector<string> elems;		
-
 		if(count % 1000000 == 0) //TODO: Reset this to the value it was before
 		{
 			cerr<<count<<" " << flush;
 		}
 		count++;
-		elems = split(cin,' ');
 		//Let's normalize the words:
-		for(vector<string>::iterator i =elems.begin(); i!=elems.end();++i)
-		{
-			string word = *i;
-	
+		UnicodeString* word = getnextword(stdin);
+		if(!word)
+			break;
+
+/*	 TODO: Implement the checks below.
 			if(!word.size() ||  (word.size() > 40) || (word == "---END.OF.DOCUMENT---"))
 			{
 				continue;
 			}
+
 
 			word.erase(remove_if(word.begin(),word.end(),&IsNonAlpha),word.end());
 			transform(word.begin(),word.end(),word.begin(),::tolower);
 
 			if(!word.size())
 				continue;
+*/
 
 			totalwords++;
 
 			//We add the word to our list.
-			my_n_words.push_back(word);
+			my_n_words.push_back(*word);
 			if(my_n_words.size() < ngramsize)
 				continue;
 
@@ -115,21 +162,27 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize)
 				my_n_words.pop_front();
 	
 			//We join the words, TODO: Optimize this a lot.
-			string finalstring = string("");
+			UnicodeString finalstring;
 			int first = 1;
 			for(word_list::iterator j = my_n_words.begin(); j != my_n_words.end();j++)
 			{
+				UErrorCode e;
 				if(!first)
-					finalstring += (" " + *j);
+				{
+					//icu::Normalizer2::append(finalstring,UnicodeString(" "),e);	
+					//icU::Normalizer2::apend(finalstring,*j);
+				
+				}
 				else
-					finalstring += *j;
+				{
+					//icu::Normalizer2::append(finalstring,*j,e);
+				}
 				
 				first = 0;
 			}
 	
 			mark_ngram_occurance(lexicon,finalstring);	
-		}
-	}while(cin);
+	}while(1);
 	
 	return totalwords;
 }

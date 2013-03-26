@@ -3,7 +3,7 @@ INC=
 LDFLAGS=
 INSTALL=cp
 CC = g++
-FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native -licuuc
+FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native -licuuc -L /usr/lib/
 TARGET = ngram.counting
 OBJS = ngram.counting.o
 
