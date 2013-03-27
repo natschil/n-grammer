@@ -19,21 +19,21 @@
 #include <unicode/ustdio.h>
 
 using namespace std;
+using namespace icu;
 
 
 typedef map<UnicodeString, double> Dict;
 typedef deque<UnicodeString> word_list;
 
-typedef icu::UnicodeString UnicodeString;
+typedef UnicodeString UnicodeString;
 
 
-UnicodeString* getnextword(FILE* istream)
+UnicodeString getnextword(UFILE* f,int &over)
 {
 
     int wordlength = 0; 
 
-    vector <UChar32> word;
-    UFILE*  f = u_fadopt(istream, "UTF-8", NULL);
+    deque <UChar32> word;
     UChar32 character;
     //See http://icu-project.org/apiref/icu4c/ustdio_8h.html#a48b9be06c611643848639fa4c22a16f4
     while(((character = u_fgetcx(f)) != U_EOF))
@@ -45,41 +45,48 @@ UnicodeString* getnextword(FILE* istream)
 			continue;
 		else //We have reached the end of the word
 			break;
-	}else
+	}else if(u_isUAlphabetic(character))
 	{
-		if(u_isUAlphabetic(character))
-		{
-			wordlength++;
-			word.push_back(character);
-		}else if(u_hasBinaryProperty(character, UCHAR_HYPHEN))
+		wordlength++;
+		//We do uppercase to lowercase conversion here.
+		word.push_back(u_tolower(character));
+	}else if(u_hasBinaryProperty(character, UCHAR_HYPHEN) || u_hasBinaryProperty(character, UCHAR_DIACRITIC ))
+	{
+		if(wordlength)
 		{
 			//We treat hyphens like we treat normal characters..
 			wordlength++;
 			word.push_back(character);
-		}else//We ignore it.
-		{
-
 		}
+	}else if(u_ispunct(character))
+	{
+		continue;
+	}else
+	{
+		continue; 
 	}
 
     }
 
     if(wordlength)
     {
-	UnicodeString* result = new UnicodeString((int32_t) wordlength,'\0',0);
+	UnicodeString result((int32_t) wordlength,'\0',0);
 
 	while(wordlength--)
 	{
-		result += word.back();
-		word.pop_back();
+		result += word.front();
+		word.pop_front();
 	}
 
 	//At this point we have a unicode string. However, normalization issues are still present.
 	//Note that we nevertheless return the string because it is more efficient to normalize while we merge.
-	
+	over = 0;	
 	return result;
    }else
-    return NULL;
+   {
+	over = 1;
+	return UnicodeString(""); //Because we have to return something.
+  }
 }
 
 void writeDict(Dict& D, const double corpussize)
@@ -98,11 +105,6 @@ void writeDict(Dict& D, const double corpussize)
   }
 }
 
-static bool IsNonAlpha(const char& c)
-{
-  return !isalpha(c);
-}
-
 
 Dict &mark_ngram_occurance(Dict &lexicon, UnicodeString new_ngram)
 {
@@ -115,83 +117,98 @@ Dict &mark_ngram_occurance(Dict &lexicon, UnicodeString new_ngram)
 }
 
 
-double analyze_ngrams(Dict &lexicon,unsigned int ngramsize)
+double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 {
 	int count = 0;
 	int totalwords = 0;
-
-	UErrorCode e;
-
+    	UFILE*  f = u_fadopt(file, "UTF8", NULL);
 
 
+	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details.
+	UErrorCode e = UErrorCode();
+	const Normalizer2* nfkc = Normalizer2::getInstance(NULL,"nfkc",UNORM2_COMPOSE,e);
+
+	//A deque of the previous ngramsize-1 words in the text.
 	word_list my_n_words;  
-	do
-	{
-		if(count % 1000000 == 0) //TODO: Reset this to the value it was before
+
+	while(1){
+		if(count % 1000000 == 0) 
 		{
 			cerr<<count<<" " << flush;
 		}
+
 		count++;
-		//Let's normalize the words:
-		UnicodeString* word = getnextword(stdin);
-		if(!word)
+		int over = 0;
+		UnicodeString word = getnextword(f,over);
+		if(over) //This means we've reached the end of the file.
 			break;
 
-/*	 TODO: Implement the checks below.
-			if(!word.size() ||  (word.size() > 40) || (word == "---END.OF.DOCUMENT---"))
+		if(!word.length()) //Should never happen in practice
+		{
+			cerr<<"There seems to be a bug somewhere"<<endl<<flush;
+			continue;
+		}
+ 		if(word == UnicodeString("---END.OF.DOCUMENT---"))
+		{
+			my_n_words.clear();
+			continue;
+		}
+		if(word.length() > 40)
+		{
+			my_n_words.clear();
+			continue;
+		}
+
+		totalwords++;
+
+		//We add the word to our list.
+		my_n_words.push_back(word);
+		if(my_n_words.size() < ngramsize)
+		{
+			continue;
+		}
+
+		//So that my_n_words does not grow infinitely.
+		if(my_n_words.size() > ngramsize)
+		{
+			my_n_words.pop_front();
+		}
+
+		//We join the words, TODO: Optimize this a lot.
+		UnicodeString finalstring("");
+		int first = 1;
+		for(word_list::iterator j = my_n_words.begin(); j != my_n_words.end();j++)
+		{
+			//TODO:Check for errors.
+			UErrorCode e = UErrorCode();
+			if(!first)
 			{
-				continue;
+				nfkc->normalizeSecondAndAppend(finalstring,UnicodeString(" "),e);	
+				nfkc->normalizeSecondAndAppend(finalstring,*j,e);
+			
 			}
-
-
-			word.erase(remove_if(word.begin(),word.end(),&IsNonAlpha),word.end());
-			transform(word.begin(),word.end(),word.begin(),::tolower);
-
-			if(!word.size())
-				continue;
-*/
-
-			totalwords++;
-
-			//We add the word to our list.
-			my_n_words.push_back(*word);
-			if(my_n_words.size() < ngramsize)
-				continue;
-
-			if(my_n_words.size() > ngramsize) //We can't do this every time because else we forget the first case.
-				my_n_words.pop_front();
-	
-			//We join the words, TODO: Optimize this a lot.
-			UnicodeString finalstring;
-			int first = 1;
-			for(word_list::iterator j = my_n_words.begin(); j != my_n_words.end();j++)
+			else
 			{
-				UErrorCode e;
-				if(!first)
-				{
-					//icu::Normalizer2::append(finalstring,UnicodeString(" "),e);	
-					//icU::Normalizer2::apend(finalstring,*j);
-				
-				}
-				else
-				{
-					//icu::Normalizer2::append(finalstring,*j,e);
-				}
-				
-				first = 0;
+				nfkc->normalizeSecondAndAppend(finalstring,*j,e);
 			}
+			
+			first = 0;
+		}
+
+		mark_ngram_occurance(lexicon,finalstring);	
+
+	}
 	
-			mark_ngram_occurance(lexicon,finalstring);	
-	}while(1);
-	
+	u_fclose(f);
 	return totalwords;
 }
 
 int main (int argc, char* argv[])
 {
-  if(argc != 2)
+  if((argc == 1) || (argc > 3))
   {
     cerr << "Usage: " << argv[0] << " N < input > output\n Where N is the size of the ngrams you want to count." << endl;
+    cerr << "OR" <<argv[0] << " N input > output"<<endl;
     exit(1);
   }
 
@@ -200,12 +217,28 @@ int main (int argc, char* argv[])
   unsigned int ngramsize = (unsigned int) strtol(number, &errptr,10);
   if(!ngramsize || (errptr && *errptr))
   {
+    cerr << "The first parameter is not a valid number"<<endl;
     cerr << "Usage: " << argv[0] << " N < input > output\n Where N is the size of the ngrams you want to count." << endl;
+    cerr << "OR" <<argv[0] << " N input > output"<<endl;
     exit(1);
   }
 
   Dict lexicon;
-  double totalwords = analyze_ngrams(lexicon,ngramsize);
+  FILE* f = NULL;
+  if(argc == 3)
+  {
+	f = fopen(argv[2],"r");
+	if(!f)
+	{
+		cerr<<"Could not open file " <<argv[2]<<endl;
+		exit(1);
+	}
+
+  }else
+	f = stdin;
+
+  
+  double totalwords = analyze_ngrams(lexicon,ngramsize,f);
   writeDict(lexicon,totalwords);  
   return 0; 
 }

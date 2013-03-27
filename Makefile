@@ -1,9 +1,9 @@
 BINDIR=~/bin
 INC=
-LDFLAGS=
+LDFLAGS=`icu-config --ldflags  --ldflags-icuio`
 INSTALL=cp
 CC = g++
-FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native -licuuc -L /usr/lib/
+FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm `icu-config --cppflags` 
 TARGET = ngram.counting
 OBJS = ngram.counting.o
 
