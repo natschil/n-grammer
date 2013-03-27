@@ -1,4 +1,5 @@
 // Count word n-grams in a corpus.
+//
 #include <iostream>
 #include <fstream>
 #include <vector>
