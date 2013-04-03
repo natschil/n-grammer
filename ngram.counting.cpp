@@ -1,32 +1,6 @@
-// Count word n-grams in a corpus.
-//
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <map>
-#include <deque>
-#include <string>
-#include <algorithm>
-#include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-//#define U_CHARSET_IS_UTF8 1
-#include <unicode/utf.h>
-#include <unicode/uchar.h>
-#include <unicode/unistr.h>
-#include <unicode/normalizer2.h>
-#include <unicode/ustdio.h>
-
+#include "ngram.counting.h"
 using namespace std;
 using namespace icu;
-
-
-typedef map<UnicodeString, double> Dict;
-typedef deque<UnicodeString> word_list;
-
-typedef UnicodeString UnicodeString;
 
 
 UnicodeString getnextword(UFILE* f,int &over)
@@ -53,6 +27,7 @@ UnicodeString getnextword(UFILE* f,int &over)
 		word.push_back(u_tolower(character));
 	}else if(u_hasBinaryProperty(character, UCHAR_HYPHEN) || u_hasBinaryProperty(character, UCHAR_DIACRITIC ))
 	{
+
 		if(wordlength)
 		{
 			//We treat hyphens like we treat normal characters..
@@ -94,14 +69,13 @@ void writeDict(Dict& D, const double corpussize)
 {
   UnicodeString word;
   double freq;
-  cout << "Word\tRawFreq\tFreqPerMillion\n";
-  cout.precision(8);
+  printf("Word\tRawFreq\tFreqPerMillion\n");
   for (Dict::iterator i = D.begin(); i != D.end(); i++) {
     string myword;
     (i->first).toUTF8String(myword);
     freq = i->second;
     if ( freq >3) {
-      cout << myword << "\t" << freq  << "\t" << (freq*1000000.0)/corpussize << endl;
+      printf("%s\t%lld\t%0.8f\n",&myword[0],(long long int)freq,(freq*10000.0)/corpussize);
     }
   }
 }
@@ -135,7 +109,8 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 	while(1){
 		if(count % 1000000 == 0) 
 		{
-			cerr<<count<<" " << flush;
+			fprintf(stderr,"%ld",(long int) count);
+			fflush(stderr);
 		}
 
 		count++;
@@ -146,7 +121,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 
 		if(!word.length()) //Should never happen in practice
 		{
-			cerr<<"There seems to be a bug somewhere"<<endl<<flush;
+			fprintf(stderr,"There seems to be a bug somewhere\n");
 			continue;
 		}
  		if(word == UnicodeString("---END.OF.DOCUMENT---"))
@@ -204,42 +179,4 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 	return totalwords;
 }
 
-int main (int argc, char* argv[])
-{
-  if((argc == 1) || (argc > 3))
-  {
-    cerr << "Usage: " << argv[0] << " N < input > output\n Where N is the size of the ngrams you want to count." << endl;
-    cerr << "OR" <<argv[0] << " N input > output"<<endl;
-    exit(1);
-  }
 
-  char* number = argv[1];
-  char* errptr;
-  unsigned int ngramsize = (unsigned int) strtol(number, &errptr,10);
-  if(!ngramsize || (errptr && *errptr))
-  {
-    cerr << "The first parameter is not a valid number"<<endl;
-    cerr << "Usage: " << argv[0] << " N < input > output\n Where N is the size of the ngrams you want to count." << endl;
-    cerr << "OR" <<argv[0] << " N input > output"<<endl;
-    exit(1);
-  }
-
-  Dict lexicon;
-  FILE* f = NULL;
-  if(argc == 3)
-  {
-	f = fopen(argv[2],"r");
-	if(!f)
-	{
-		cerr<<"Could not open file " <<argv[2]<<endl;
-		exit(1);
-	}
-
-  }else
-	f = stdin;
-
-  
-  double totalwords = analyze_ngrams(lexicon,ngramsize,f);
-  writeDict(lexicon,totalwords);  
-  return 0; 
-}
