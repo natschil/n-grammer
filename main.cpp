@@ -41,5 +41,6 @@ int main (int argc, char* argv[])
   
   double totalwords = analyze_ngrams(lexicon,ngramsize,f);
   writeDict(lexicon,totalwords);  
+  fprintf(stdout,"Finished writing %f words", (double) totalwords);
   return 0; 
 }

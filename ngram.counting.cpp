@@ -3,15 +3,19 @@ using namespace std;
 using namespace icu;
 
 
-UnicodeString getnextword(UFILE* f,int &over)
+//Returns 0 if there is not word.
+int getnextword(UnicodeString &s,UFILE* f)
 {
 
     int wordlength = 0; 
+    int first_is_hyphen;
+    static UChar32 word[42]; //words may not be longer than 40 characters. It is marked static because I think that might improve performance
+    //The size is 42 so that it can hold a word of length 41 which is longer than 40 characters and will hence trigger it to be ignored in 
+    //The next code.
+    static UChar32 character;
 
-    deque <UChar32> word;
-    UChar32 character;
     //See http://icu-project.org/apiref/icu4c/ustdio_8h.html#a48b9be06c611643848639fa4c22a16f4
-    while(((character = u_fgetcx(f)) != U_EOF))
+    for(wordlength = 0;((character = u_fgetcx(f)) != U_EOF);)
     {
 	//We now check whether or not the character is a whitespace character:
 	if(u_isUWhiteSpace(character))
@@ -20,48 +24,55 @@ UnicodeString getnextword(UFILE* f,int &over)
 			continue;
 		else //We have reached the end of the word
 			break;
-	}else if(u_isUAlphabetic(character))
+	}else if(wordlength < 41) //After 41 characters we ignore all non-whitespace stuff.
 	{
-		wordlength++;
-		//We do uppercase to lowercase conversion here.
-		word.push_back(u_tolower(character));
-	}else if(u_hasBinaryProperty(character, UCHAR_HYPHEN) || u_hasBinaryProperty(character, UCHAR_DIACRITIC ))
-	{
-
-		if(wordlength)
+		 if(u_isUAlphabetic(character))
 		{
-			//We treat hyphens like we treat normal characters..
+			//We do uppercase to lowercase conversion here.
+			word[wordlength] = u_tolower(character);
 			wordlength++;
-			word.push_back(character);
+		}else if(u_hasBinaryProperty(character, UCHAR_HYPHEN) || u_hasBinaryProperty(character, UCHAR_DIACRITIC ))
+		{
+			if(u_hasBinaryProperty(character,UCHAR_HYPHEN))
+			{
+				first_is_hyphen = 1;	
+			}
+			if(wordlength)
+			{
+				//We treat hyphens like we treat normal characters..
+				word[wordlength] = character;
+				wordlength++;
+			}
+		}else if(u_ispunct(character))
+		{
+			continue;
+		}else
+		{
+			continue; 
 		}
-	}else if(u_ispunct(character))
-	{
-		continue;
-	}else
-	{
-		continue; 
 	}
+    }
 
+    word[wordlength+1] = '\0';
+    if(first_is_hyphen && (wordlength == strlen("END.OF.DOCUMENT---")))
+    {
+	s = UnicodeString::fromUTF32(word,wordlength);
+	if(s == "END.OF.DOCUMENT")
+	{
+		return 41;
+	}
     }
 
     if(wordlength)
     {
-	UnicodeString result((int32_t) wordlength,'\0',0);
-
-	while(wordlength--)
-	{
-		result += word.front();
-		word.pop_front();
-	}
+	s = UnicodeString::fromUTF32(word,wordlength);
 
 	//At this point we have a unicode string. However, normalization issues are still present.
 	//Note that we nevertheless return the string because it is more efficient to normalize while we merge.
-	over = 0;	
-	return result;
+	return wordlength;
    }else
    {
-	over = 1;
-	return UnicodeString(""); //Because we have to return something.
+	return 0;
   }
 }
 
@@ -114,22 +125,23 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 		}
 
 		count++;
-		int over = 0;
-		UnicodeString word = getnextword(f,over);
-		if(over) //This means we've reached the end of the file.
-			break;
+		UnicodeString word;
+		int wordlength = getnextword(word,f);
 
-		if(!word.length()) //Should never happen in practice
+		if(!wordlength) //We've reached the end of the file
 		{
-			fprintf(stderr,"There seems to be a bug somewhere\n");
-			continue;
+			break;
 		}
+
+		//getnextword checks whether the word is equal to ---END.OF.DOCUMENT---
+		/*
  		if(word == UnicodeString("---END.OF.DOCUMENT---"))
 		{
 			my_n_words.clear();
 			continue;
 		}
-		if(word.length() > 40)
+		*/
+		if(wordlength > 40)
 		{
 			my_n_words.clear();
 			continue;

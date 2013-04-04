@@ -21,7 +21,7 @@ typedef std::map<icu::UnicodeString, double> Dict;
 typedef std::deque<icu::UnicodeString> word_list;
 
 
-UnicodeString getnextword(UFILE* f,int &over);
+int getnextword(UnicodeString &s, UFILE* f);
 
 void writeDict(Dict& D, const double corpussize);
 
