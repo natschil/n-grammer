@@ -117,7 +117,8 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 	//A deque of the previous ngramsize-1 words in the text.
 	word_list my_n_words;  
 
-	while(1){
+	while(1)
+	{
 		if(count % 1000000 == 0) 
 		{
 			fprintf(stderr,"%ld",(long int) count);
