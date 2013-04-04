@@ -86,7 +86,7 @@ void writeDict(Dict& D, const double corpussize)
     (i->first).toUTF8String(myword);
     freq = i->second;
     if ( freq >3) {
-      printf("%s\t%lld\t%0.8f\n",&myword[0],(long long int)freq,(freq*10000.0)/corpussize);
+      printf("%s\t%lld\t%0.8g\n",&myword[0],(long long int)freq,(double)(freq*1000000.0)/corpussize);
     }
   }
 }
