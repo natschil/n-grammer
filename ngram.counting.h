@@ -1,3 +1,5 @@
+#ifndef NGRAM_COUNTER_H
+#define NGRAM_COUNTER_H
 // Count word n-grams in a corpus.
 //
 #include <vector>
@@ -13,17 +15,31 @@
 #include <unicode/utf.h>
 #include <unicode/uchar.h>
 #include <unicode/unistr.h>
-#include <unicode/normalizer2.h>
+#include <unicode/unorm2.h>
 #include <unicode/ustdio.h>
+#include <unicode/ucnv.h>
+
+struct myUString
+{
+	size_t length;	
+	UChar* str;	
+	~myUString();
+};
+
+struct uchar_cmp : public std::binary_function<myUString, myUString,bool>
+{
+	bool operator()(myUString first, myUString second);
+};
 
 
-typedef std::map<icu::UnicodeString, double> Dict;
-typedef std::deque<icu::UnicodeString> word_list;
+typedef std::map<myUString, double,uchar_cmp> Dict;
+typedef std::deque<myUString> word_list;
 
 
-int getnextword(UnicodeString &s, UFILE* f);
+int getnextword(UChar* &s, UFILE* f,const UNormalizer2* normalizer);
 
 void writeDict(Dict& D, const double corpussize);
 
-Dict &mark_ngram_occurance(Dict &lexicon, UnicodeString new_ngram);
+
 double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file);
+#endif
