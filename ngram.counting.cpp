@@ -9,13 +9,13 @@ int getnextword(UnicodeString &s,UFILE* f)
 
     int wordlength = 0; 
     int first_is_hyphen;
-    static UChar32 word[42]; //words may not be longer than 40 characters. It is marked static because I think that might improve performance
+    static UChar word[42]; //words may not be longer than 40 characters. It is marked static because I think that might improve performance
     //The size is 42 so that it can hold a word of length 41 which is longer than 40 characters and will hence trigger it to be ignored in 
     //The next code.
-    static UChar32 character;
+    static UChar character;
 
     //See http://icu-project.org/apiref/icu4c/ustdio_8h.html#a48b9be06c611643848639fa4c22a16f4
-    for(wordlength = 0;((character = u_fgetcx(f)) != U_EOF);)
+    for(wordlength = 0;((character = u_fgetc(f)) != U_EOF);)
     {
 	//We now check whether or not the character is a whitespace character:
 	if(u_isUWhiteSpace(character))
@@ -56,7 +56,7 @@ int getnextword(UnicodeString &s,UFILE* f)
     word[wordlength+1] = '\0';
     if(first_is_hyphen && (wordlength == strlen("END.OF.DOCUMENT---")))
     {
-	s = UnicodeString::fromUTF32(word,wordlength);
+	s = UnicodeString(word,wordlength);
 	if(s == "END.OF.DOCUMENT")
 	{
 		return 41;
@@ -65,7 +65,7 @@ int getnextword(UnicodeString &s,UFILE* f)
 
     if(wordlength)
     {
-	s = UnicodeString::fromUTF32(word,wordlength);
+	s = UnicodeString(word,wordlength);
 
 	//At this point we have a unicode string. However, normalization issues are still present.
 	//Note that we nevertheless return the string because it is more efficient to normalize while we merge.
@@ -184,7 +184,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 			first = 0;
 		}
 
-		mark_ngram_occurance(lexicon,finalstring);	
+		//mark_ngram_occurance(lexicon,finalstring);	
 
 	}
 	
