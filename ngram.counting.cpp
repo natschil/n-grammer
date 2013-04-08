@@ -9,10 +9,10 @@ int getnextword(UnicodeString &s,UFILE* f)
 
     int wordlength = 0; 
     int first_is_hyphen;
-    static UChar word[42]; //words may not be longer than 40 characters. It is marked static because I think that might improve performance
+    UChar word[42]; //words may not be longer than 40 characters. It is marked static because I think that might improve performance
     //The size is 42 so that it can hold a word of length 41 which is longer than 40 characters and will hence trigger it to be ignored in 
     //The next code.
-    static UChar character;
+    UChar character;
 
     //See http://icu-project.org/apiref/icu4c/ustdio_8h.html#a48b9be06c611643848639fa4c22a16f4
     for(wordlength = 0;((character = u_fgetc(f)) != U_EOF);)
@@ -184,7 +184,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 			first = 0;
 		}
 
-		//mark_ngram_occurance(lexicon,finalstring);	
+		mark_ngram_occurance(lexicon,finalstring);	
 
 	}
 	
