@@ -48,7 +48,7 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 			continue;
 		else //We have reached the end of the word
 			break;
-	}else if(wordlength < 41) //After 41 characters we ignore all non-whitespace stuff.
+	}else if(wordlength < MAX_WORD_SIZE) //After 41 characters we ignore all non-whitespace stuff.
 	{
 		if(u_isUAlphabetic(character))
 		{
@@ -82,7 +82,7 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 			fprintf(stderr, "Do not know how to treat character %x\n",(int) character);
 			//No idea if this should ever happen. Probably best to print a warning.
 		}
-	}
+	}else break;
     }	
     word[wordlength+1] = '\0';
     if(first_is_hyphen && (wordlength == strlen("END.OF.DOCUMENT---")))
@@ -112,7 +112,7 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 	int retval =  unorm2_normalize(n,word,wordlength,s,MAX_WORD_SIZE,&e);
 	if(!U_SUCCESS(e))
 	{
-		retval = 0;
+		retval = MAX_WORD_SIZE + 1;
 	}
 	return retval;
    }else
@@ -123,7 +123,7 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
   }
 }
 
-void writeDict(Dict& D, const double corpussize)
+void writeDict(Dict& D, const double corpussize,size_t ngramsize)
 {
   UnicodeString word;
   double freq;
@@ -131,8 +131,8 @@ void writeDict(Dict& D, const double corpussize)
   for (Dict::iterator i = D.begin(); i != D.end(); i++) {
     int32_t wordlength;
     UErrorCode e = U_ZERO_ERROR; //This means no error
-    char myword[MAX_WORD_SIZE + 1]; 
-    u_strToUTF8(myword,MAX_WORD_SIZE+1,&wordlength, i->first.str,i->first.length,&e);
+    char* myword = (char*) malloc(MAX_WORD_SIZE * ngramsize + 1 ); //TODO: Fix this.
+    u_strToUTF8(myword,ngramsize * MAX_WORD_SIZE+1,&wordlength, i->first.str,i->first.length,&e);
     myword[MAX_WORD_SIZE] = '\0';
     if(!U_SUCCESS(e))
     {
@@ -144,6 +144,7 @@ void writeDict(Dict& D, const double corpussize)
     if ( freq >3) {
       printf("%s\t%lld\t%0.8g\n",myword,(long long int)freq,(double)(freq*1000000.0)/corpussize);
     }
+    free(myword);
   }
 }
 

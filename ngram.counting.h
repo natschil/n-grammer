@@ -38,7 +38,7 @@ typedef std::deque<myUString> word_list;
 
 int getnextword(UChar* &s, UFILE* f,const UNormalizer2* normalizer);
 
-void writeDict(Dict& D, const double corpussize);
+void writeDict(Dict& D, const double corpussize,size_t ngramsize);
 
 
 double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file);
