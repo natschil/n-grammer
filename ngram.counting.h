@@ -18,7 +18,6 @@
 #include <unicode/unistr.h>
 #include <unicode/unorm2.h>
 #include <unicode/ustdio.h>
-#include <unicode/ucnv.h>
 
 struct myUString
 {

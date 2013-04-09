@@ -12,7 +12,7 @@ bool uchar_cmp::operator()(myUString first, myUString second)
 
 myUString::~myUString(){return;};
 
-static void* pages[100] = {NULL};
+static void* pages[1000000] = {NULL};
 static size_t num_pages = 0;
 static size_t current_page_filled = 0;
 
@@ -28,9 +28,9 @@ void init_permanent_malloc()
 }
 void* permanently_malloc(size_t numbytes)
 {
-	if((current_page_filled+=numbytes)<(size_t) getpagesize())
+	if(( current_page_filled += numbytes )<(size_t) getpagesize())
 	{
-		return pages[num_pages-1] + current_page_filled - numbytes;
+		return pages[num_pages-1] + (current_page_filled - numbytes);
 	}else
 	{
 		if(!(pages[num_pages++] =  malloc(getpagesize())))
@@ -66,7 +66,7 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 {
 
     int wordlength = 0; 
-    int first_is_hyphen;
+    int first_is_hyphen = 0;
     UChar word[MAX_WORD_SIZE+1]; //words may not be longer than MAX_WORD_SIZE characters.
     //The size is MAX_WORD_SIZE + 1 so that it can hold a word of length MAX_WORD_SIZE+1 which is longer than MAX_WORD_SIZE characters and will hence trigger it to be ignored in 
     //The next code.
@@ -237,6 +237,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 
 		if(!wordlength) //We've reached the end of the file
 		{
+			free(word);
 			break;
 		}
 
@@ -250,6 +251,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 		*/
 		if(wordlength > MAX_WORD_SIZE)
 		{
+			free(word);
 			myUString s;
 			while(my_n_words_size)
 			{
@@ -320,6 +322,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 	}
 	
 	u_fclose(f);
+	free(space);
 	free_all_pages();
 	return totalwords;
 }
