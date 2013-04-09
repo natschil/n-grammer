@@ -82,7 +82,7 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 			continue;
 		else //We have reached the end of the word
 			break;
-	}else if(wordlength < MAX_WORD_SIZE) //After 41 characters we ignore all non-whitespace stuff.
+	}else if(wordlength <= MAX_WORD_SIZE) //After 41 characters we ignore all non-whitespace stuff.
 	{
 		if(u_isUAlphabetic(character))
 		{
@@ -169,9 +169,8 @@ void writeDict(Dict& D, const double corpussize,size_t ngramsize)
   for (Dict::iterator i = D.begin(); i != D.end(); i++) {
     int32_t wordlength;
     UErrorCode e = U_ZERO_ERROR; //This means no error
-    char* myword = (char*) malloc(MAX_WORD_SIZE * ngramsize + 1 ); //TODO: Fix this.
-    u_strToUTF8(myword,ngramsize * MAX_WORD_SIZE+1,&wordlength, i->first.str,i->first.length,&e);
-    myword[MAX_WORD_SIZE] = '\0';
+    char* myword = (char*) malloc(MAX_WORD_SIZE * (ngramsize + 1) + 1 ); //TODO: Fix this.
+    u_strToUTF8(myword,(ngramsize + 1) * MAX_WORD_SIZE+1,&wordlength, i->first.str,i->first.length,&e);
     if(!U_SUCCESS(e))
     {
 	fprintf(stderr,"There was an error converting a string to UTF8\n");
