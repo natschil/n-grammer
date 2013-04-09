@@ -79,8 +79,7 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 			continue;
 		}else
 		{
-			fprintf(stderr, "Do not know how to treat character %x\n",(int) character);
-			//No idea if this should ever happen. Probably best to print a warning.
+			//This happens on some characters such as $ or °.
 		}
 	}else break;
     }	
@@ -278,7 +277,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 		}
 		*ptr = (UChar) 0;
 
-		mark_ngram_occurance(lexicon,finalstring);	
+		//mark_ngram_occurance(lexicon,finalstring);	
 
 	}
 	
