@@ -177,6 +177,7 @@ void writeDict(Dict& D, const double corpussize,size_t ngramsize)
       printf("%s\t%lld\t%0.8g\n",myword,(long long int)freq,(double)(freq*1000000.0)/corpussize);
     }
   }
+  free_all_pages();
 }
 
 
@@ -322,7 +323,6 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 	
 	u_fclose(f);
 	free(space);
-	free_all_pages();
 	return totalwords;
 }
 
