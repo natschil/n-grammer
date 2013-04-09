@@ -186,6 +186,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 
 	//A deque of the previous ngramsize-1 words in the text.
 	word_list my_n_words;  
+	size_t my_n_words_size = 0;
 
 	int finalstring_length = 0;
 	while(1)
@@ -216,11 +217,12 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 		if(wordlength > MAX_WORD_SIZE)
 		{
 			myUString s;
-			while(my_n_words.size())
+			while(my_n_words_size)
 			{
 				s = my_n_words.front();
 				free(s.str);
 				my_n_words.pop_front();
+				my_n_words_size--;
 			}
 			finalstring_length = 0;
 			continue;
@@ -235,22 +237,24 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 
 		my_n_words.push_back(newUString);
 		finalstring_length += wordlength;
+		my_n_words_size++;
 
 		if(finalstring_length) //To accomodate for the fact that there is an additional space.
 			finalstring_length++;
 
-		if(my_n_words.size() < ngramsize)
+		if(my_n_words_size < ngramsize)
 		{
 			continue;
 		}
 
 		//So that my_n_words does not grow infinitely.
-		if(my_n_words.size() > ngramsize)
+		if(my_n_words_size > ngramsize)
 		{
 			finalstring_length -= my_n_words.front().length;
 			finalstring_length--; //Because of the space
 			free(my_n_words.front().str);
 			my_n_words.pop_front();
+			my_n_words_size--;
 		}
 
 		//We join the words, TODO: Optimize this a lot.
