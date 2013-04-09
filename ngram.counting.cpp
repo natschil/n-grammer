@@ -316,7 +316,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 		}
 		*ptr = (UChar) 0;
 
-		//mark_ngram_occurance(lexicon,finalstring);	
+		mark_ngram_occurance(lexicon,finalstring);	
 
 	}
 	
