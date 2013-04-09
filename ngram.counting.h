@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 //#define U_CHARSET_IS_UTF8 1
 #include <unicode/utf.h>

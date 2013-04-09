@@ -5,14 +5,48 @@ using namespace icu;
 
 Dict &mark_ngram_occurance(Dict &lexicon, UChar* new_ngram);
 
-myUString::~myUString()
-{
-
-}
-
 bool uchar_cmp::operator()(myUString first, myUString second)
 {
 	return u_strcmp(first.str,second.str) < 0;
+}
+
+myUString::~myUString(){return;};
+
+static void* pages[100] = {NULL};
+static size_t num_pages = 0;
+static size_t current_page_filled = 0;
+
+//TODO: Look at http://wiki.debian.org/Hugepages and whether it might be relevant.
+void init_permanent_malloc()
+{
+	if(!(pages[0] = malloc(getpagesize())))
+	{
+		fprintf(stderr,"Error allocating memory");
+	}
+	num_pages = 1;
+	current_page_filled = 0;
+}
+void* permanently_malloc(size_t numbytes)
+{
+	if((current_page_filled+=numbytes)<(size_t) getpagesize())
+	{
+		return pages[num_pages-1] + current_page_filled - numbytes;
+	}else
+	{
+		if(!(pages[num_pages++] =  malloc(getpagesize())))
+			fprintf(stderr,"Error allocating memory");
+		current_page_filled = 0;
+		return permanently_malloc(numbytes);
+	}
+}
+
+void free_all_pages()
+{
+	while(num_pages--)
+	{
+		free(pages[num_pages]);
+	}
+	return;
 }
 
 
@@ -143,7 +177,6 @@ void writeDict(Dict& D, const double corpussize,size_t ngramsize)
     if ( freq >3) {
       printf("%s\t%lld\t%0.8g\n",myword,(long long int)freq,(double)(freq*1000000.0)/corpussize);
     }
-    free(myword);
   }
 }
 
@@ -161,6 +194,7 @@ Dict &mark_ngram_occurance(Dict &lexicon, myUString new_ngram)
 
 double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 {
+	init_permanent_malloc();
 	int count = 0;
 	int totalwords = 0;
     	UFILE*  f = u_fadopt(file, "UTF8", NULL);
@@ -259,7 +293,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 
 		//We join the words, TODO: Optimize this a lot.
 		myUString finalstring;
-		finalstring.str = (UChar*) malloc(sizeof(*finalstring.str) * finalstring_length);
+		finalstring.str = (UChar*) permanently_malloc(sizeof(*finalstring.str) * finalstring_length);
 		finalstring.length = finalstring_length;
 
 		int first = 1;
@@ -286,6 +320,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 	}
 	
 	u_fclose(f);
+	free_all_pages();
 	return totalwords;
 }
 
