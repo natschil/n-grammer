@@ -115,8 +115,14 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 		{
 			//This happens on some characters such as $ or °.
 		}
-	}else break;
+	}
     }	
+    if(wordlength > MAX_WORD_SIZE)
+    {
+	    s = (UChar*) malloc(sizeof(*s));
+	    *s = (UChar) 0;
+	    return MAX_WORD_SIZE + 1;
+    }
     word[wordlength+1] = '\0';
     if(first_is_hyphen && (wordlength == strlen("END.OF.DOCUMENT---")))
     {
