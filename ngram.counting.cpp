@@ -132,7 +132,6 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 	s = (UChar*) malloc(sizeof(*s));
 	*s = (UChar) 0;
 	
-	u_strncpy(s,word,strlen("END.OF.DOCUMENT---"));
 	return MAX_WORD_SIZE + 1;
     }
     out:
@@ -305,12 +304,12 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 			myUString cur = *j;
 			if(first)
 			{
-				u_strncpy(ptr,cur.str,cur.length);
+				memcpy(ptr,cur.str,cur.length * sizeof(UChar));
 			}else
 			{
-				u_strncpy(ptr,space,1);
+				memcpy(ptr,space,sizeof(UChar));
 				ptr++;
-				u_strncpy(ptr,cur.str,cur.length);
+				memcpy(ptr,cur.str,sizeof(UChar) * cur.length);
 			}
 			ptr += cur.length;
 			first = 0;
