@@ -2,8 +2,15 @@
 
 using namespace std;
 using namespace icu;
+letterDict *lexicon = NULL;
+pthread_t writerthread;
+int itrcount = 0;
+int n_gram_size = 0;
 
-Dict &mark_ngram_occurance(Dict &lexicon, UChar* new_ngram);
+static void mark_ngram_occurance(myUString new_ngram);
+static void swapDicts();
+static void* writeDicts(void*);
+void writeDict(letterDict &sublexicon,FILE* outfile);
 
 bool uchar_cmp::operator()(myUString first, myUString second)
 {
@@ -17,42 +24,9 @@ bool uchar_cmp::operator()(myUString first, myUString second)
 
 myUString::~myUString(){return;};
 
-static void* pages[1000000] = {NULL};
-static size_t num_pages = 0;
-static size_t current_page_filled = 0;
 
-//TODO: Look at http://wiki.debian.org/Hugepages and whether it might be relevant.
-void init_permanent_malloc()
-{
-	if(!(pages[0] = malloc(getpagesize())))
-	{
-		fprintf(stderr,"Error allocating memory");
-	}
-	num_pages = 1;
-	current_page_filled = 0;
-}
-void* permanently_malloc(size_t numbytes)
-{
-	if(( current_page_filled += numbytes )<(size_t) getpagesize())
-	{
-		return pages[num_pages-1] + (current_page_filled - numbytes);
-	}else
-	{
-		if(!(pages[num_pages++] =  malloc(getpagesize())))
-			fprintf(stderr,"Error allocating memory");
-		current_page_filled = 0;
-		return permanently_malloc(numbytes);
-	}
-}
 
-void free_all_pages()
-{
-	while(num_pages--)
-	{
-		free(pages[num_pages]);
-	}
-	return;
-}
+
 
 
 #define MAX_WORD_SIZE 40
@@ -166,45 +140,106 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
   }
 }
 
-void writeDict(Dict& D, const double corpussize,size_t ngramsize)
+static void swapDicts()
+{
+	letterDict* old_dict = lexicon;
+	//lexicon = (letterDict*)malloc(sizeof(Dict));
+	lexicon = new Dict;
+	for(int i = 0; i< 256;i++)
+	{
+		lexicon[i] = letterDict();
+	}
+	if(!safe_to_switch)
+		pthread_join(writerthread,NULL); //Wait for potential old writer thread to finish.
+
+	pthread_create(&writerthread,NULL,&writeDicts,(void*) old_dict);
+	return;	
+}
+
+static void *writeDicts(void* input)
+{
+	Dict* dict_to_write = (Dict*) input;
+	//TODO: Paralellize this
+	char buf[256];//Big enough.
+	if(snprintf(buf,256,"mkdir -p %d",itrcount) >= 256)
+	{
+		//This should never happen.
+		fprintf(stderr,"Error, poor program design");
+		exit(-1);
+	}
+	system(buf);
+
+	for(int i = 0; i < 256; i++)
+	{
+		if(snprintf(buf,256,"./%d/%d.out",itrcount,i) >= 256)
+		{
+			//This should never happen either.
+			fprintf(stderr,"Error, bad coding");
+			exit(-1);
+		}
+		FILE* cur = fopen(buf,"w");
+		writeDict((*dict_to_write)[i],cur);
+		fflush(cur);
+		fclose(cur);
+		(*dict_to_write)[i].clear();
+	}
+	//We tell memory_management.h that we've finished writing out this buffer.
+	safe_to_switch = 1;
+	itrcount++;
+	return NULL;
+}
+
+
+void writeDict(letterDict &D,FILE* outfile)
 {
   UnicodeString word;
   double freq;
-  printf("Word\tRawFreq\tFreqPerMillion\n");
-  for (Dict::iterator i = D.begin(); i != D.end(); i++) {
-    int32_t wordlength;
-    UErrorCode e = U_ZERO_ERROR; //This means no error
-    char* myword = (char*) malloc(MAX_WORD_SIZE * (ngramsize + 1) + 1 ); //TODO: Fix this.
-    u_strToUTF8(myword,(ngramsize + 1) * MAX_WORD_SIZE+1,&wordlength, i->first.str,i->first.length,&e);
-    if(!U_SUCCESS(e))
-    {
-	fprintf(stderr,"There was an error converting a string to UTF8\n");
-	//return;
-    }
-
-    freq = i->second;
-    if ( freq >3) {
-      printf("%s\t%lld\t%0.8g\n",myword,(long long int)freq,(double)(freq*1000000.0)/corpussize);
-    }
+	  for (letterDict::iterator i = D.begin(); i != D.end(); i++) {
+	    int32_t wordlength;
+	    UErrorCode e = U_ZERO_ERROR; //This means no error
+	    char* myword = (char*) malloc(MAX_WORD_SIZE * (n_gram_size + 1) + 1 ); //TODO: Fix this.
+	    u_strToUTF8(myword,(n_gram_size + 1) * MAX_WORD_SIZE+1,&wordlength, i->first.str,i->first.length,&e);
+	    if(!U_SUCCESS(e))
+	    {
+		fprintf(stderr,"There was an error converting a string to UTF8\n");
+		//return;
+	    }
+	
+	    freq = i->second;
+	    if ( freq >3) {
+	      fprintf(outfile,"%s\t%lld\n",myword,(long long int)freq);
+	    }
   }
-  free_all_pages();
 }
 
 
-Dict &mark_ngram_occurance(Dict &lexicon, myUString new_ngram)
+static void mark_ngram_occurance(myUString new_ngram)
 {
 	//TODO: Think about the fact that this has to lookup new_ngram in lexicon twice.
-	if(lexicon.find(new_ngram) != lexicon.end())
-		lexicon[new_ngram]++;
-	else lexicon[new_ngram] = 1;
+	
+	//We run a kind of bucket-sort which hopefully makes things slightly faster.
+	size_t firstchar = (size_t)((char) new_ngram.str[0] + 128);
+	letterDict &lD = lexicon[firstchar];
 
-	return lexicon;
+	if(lD.find(new_ngram) != lD.end())
+		lD[new_ngram]++;
+	else lD[new_ngram] = 1;
+
+	return;
 }
 
 
-double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
+double analyze_ngrams(unsigned int ngramsize,FILE* file)
 {
-	init_permanent_malloc();
+	n_gram_size = ngramsize;
+	init_permanent_malloc(&swapDicts);
+	lexicon = new Dict;
+	//lexicon = (letterDict*) malloc(256*sizeof(*lexicon));
+	for(int i = 0; i< 256;i++)
+	{
+		lexicon[i] = letterDict();
+	}
+
 	int count = 0;
 	int totalwords = 0;
     	UFILE*  f = u_fadopt(file, "UTF8", NULL);
@@ -326,12 +361,14 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 		}
 		*ptr = (UChar) 0;
 
-		mark_ngram_occurance(lexicon,finalstring);	
+		mark_ngram_occurance(finalstring);	
 
 	}
 	
+	writeDicts(lexicon);
 	u_fclose(f);
 	free(space);
+	//free(lexicon);
 	return totalwords;
 }
 

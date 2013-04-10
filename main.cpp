@@ -24,7 +24,6 @@ int main (int argc, char* argv[])
     exit(1);
   }
 
-  Dict lexicon;
   FILE* f = NULL;
   if(argc == 3)
   {
@@ -39,9 +38,11 @@ int main (int argc, char* argv[])
 	f = stdin;
 
   
-  double totalwords = analyze_ngrams(lexicon,ngramsize,f);
-  writeDict(lexicon,totalwords,ngramsize);  
-  lexicon.clear(); //TODO: Get rid of this in anything that runs in production...
+  double totalwords = analyze_ngrams(ngramsize,f);
+  for(int j = 0; j < 256; j++)
+  {
+	  (*lexicon)[j].clear();
+  }
   fprintf(stderr,"Finished writing %f words\n", (double) totalwords);
   return 0; 
 }
