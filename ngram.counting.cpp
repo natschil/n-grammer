@@ -156,6 +156,7 @@ static void swapDicts()
 	return;	
 }
 
+
 static void *writeDicts(void* input)
 {
 	Dict* dict_to_write = (Dict*) input;
