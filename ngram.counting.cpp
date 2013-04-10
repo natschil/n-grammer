@@ -168,6 +168,7 @@ static void *writeDicts(void* input)
 		exit(-1);
 	}
 	system(buf);
+	fprintf(stderr, "Created file %s", buf);
 
 	for(int i = 0; i < 256; i++)
 	{
@@ -178,6 +179,11 @@ static void *writeDicts(void* input)
 			exit(-1);
 		}
 		FILE* cur = fopen(buf,"w");
+		if(!cur)
+		{
+			fprintf(stderr,"Unable to open file %s", buf);
+			exit(-1);
+		}
 		writeDict((*dict_to_write)[i],cur);
 		fflush(cur);
 		fclose(cur);
@@ -206,9 +212,7 @@ void writeDict(letterDict &D,FILE* outfile)
 	    }
 	
 	    freq = i->second;
-	    if ( freq >3) {
-	      fprintf(outfile,"%s\t%lld\n",myword,(long long int)freq);
-	    }
+	    fprintf(outfile,"%s\t%lld\n",myword,(long long int)freq);
   }
 }
 

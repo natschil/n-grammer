@@ -41,7 +41,7 @@ int main (int argc, char* argv[])
   double totalwords = analyze_ngrams(ngramsize,f);
   for(int j = 0; j < 256; j++)
   {
-	  (*lexicon)[j].clear();
+	  lexicon[j].clear();
   }
   fprintf(stderr,"Finished writing %f words\n", (double) totalwords);
   return 0; 
