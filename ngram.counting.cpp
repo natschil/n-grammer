@@ -7,7 +7,12 @@ Dict &mark_ngram_occurance(Dict &lexicon, UChar* new_ngram);
 
 bool uchar_cmp::operator()(myUString first, myUString second)
 {
-	return u_strcmp(first.str,second.str) < 0;
+	int diff = first.length - second.length;
+	if(!diff)
+	{
+		return (u_strcmp(first.str,second.str)) < 0;
+	}else
+		return diff < 0;
 }
 
 myUString::~myUString(){return;};
@@ -321,7 +326,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 		}
 		*ptr = (UChar) 0;
 
-		mark_ngram_occurance(lexicon,finalstring);	
+		//mark_ngram_occurance(lexicon,finalstring);	
 
 	}
 	
