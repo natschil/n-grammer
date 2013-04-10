@@ -154,7 +154,6 @@ static void swapDicts()
 
 	pthread_create(&writerthread,NULL,&writeDicts,(void*) old_dict);
 	return;	
-
 }
 
 
