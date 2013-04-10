@@ -217,7 +217,7 @@ double analyze_ngrams(Dict &lexicon,unsigned int ngramsize,FILE* file)
 
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details.
 	e = U_ZERO_ERROR;
-	const UNormalizer2* nfkc = unorm2_getNFKDInstance(&e);
+	const UNormalizer2* nfkc = unorm2_getNFKCInstance(&e);
 	if(!U_SUCCESS(e))
 	{
 		fprintf(stderr,"This is also a bug that needs to be fixed\n");
