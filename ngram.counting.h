@@ -43,10 +43,7 @@ typedef std::map<myUString, double,uchar_cmp> letterDict;
 typedef letterDict Dict[256];
 extern letterDict *lexicon;
 
-typedef std::deque<myUString> word_list;
-
-
 int getnextword(UChar* &s, UFILE* f,const UNormalizer2* normalizer);
 
-double analyze_ngrams(unsigned int ngramsize,FILE* file);
+long long int analyze_ngrams(unsigned int ngramsize,FILE* file);
 #endif

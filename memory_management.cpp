@@ -9,9 +9,8 @@ static size_t current_page = 0;
 static size_t current_page_occupied = 0;
 volatile int safe_to_switch;
 
-void (*to_run_when_swapping_buffers)() = NULL;
 
-void init_permanent_malloc(void (*to_run)())
+void init_permanent_malloc()
 {
 	//We allocate all pages at once: if we're going to run out of memory we want to know so before we do any processing.
 	for(int i = 0; i<2;i++)
@@ -27,10 +26,9 @@ void init_permanent_malloc(void (*to_run)())
 	current_page_group = 0;
 	current_page = 0;
 	safe_to_switch = 1;
-	to_run_when_swapping_buffers = to_run;
 	return;
 }
-void* permanently_malloc(size_t numbytes)
+void* permanently_malloc(size_t numbytes,int* retval)
 {
 	if(( current_page_occupied += numbytes )<(size_t) MEMORY_PAGE_SIZE) //i.e. if there is enough memory available.
 	{
@@ -41,17 +39,16 @@ void* permanently_malloc(size_t numbytes)
 		current_page_occupied = 0;	
 		if(current_page < NUM_PAGES)
 		{
-			return permanently_malloc(numbytes);
+			return permanently_malloc(numbytes,retval);
 		}else
 		{
 			current_page = 0;	
 			current_page_occupied = 0;
 			current_page_group = !current_page_group;
+			
+			*retval = -1;
 
-			if(to_run_when_swapping_buffers)
-				to_run_when_swapping_buffers();
-
-			return permanently_malloc(numbytes);
+			return permanently_malloc(numbytes,retval);
 		}
 	}
 	return NULL;

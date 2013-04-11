@@ -20,10 +20,10 @@
 //Therefore
 #define TOTAL_MEM_USED MEMORY_PAGE_SIZE * 2 * NUM_PAGES
 
-void init_permanent_malloc(void (*to_run_when_swapping_pages)());
+void init_permanent_malloc();
 extern volatile int safe_to_switch;
 
-void* permanently_malloc(size_t size);
+void* permanently_malloc(size_t size,int* swapbuffer_retval);
 
 void free_all_pages(void);
 

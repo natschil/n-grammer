@@ -12,23 +12,111 @@ static void mark_ngram_occurance(myUString new_ngram);
 static void swapDicts();
 static void* writeDicts(void*);
 void writeDict(letterDict &sublexicon,FILE* outfile);
+struct word_list;
+int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myUString &str);
 
 bool uchar_cmp::operator()(myUString first, myUString second)
 {
+	/*
 	int diff = first.length - second.length;
 	if(!diff)
 	{
 		return (u_strcmp(first.str,second.str)) < 0;
 	}else
 		return diff < 0;
+		*/
+	return u_strcmp(first.str,second.str) < 0; //Makes merging easier because we don't need to convert to UTF16 again..
 }
 
 myUString::~myUString(){return;};
 
+struct word_list : public std::deque<myUString>
+{
+	word_list() : std::deque<myUString>()
+	{
+		this->size = 0;
+		this->finalstring_length = 0;
+		UErrorCode e = U_ZERO_ERROR;
+		this->space = (UChar*) malloc(sizeof(*space));
+		int32_t spacelength = 0;
+		u_strFromUTF8(space,1,&spacelength," ",-1,&e);
+		if(!U_SUCCESS(e) || spacelength != 1)
+		{
+			fprintf(stderr,"This is a bug that needs to be fixed\n");
+	
+		}
+	}
 
+	~word_list() 
+	{
+		free(this->space);
+	}
+	void clear()
+	{
+		while(this->size)
+		{
+			myUString s = this->front();	
+			free(s.str);
+			this->pop_front();
+			this->size--;
+		}
+		this->finalstring_length = 0;
+		this->std::deque<myUString>::clear();
+		return;
+	}
 
+	void pop_font()
+	{
+		myUString cur = this->front();
+		free(cur.str);
+		this->size--;
+		this->finalstring_length--;
+		this->finalstring_length -=  cur.length;
+		this->std::deque<myUString>::pop_front();
+		return;
+	}
 
+	void push_back(myUString newstring)
+	{
+		if(finalstring_length)
+			finalstring_length++;
+		finalstring_length += newstring.length;
+		this->size++;
+		this->std::deque<myUString>::push_back(newstring);
+	}
 
+	myUString join_as_ngram(int *retval)
+	{
+		myUString result;
+		result.str = (UChar*) permanently_malloc(this->finalstring_length * sizeof(*result.str),retval);
+		result.length = this->finalstring_length;
+
+		int first = 1;
+		UChar* ptr = result.str;
+		for(word_list::iterator j = this->begin(); j != this->end();j++)
+		{
+			myUString cur = *j;
+			if(first)
+			{
+				memcpy(ptr,cur.str,cur.length * sizeof(UChar));
+			}else
+			{
+				memcpy(ptr,this->space,sizeof(UChar));
+				ptr++;
+				memcpy(ptr,cur.str,sizeof(UChar) * cur.length);
+			}
+			ptr += cur.length;
+			first = 0;
+		}
+		*ptr = (UChar) 0;
+
+		return result;
+	}
+
+	int size;
+	int finalstring_length;
+	UChar* space;
+};
 
 #define MAX_WORD_SIZE 40
 //Sets s to point to a normalized UChar* with the next word from f. s is allocated using malloc(3), and normalized using n.
@@ -244,156 +332,93 @@ static void mark_ngram_occurance(myUString new_ngram)
 }
 
 
-double analyze_ngrams(unsigned int ngramsize,FILE* file)
+long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 {
+    //Initialization:
 	n_gram_size = ngramsize;
-	init_permanent_malloc(&swapDicts);
+	init_permanent_malloc();
 	system("rm -r ./processing > /dev/null 2>/dev/null");	
 	system("mkdir ./processing");
 	chdir("./processing");
 	lexicon = new Dict;
-	//lexicon = (letterDict*) malloc(256*sizeof(*lexicon));
-	/*for(int i = 0; i< 256;i++)
-	{
-		lexicon[i] = letterDict();
-	}*/
-	int totalwords = 0;
-	int count = 0;
+	long long int totalwords = 0;
+	word_list my_n_words;
+	int count = 0;	
     	UFILE* f = u_fadopt(file, "UTF8", NULL);
-	UErrorCode e = U_ZERO_ERROR;
-	UChar* space = (UChar*) malloc(sizeof(*space));
-	int32_t spacelength = 0;
-	u_strFromUTF8(space,1,&spacelength," ",-1,&e);
-	if(!U_SUCCESS(e) || spacelength != 1)
-	{
-		fprintf(stderr,"This is a bug that needs to be fixed\n");
-
-	}
-		
-
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details.
-	e = U_ZERO_ERROR;
-	const UNormalizer2* nfkc = unorm2_getNFKDInstance(&e);
+	UErrorCode e = U_ZERO_ERROR;
+	const UNormalizer2* n = unorm2_getNFKDInstance(&e);
 	if(!U_SUCCESS(e))
-	{
 		fprintf(stderr,"This is also a bug that needs to be fixed\n");
-	}
+    //Stage 1: We get n-grams and mark them in paralell
 
-
-	u_fclose(f);
-}
-
-myUString getnextngram(UFILE* f,int &totalwords,UChar* space,const UNormalizer2* n,word_list my_n_words)
-{
-
-
-	//A deque of the previous ngramsize-1 words in the text.
-	word_list my_n_words;  
-	size_t my_n_words_size = 0;
-
-	int finalstring_length = 0;
+	myUString currentstring;
+        int state = getnextngram(f,totalwords,n,my_n_words,currentstring);
 	while(1)
 	{
-		if(count % 1000000 == 0) 
+		if(state == 0) //End of file
+			break;
+		else if(state == -1) //Buffer is full
+			break;
+		#pragma omp parallel
 		{
-			fprintf(stderr,"%ld\n",(long int) count);
-			fflush(stderr);
+			myUString nextstring;
+			#pragma omp task	
+			{
+				state = getnextngram(f,totalwords,n,my_n_words,nextstring);
+			}
+			#pragma omp task
+			{
+				#pragma omp flush(currentstring)
+				mark_ngram_occurance(currentstring);
+			}
+			#pragma omp taskwait
+			#pragma omp flush(state)	
+			currentstring = nextstring;
 		}
+	}
 
-		count++;
-		UChar* word;
-		int wordlength = getnextword(word,f,nfkc);
+	u_fclose(f);
+	printf("%lld",totalwords);
+	return totalwords;
+}
 
+//Returns 1 for simpl having fetched the next n-gram
+//Returns 0 if there is nothing more to fetch
+//Returns -1 if we need to switch buffers.
+int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myUString &str)
+{
+	UChar* word;
+	while(1)
+	{
+		int wordlength = getnextword(word,f,n);
 		if(!wordlength) //We've reached the end of the file
 		{
 			free(word);
-			break;
-		}
-
-		//getnextword checks whether the word is equal to ---END.OF.DOCUMENT---
-		/*
- 		if(word == UnicodeString("---END.OF.DOCUMENT---"))
+			return 0;
+		}else if(wordlength > MAX_WORD_SIZE)
 		{
 			my_n_words.clear();
 			continue;
 		}
-		*/
-		if(wordlength > MAX_WORD_SIZE)
-		{
-			free(word);
-			myUString s;
-			while(my_n_words_size)
-			{
-				s = my_n_words.front();
-				free(s.str);
-				my_n_words.pop_front();
-				my_n_words_size--;
-			}
-			finalstring_length = 0;
-			continue;
-		}
-
 		totalwords++;
-
 		//We add the word to our list.
 		myUString newUString;
 		newUString.str = word;
 		newUString.length = wordlength;
-
-		my_n_words.push_back(newUString);
-		finalstring_length += wordlength;
-		my_n_words_size++;
-
-		if(finalstring_length) //To accomodate for the fact that there is an additional space.
-			finalstring_length++;
-
-		if(my_n_words_size < ngramsize)
-		{
-			continue;
-		}
-
-		//So that my_n_words does not grow infinitely.
-		if(my_n_words_size > ngramsize)
-		{
-			finalstring_length -= my_n_words.front().length;
-			finalstring_length--; //Because of the space
-			free(my_n_words.front().str);
-			my_n_words.pop_front();
-			my_n_words_size--;
-		}
-
-		//We join the words, TODO: Optimize this a lot.
-		myUString finalstring;
-		finalstring.str = (UChar*) permanently_malloc(sizeof(*finalstring.str) * finalstring_length);
-		finalstring.length = finalstring_length;
-
-		int first = 1;
-		UChar* ptr = finalstring.str;
-		for(word_list::iterator j = my_n_words.begin(); j != my_n_words.end();j++)
-		{
-			myUString cur = *j;
-			if(first)
-			{
-				memcpy(ptr,cur.str,cur.length * sizeof(UChar));
-			}else
-			{
-				memcpy(ptr,space,sizeof(UChar));
-				ptr++;
-				memcpy(ptr,cur.str,sizeof(UChar) * cur.length);
-			}
-			ptr += cur.length;
-			first = 0;
-		}
-		*ptr = (UChar) 0;
-
-		mark_ngram_occurance(finalstring);	
-
-	}
 	
-	writeDicts(lexicon);
-	free(space);
-	//free(lexicon);
-	return totalwords;
+		my_n_words.push_back(newUString);
+	
+		if(my_n_words.size < n_gram_size)
+			continue;
+		else if(my_n_words.size > n_gram_size) //So that my_n_words does not grow infinitely.
+		{
+			my_n_words.pop_front();
+		}
+	
+		int retval = 0;
+		str = my_n_words.join_as_ngram(&retval);
+		return retval;
+	}
 }
-
 
