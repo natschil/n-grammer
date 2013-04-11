@@ -7,7 +7,7 @@ static void* pages[2][NUM_PAGES] = {{NULL}};
 static size_t current_page_group = 0;
 static size_t current_page = 0;
 static size_t current_page_occupied = 0;
-int safe_to_switch;
+volatile int safe_to_switch;
 
 void (*to_run_when_swapping_buffers)() = NULL;
 
@@ -50,13 +50,11 @@ void* permanently_malloc(size_t numbytes)
 
 			if(to_run_when_swapping_buffers)
 				to_run_when_swapping_buffers();
-			while(!safe_to_switch)
-				usleep(10);
 
 			return permanently_malloc(numbytes);
 		}
 	}
-	return 0;
+	return NULL;
 }
 
 void free_all_pages()

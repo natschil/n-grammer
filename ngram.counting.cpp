@@ -2,9 +2,10 @@
 
 using namespace std;
 using namespace icu;
+
 letterDict *lexicon = NULL;
-pthread_t writerthread;
-int itrcount = 0;
+//pthread_t writerthread;
+volatile int itrcount = 0;
 int n_gram_size = 0;
 
 static void mark_ngram_occurance(myUString new_ngram);
@@ -145,14 +146,18 @@ static void swapDicts()
 	letterDict* old_dict = lexicon;
 	//lexicon = (letterDict*)malloc(sizeof(Dict));
 	lexicon = new Dict;
+	/*
 	for(int i = 0; i< 256;i++)
 	{
 		lexicon[i] = letterDict();
 	}
+	*/
+	/*
 	if(!safe_to_switch)
 		pthread_join(writerthread,NULL); //Wait for potential old writer thread to finish.
 
 	pthread_create(&writerthread,NULL,&writeDicts,(void*) old_dict);
+	*/
 	return;	
 
 }
@@ -169,8 +174,12 @@ static void *writeDicts(void* input)
 		fprintf(stderr,"Error, poor program design");
 		exit(-1);
 	}
-	system(buf);
-	fprintf(stderr, "Created file %s", buf);
+	if(system(buf))
+	{
+		//This should also never happen
+		fprintf(stderr,"Unable to create directory");
+		exit(-1);
+	}
 
 	for(int i = 0; i < 256; i++)
 	{
@@ -239,16 +248,18 @@ double analyze_ngrams(unsigned int ngramsize,FILE* file)
 {
 	n_gram_size = ngramsize;
 	init_permanent_malloc(&swapDicts);
+	system("rm -r ./processing > /dev/null 2>/dev/null");	
+	system("mkdir ./processing");
+	chdir("./processing");
 	lexicon = new Dict;
 	//lexicon = (letterDict*) malloc(256*sizeof(*lexicon));
-	for(int i = 0; i< 256;i++)
+	/*for(int i = 0; i< 256;i++)
 	{
 		lexicon[i] = letterDict();
-	}
-
-	int count = 0;
+	}*/
 	int totalwords = 0;
-    	UFILE*  f = u_fadopt(file, "UTF8", NULL);
+	int count = 0;
+    	UFILE* f = u_fadopt(file, "UTF8", NULL);
 	UErrorCode e = U_ZERO_ERROR;
 	UChar* space = (UChar*) malloc(sizeof(*space));
 	int32_t spacelength = 0;
@@ -267,6 +278,14 @@ double analyze_ngrams(unsigned int ngramsize,FILE* file)
 	{
 		fprintf(stderr,"This is also a bug that needs to be fixed\n");
 	}
+
+
+	u_fclose(f);
+}
+
+myUString getnextngram(UFILE* f,int &totalwords,UChar* space,const UNormalizer2* n,word_list my_n_words)
+{
+
 
 	//A deque of the previous ngramsize-1 words in the text.
 	word_list my_n_words;  
@@ -372,7 +391,6 @@ double analyze_ngrams(unsigned int ngramsize,FILE* file)
 	}
 	
 	writeDicts(lexicon);
-	u_fclose(f);
 	free(space);
 	//free(lexicon);
 	return totalwords;
