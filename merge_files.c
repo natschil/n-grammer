@@ -16,29 +16,6 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "Usage: %s input_file_1 input_file_2\n",argv[0]);
 		exit(-1);
 	}
-	char foldername[256]; //Should be large enough
-	if(snprintf(foldername,256, "tmp_merge_%d", (int) getpid()) >= 256)
-	{
-		fprintf(stderr, "This should never happen and is a bug, exiting...\n");
-		exit(-1);
-	}
-	char command[256];
-	if(snprintf(command, 256, "rm -r %s > /dev/null 2>/dev/null",foldername) >= 256)
-	{
-		fprintf(stderr, "This is a bug\n");
-		exit(-1);
-	}
-	system(command);
-	if(snprintf(command,256, "mkdir -p %s",foldername) >= 256)
-	{
-		fprintf(stderr, "This is a bug\n");
-		exit(-1);
-	}
-	if(system(command))
-	{
-		fprintf(stderr, "Failed to create folder %s\n", foldername);
-		exit(-1);
-	}
 	FILE* first = fopen(argv[1],"r");
 	if(!first)
 	{
@@ -52,9 +29,5 @@ int main(int argc, char* argv[])
 		exit(-1);
 	}
 	merge_files(first,second,stdout,512);
-
-
-
-
 	return 0;
 }
