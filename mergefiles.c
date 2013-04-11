@@ -71,7 +71,7 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 			}else
 			{
 				second_number = 0;
-				char* ptr2 = buf2 + buf2_read -2  ;
+				ptr2 = buf2 + buf2_read -2  ;
 				while(isdigit(*ptr2)) ptr2--;
 				*ptr2 = '\0';
 				second_number = strtoll(ptr2+1,&endptr,10);
@@ -107,7 +107,7 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 		{
 			long long int finalnum = first_number + second_number;
 			fputs(buf,out);
-			fprintf(out,"%lld\n",finalnum);
+			fprintf(out,"\t%lld\n",finalnum);
 
 		}else if(cmp < 0) //We write the first number.
 		{

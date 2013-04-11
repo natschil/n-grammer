@@ -11,9 +11,9 @@
 
 int main(int argc, char* argv[])
 {
-	if(argc <=3)
+	if(argc < 3)
 	{
-		fprintf(stderr, "Usage: %sinput_file_1 input_file_2\n");
+		fprintf(stderr, "Usage: %s input_file_1 input_file_2\n",argv[0]);
 		exit(-1);
 	}
 	char foldername[256]; //Should be large enough
@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
 		exit(-1);
 	}
 	system(command);
-	if(snprintf(command,256, "mkdr -p %s",foldername) >= 256)
+	if(snprintf(command,256, "mkdir -p %s",foldername) >= 256)
 	{
 		fprintf(stderr, "This is a bug\n");
 		exit(-1);
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
 		exit(-1);
 	}
 	FILE* second = fopen(argv[2], "r");
-	if(second)
+	if(!second)
 	{
 		fprintf(stderr,"Unable to open file %s", argv[2]);
 		exit(-1);
