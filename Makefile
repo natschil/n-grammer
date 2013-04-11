@@ -2,22 +2,32 @@ BINDIR=~/bin
 INC=
 LDFLAGS=`icu-config --ldflags  --ldflags-icuio` 
 INSTALL=cp
-CC = g++
+CPP = g++
+CC = gcc
 FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm `icu-config --cppflags`  -pg
+CFLAGS = -Wall -g -O0 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm `icu-config --cppflags`  -pg
+
 TARGET = ngram.counting
-OBJS = ngram.counting.o main.o memory_management.o
+OBJS = ngram.counting.o main.o memory_management.o mergefiles.o
+MERGER = merger
 
-default: $(TARGET)
+MERGER_OBJS = mergefiles.o merge_files.o
+
+default: $(TARGET) $(MERGER)
 $(TARGET): $(OBJS)
-	$(CC) $(FLAGS) -o $@ $(OBJS) $(LIBS) $(LDFLAGS) 
+	$(CPP) $(FLAGS) -o $@ $(OBJS) $(LIBS) $(LDFLAGS) 
+$(MERGER) :  $(MERGER_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(MERGER_OBJS) $(LDFLAGS)
 
-.SUFFIXES:
-.SUFFIXES: .o .cpp
+
+
 
 .PHONY: clean test
 
 .cpp.o:
-	$(CC) $(FLAGS) -o $@ -c $< $(INC)
+	$(CPP) $(FLAGS) -o $@ -c $< $(INC)
+.c.o:
+	$(CC) $(CFLAGS) -o $@ -c $< $(INC)
 
 clean:
 	rm -f *.o test/*.o *~ ngram.counting
