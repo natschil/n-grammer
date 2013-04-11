@@ -29,5 +29,7 @@ int main(int argc, char* argv[])
 		exit(-1);
 	}
 	merge_files(first,second,stdout,512);
+	fclose(first);
+	fclose(second);
 	return 0;
 }

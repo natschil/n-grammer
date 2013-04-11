@@ -30,11 +30,13 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 	long long int second_number = 0;
 	char* ptr1 = NULL;
 	char* ptr2 = NULL;
-	int get_first = 0;
+	int get_first;
 
 	char* endptr;
 
-	if((buf_read = getline(&buf, &buf_size, in_first)) < 0) 
+getbothfiles:
+	get_first = 0;
+	if((buf_read = getline(&buf, &buf_size, in_first)) < 3) 
 	{
 		//We write the rest of the second file to output.
 		copy_rest_of_file_to_output(in_second,out);
@@ -60,7 +62,7 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 	{
 		if(!get_first)
 		{
-			if((buf2_read = getline(&buf2, &buf2_size,in_second)) < 0)
+			if((buf2_read = getline(&buf2, &buf2_size,in_second)) < 3)
 			{
 				*ptr1 = '\t';
 				fputs(buf2,out);
@@ -86,7 +88,7 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 	
 		}else
 		{
-			if((buf_read = getline(&buf, &buf_size, in_first)) < 0) 
+			if((buf_read = getline(&buf, &buf_size, in_first)) < 3) 
 			{
 				*ptr2 = '\t';
 				fputs(buf2,out);
@@ -108,6 +110,7 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 			long long int finalnum = first_number + second_number;
 			fputs(buf,out);
 			fprintf(out,"\t%lld\n",finalnum);
+			goto getbothfiles;
 
 		}else if(cmp < 0) //We write the first number.
 		{
