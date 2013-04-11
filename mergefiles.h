@@ -2,6 +2,10 @@
 #define MERGEFILES_H
 #include <stdio.h>
 #include <limits.h>
+#include <math.h>
+#include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
 
 //Merges files in_first with in_second in way useful for the ngram counter.
 //See merge_files.c for an example program.

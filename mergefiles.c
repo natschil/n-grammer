@@ -16,7 +16,7 @@ static void copy_rest_of_file_to_output(FILE* input, FILE* output)
 int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_length)
 {
 	//		   string_length	tab   ( length of number as text) '\0'
-	size_t buf_size = max_ngram_string_size + 1 + floor(log10(LONG_LONG_MAX_MAX)) + 1 + 1;
+	size_t buf_size = max_ngram_string_length + 1 + floor(log10(LLONG_MAX)) + 1 + 1;
 	char* buf = malloc(buf_size);
 	ssize_t buf_read;
 
@@ -26,10 +26,8 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 
 
 	
-	int firstwaslarger = 1;
-
-	long long int first_number;
-	long long int second_number;
+	long long int first_number = 0;
+	long long int second_number = 0;
 	char* ptr1 = NULL;
 	char* ptr2 = NULL;
 	int get_first = 0;
@@ -46,12 +44,12 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 	}else
 	{
 		ptr1 = buf + buf_read - 2; //one for the newline, one for the null.
-		while(isdigit(ptr1)) ptr1--;
+		while(isdigit(*ptr1)) ptr1--;
 		*ptr1 = '\0';
-		firstnumber = strtoll(ptr+1,&endptr,10);
+		first_number = strtoll(ptr1+1,&endptr,10);
 		if(*endptr != '\n')
 		{
-			fprintf("Input file has wrong formatting");
+			fprintf(stderr,"Input file has wrong formatting");
 			free(buf);
 			free(buf2);
 			return -1;
@@ -64,7 +62,7 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 		{
 			if((buf2_read = getline(&buf2, &buf2_size,in_second)) < 0)
 			{
-				*ptr = '\t';
+				*ptr1 = '\t';
 				fputs(buf2,out);
 				copy_rest_of_file_to_output(in_first,out);
 				free(buf);
@@ -74,12 +72,12 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 			{
 				second_number = 0;
 				char* ptr2 = buf2 + buf2_read -2  ;
-				while(isdigit(ptr2)) ptr2--;
+				while(isdigit(*ptr2)) ptr2--;
 				*ptr2 = '\0';
-				secondnumber = strtoll(ptr2+1,&endptr,10);
+				second_number = strtoll(ptr2+1,&endptr,10);
 				if(*endptr != '\n')
 				{
-					fprintf("Input file is wrongly formatted");
+					fprintf(stderr,"Input file is wrongly formatted");
 					free(buf);
 					free(buf2);
 					return -1;
@@ -99,7 +97,7 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_
 			}
 			first_number = 0;
 			ptr1 = buf + buf_read - 2; //one for the newline, one for the null.
-			while(isdigit(ptr1)) ptr1--;
+			while(isdigit(*ptr1)) ptr1--;
 			*ptr1 = '\0';		
 	
 		}
