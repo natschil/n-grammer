@@ -55,17 +55,13 @@ struct word_list : public std::deque<myUString>
 	{
 		while(this->size)
 		{
-			myUString s = this->front();	
-			free(s.str);
 			this->pop_front();
-			this->size--;
 		}
 		this->finalstring_length = 0;
-		this->std::deque<myUString>::clear();
 		return;
 	}
 
-	void pop_font()
+	void pop_front()
 	{
 		myUString cur = this->front();
 		free(cur.str);
@@ -85,39 +81,39 @@ struct word_list : public std::deque<myUString>
 		this->std::deque<myUString>::push_back(newstring);
 	}
 
-	myUString join_as_ngram(int *retval)
-	{
-		myUString result;
-		result.str = (UChar*) permanently_malloc(this->finalstring_length * sizeof(*result.str),retval);
-		result.length = this->finalstring_length;
-
-		int first = 1;
-		UChar* ptr = result.str;
-		for(word_list::iterator j = this->begin(); j != this->end();j++)
-		{
-			myUString cur = *j;
-			if(first)
-			{
-				memcpy(ptr,cur.str,cur.length * sizeof(UChar));
-			}else
-			{
-				memcpy(ptr,this->space,sizeof(UChar));
-				ptr++;
-				memcpy(ptr,cur.str,sizeof(UChar) * cur.length);
-			}
-			ptr += cur.length;
-			first = 0;
-		}
-		*ptr = (UChar) 0;
-
-		return result;
-	}
+	myUString join_as_ngram(int *retval);
 
 	int size;
 	int finalstring_length;
 	UChar* space;
 };
+myUString word_list::join_as_ngram(int *retval)
+{
+	myUString result;
+	result.str = (UChar*) permanently_malloc(this->finalstring_length * sizeof(*result.str) +1,retval);
+	result.length = this->finalstring_length;
 
+	int first = 1;
+	UChar* ptr = result.str;
+	for(word_list::iterator j = this->begin(); j != this->end();j++)
+	{
+		myUString cur = *j;
+		if(first)
+		{
+			memcpy(ptr,cur.str,cur.length * sizeof(UChar));
+		}else
+		{
+			memcpy(ptr,this->space,sizeof(UChar));
+			ptr++;
+			memcpy(ptr,cur.str,sizeof(UChar) * cur.length);
+		}
+		ptr += cur.length;
+		first = 0;
+	}
+	*ptr = (UChar) 0;
+
+	return result;
+}
 #define MAX_WORD_SIZE 40
 //Sets s to point to a normalized UChar* with the next word from f. s is allocated using malloc(3), and normalized using n.
 //Returns the size of f iff there is a next word.
@@ -322,7 +318,8 @@ static void mark_ngram_occurance(myUString new_ngram)
 	
 	//We run a kind of bucket-sort which hopefully makes things slightly faster.
 	size_t firstchar = (size_t)((char) new_ngram.str[0] + 128);
-	letterDict &lD = lexicon[firstchar];
+	//letterDict &lD = lexicon[firstchar];
+	letterDict &lD = lexicon[0];
 
 	if(lD.find(new_ngram) != lD.end())
 		lD[new_ngram]++;
@@ -379,7 +376,10 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 	}
 
 	u_fclose(f);
-	printf("%lld",totalwords);
+	for(int i = 0; i< 256;i++)
+	{
+		writeDict(lexicon[i],stdout);
+	}
 	return totalwords;
 }
 
@@ -416,7 +416,7 @@ int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_l
 			my_n_words.pop_front();
 		}
 	
-		int retval = 0;
+		int retval = 1;
 		str = my_n_words.join_as_ngram(&retval);
 		return retval;
 	}
