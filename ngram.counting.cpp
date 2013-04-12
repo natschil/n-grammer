@@ -90,7 +90,7 @@ struct word_list : public std::deque<myUString>
 myUString word_list::join_as_ngram(int *retval)
 {
 	myUString result;
-	result.str = (UChar*) permanently_malloc(this->finalstring_length * sizeof(*result.str) +1,retval);
+	result.str = (UChar*) permanently_malloc((this->finalstring_length + 1) * sizeof(*result.str) ,retval);
 	result.length = this->finalstring_length;
 
 	int first = 1;
@@ -318,8 +318,7 @@ static void mark_ngram_occurance(myUString new_ngram)
 	
 	//We run a kind of bucket-sort which hopefully makes things slightly faster.
 	size_t firstchar = (size_t)((char) new_ngram.str[0] + 128);
-	//letterDict &lD = lexicon[firstchar];
-	letterDict &lD = lexicon[0];
+	letterDict &lD = lexicon[firstchar];
 
 	if(lD.find(new_ngram) != lD.end())
 		lD[new_ngram]++;
@@ -350,6 +349,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
     //Stage 1: We get n-grams and mark them in paralell
 
 	myUString currentstring;
+	myUString nextstring;
         int state = getnextngram(f,totalwords,n,my_n_words,currentstring);
 	while(1)
 	{
@@ -357,22 +357,27 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 			break;
 		else if(state == -1) //Buffer is full
 			break;
-		#pragma omp parallel
+		#pragma omp parallel 
 		{
-			myUString nextstring;
-			#pragma omp task	
+			#pragma omp sections
 			{
-				state = getnextngram(f,totalwords,n,my_n_words,nextstring);
+				#pragma omp section	
+				{
+					state = getnextngram(f,totalwords,n,my_n_words,nextstring);
+				}
+				#pragma omp section
+				{
+					mark_ngram_occurance(currentstring);
+				}
 			}
-			#pragma omp task
-			{
-				#pragma omp flush(currentstring)
-				mark_ngram_occurance(currentstring);
-			}
-			#pragma omp taskwait
-			#pragma omp flush(state)	
-			currentstring = nextstring;
 		}
+		currentstring = nextstring;
+		#pragma omp flush
+	}
+	//TODO: Comment out the following when multiprocessing works
+	if(state)
+	{
+		mark_ngram_occurance(currentstring);
 	}
 
 	u_fclose(f);
