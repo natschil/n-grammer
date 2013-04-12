@@ -4,14 +4,15 @@ using namespace std;
 using namespace icu;
 
 letterDict *lexicon = NULL;
+letterDict *prev_lexicon = NULL;
 //pthread_t writerthread;
 volatile int itrcount = 0;
 int n_gram_size = 0;
 
 static void mark_ngram_occurance(myUString new_ngram);
 static void swapDicts();
-static void* writeDicts(void*);
-void writeDict(letterDict &sublexicon,FILE* outfile);
+static void* writeLetterDict(int number);
+void writeLetterDictToFile(letterDict &sublexicon,FILE* outfile);
 struct word_list;
 int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myUString &str);
 
@@ -227,29 +228,15 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 
 static void swapDicts()
 {
-	letterDict* old_dict = lexicon;
-	//lexicon = (letterDict*)malloc(sizeof(Dict));
+	prev_lexicon = lexicon;
 	lexicon = new Dict;
-	/*
-	for(int i = 0; i< 256;i++)
-	{
-		lexicon[i] = letterDict();
-	}
-	*/
-	/*
-	if(!safe_to_switch)
-		pthread_join(writerthread,NULL); //Wait for potential old writer thread to finish.
-
-	pthread_create(&writerthread,NULL,&writeDicts,(void*) old_dict);
-	*/
 	return;	
 
 }
 
 
-static void *writeDicts(void* input)
+static void *writeLetterDict(int i)
 {
-	Dict* dict_to_write = (Dict*) input;
 	//TODO: Paralellize this
 	char buf[256];//Big enough.
 	if(snprintf(buf,256,"mkdir -p %d",itrcount) >= 256)
@@ -265,33 +252,32 @@ static void *writeDicts(void* input)
 		exit(-1);
 	}
 
-	for(int i = 0; i < 256; i++)
+	if(snprintf(buf,256,"./%d/%d.out",itrcount,i) >= 256)
 	{
-		if(snprintf(buf,256,"./%d/%d.out",itrcount,i) >= 256)
-		{
-			//This should never happen either.
-			fprintf(stderr,"Error, bad coding");
-			exit(-1);
-		}
-		FILE* cur = fopen(buf,"w");
-		if(!cur)
-		{
-			fprintf(stderr,"Unable to open file %s", buf);
-			exit(-1);
-		}
-		writeDict((*dict_to_write)[i],cur);
-		fflush(cur);
-		fclose(cur);
-		(*dict_to_write)[i].clear();
+		//This should never happen either.
+		fprintf(stderr,"Error, bad coding");
+		exit(-1);
 	}
+	FILE* cur = fopen(buf,"w");
+	if(!cur)
+	{
+		fprintf(stderr,"Unable to open file %s", buf);
+		exit(-1);
+	}
+
+	writeLetterDictToFile(prev_lexicon[i],cur);
+	fflush(cur);
+	fclose(cur);
+	prev_lexicon[i].clear();
 	//We tell memory_management.h that we've finished writing out this buffer.
 	safe_to_switch = 1;
+	#pragma omp flush
 	itrcount++;
 	return NULL;
 }
 
 
-void writeDict(letterDict &D,FILE* outfile)
+void writeLetterDictToFile(letterDict &D,FILE* outfile)
 {
   UnicodeString word;
   double freq;
@@ -332,14 +318,14 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 {
     //Initialization:
 	n_gram_size = ngramsize;
-	init_permanent_malloc();
+	init_permanent_malloc(&swapDicts);
 	system("rm -r ./processing > /dev/null 2>/dev/null");	
 	system("mkdir ./processing");
 	chdir("./processing");
 	lexicon = new Dict;
 	long long int totalwords = 0;
 	word_list my_n_words;
-	int count = 0;	
+	long long int count = 0;	
     	UFILE* f = u_fadopt(file, "UTF8", NULL);
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details.
 	UErrorCode e = U_ZERO_ERROR;
@@ -351,27 +337,68 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 	myUString currentstring;
 	myUString nextstring;
         int state = getnextngram(f,totalwords,n,my_n_words,currentstring);
+	int newstate = state;
 	while(1)
 	{
 		if(state == 0) //End of file
 			break;
-		else if(state == -1) //Buffer is full
-			break;
-		#pragma omp parallel 
+		#pragma omp parallel sections
 		{
-			#pragma omp sections
+			#pragma omp section	
 			{
-				#pragma omp section	
+				newstate = 1;
+				while(1)
 				{
-					state = getnextngram(f,totalwords,n,my_n_words,nextstring);
+					if(newstate != 1)
+					{
+						#pragma omp flush(state,newstate)
+						state = newstate;
+						#pragma omp flush(state)
+						break;
+					}
+					#pragma omp parallel sections
+					{
+						#pragma omp section
+						{
+							newstate = getnextngram(f,totalwords,n,my_n_words,nextstring);
+						}
+						#pragma omp section
+						{
+							mark_ngram_occurance(currentstring);
+						}
+					}
+					currentstring = nextstring;
+					count++;
+					if((count % 1000000 == 0))
+					{
+						printf("%lld\n",(long long int) count);
+					}
 				}
-				#pragma omp section
+			}
+			#pragma omp section
+			{
+				if(state == -1)
 				{
-					mark_ngram_occurance(currentstring);
+					#pragma omp flush(safe_to_switch)
+					safe_to_switch = 0;
+					#pragma omp flush(safe_to_switch)
+					printf("Switching buffers\n");
+					sleep(3);
+					/*
+					#pragma omp paralell for
+					for(int i = 0; i< 256;i++)
+					{
+						writeLetterDict(i);
+					}
+					*/
+					#pragma omp flush(safe_to_switch)
+					safe_to_switch = 1;
+					#pragma omp flush(safe_to_switch)
+					state = 1;
+					#pragma omp flush(state)
 				}
 			}
 		}
-		currentstring = nextstring;
 		#pragma omp flush
 	}
 	//TODO: Comment out the following when multiprocessing works
@@ -383,7 +410,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 	u_fclose(f);
 	for(int i = 0; i< 256;i++)
 	{
-		writeDict(lexicon[i],stdout);
+		writeLetterDictToFile(lexicon[i],stdout);
 	}
 	return totalwords;
 }

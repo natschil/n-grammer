@@ -7,10 +7,11 @@ static void* pages[2][NUM_PAGES] = {{NULL}};
 static size_t current_page_group = 0;
 static size_t current_page = 0;
 static size_t current_page_occupied = 0;
-volatile int safe_to_switch;
+volatile int safe_to_switch = 0;
+void (*buffer_switching_callback)(void) = NULL;
 
 
-void init_permanent_malloc()
+void init_permanent_malloc(void (*callback)(void))
 {
 	//We allocate all pages at once: if we're going to run out of memory we want to know so before we do any processing.
 	for(int i = 0; i<2;i++)
@@ -26,6 +27,7 @@ void init_permanent_malloc()
 	current_page_group = 0;
 	current_page = 0;
 	safe_to_switch = 1;
+	buffer_switching_callback = callback;
 	return;
 }
 void* permanently_malloc(size_t numbytes,int* retval)
@@ -47,6 +49,15 @@ void* permanently_malloc(size_t numbytes,int* retval)
 			current_page_group = !current_page_group;
 			
 			*retval = -1;
+			if(buffer_switching_callback)
+				(*buffer_switching_callback)();
+
+			#pragma omp flush(safe_to_switch)
+			while(!safe_to_switch)
+			{
+				usleep(10);
+				#pragma omp flush(safe_to_switch)
+			}
 
 			return permanently_malloc(numbytes,retval);
 		}
