@@ -295,6 +295,7 @@ void writeLetterDictToFile(letterDict &D,FILE* outfile)
 	
 	    freq = i->second;
 	    fprintf(outfile,"%s\t%lld\n",myword,(long long int)freq);
+	    free(myword);
   }
 }
 
@@ -555,6 +556,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 			fputc((char) curchar,outfile);
 		}
 	}
+	free_all_pages();
 	return totalwords;
 }
 
