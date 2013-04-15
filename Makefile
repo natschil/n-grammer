@@ -4,8 +4,8 @@ LDFLAGS=`icu-config --ldflags  --ldflags-icuio`
 INSTALL=cp
 CPP = g++
 CC = gcc
-FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm `icu-config --cppflags`  -pg
-CFLAGS = -Wall -g -O0 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm `icu-config --cppflags`  -pg
+FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm `icu-config --cppflags` 
+CFLAGS = -Wall -g -O0 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm `icu-config --cppflags`
 
 TARGET = ngram.counting
 OBJS = ngram.counting.o main.o memory_management.o mergefiles.o

@@ -6,8 +6,8 @@ using namespace icu;
 letterDict *lexicon = NULL;
 letterDict *prev_lexicon = NULL;
 //pthread_t writerthread;
-volatile int itrcount = 0;
 int n_gram_size = 0;
+int max_ngram_string_length = 0;
 
 static void mark_ngram_occurance(myUString new_ngram);
 static void swapDicts();
@@ -228,31 +228,33 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 
 static void swapDicts()
 {
+	//HERE1
+	letterDict *tmp = prev_lexicon;
 	prev_lexicon = lexicon;
-	lexicon = new Dict;
+	lexicon = tmp;
 	return;	
 
 }
 
 
-static void *writeLetterDict(int i)
+static void *writeLetterDict(int buffercount,int i)
 {
 	//TODO: Paralellize this
 	char buf[256];//Big enough.
-	if(snprintf(buf,256,"mkdir -p %d",itrcount) >= 256)
+	if(snprintf(buf,256,"./0_%d",buffercount) >= 256)
 	{
 		//This should never happen.
 		fprintf(stderr,"Error, poor program design");
 		exit(-1);
 	}
-	if(system(buf))
+	if(mkdir(buf,S_IRUSR | S_IWUSR | S_IXUSR ) && (errno !=  EEXIST))
 	{
 		//This should also never happen
-		fprintf(stderr,"Unable to create directory");
+		fprintf(stderr,"Unable to create directory %s",buf);
 		exit(-1);
 	}
 
-	if(snprintf(buf,256,"./%d/%d.out",itrcount,i) >= 256)
+	if(snprintf(buf,256,"./0_%d/%d.out",buffercount,i) >= 256)
 	{
 		//This should never happen either.
 		fprintf(stderr,"Error, bad coding");
@@ -268,11 +270,10 @@ static void *writeLetterDict(int i)
 	writeLetterDictToFile(prev_lexicon[i],cur);
 	fflush(cur);
 	fclose(cur);
+	//HERE1 relies on the following step
 	prev_lexicon[i].clear();
 	//We tell memory_management.h that we've finished writing out this buffer.
 	safe_to_switch = 1;
-	#pragma omp flush
-	itrcount++;
 	return NULL;
 }
 
@@ -303,7 +304,7 @@ static void mark_ngram_occurance(myUString new_ngram)
 	//TODO: Think about the fact that this has to lookup new_ngram in lexicon twice.
 	
 	//We run a kind of bucket-sort which hopefully makes things slightly faster.
-	size_t firstchar = (size_t)((char) new_ngram.str[0] + 128);
+	size_t firstchar = (size_t) (unsigned char) new_ngram.str[0];
 	letterDict &lD = lexicon[firstchar];
 
 	if(lD.find(new_ngram) != lD.end())
@@ -318,11 +319,13 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 {
     //Initialization:
 	n_gram_size = ngramsize;
+	max_ngram_string_length = (ngramsize * (MAX_WORD_SIZE + 1)) + 1;
 	init_permanent_malloc(&swapDicts);
-	system("rm -r ./processing > /dev/null 2>/dev/null");	
-	system("mkdir ./processing");
+	remove("./processing");
+	mkdir("./processing",S_IRUSR | S_IWUSR | S_IXUSR);
 	chdir("./processing");
 	lexicon = new Dict;
+	prev_lexicon = new Dict;
 	long long int totalwords = 0;
 	word_list my_n_words;
 	long long int count = 0;	
@@ -338,12 +341,14 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 	myUString nextstring;
         int state = getnextngram(f,totalwords,n,my_n_words,currentstring);
 	int newstate = state;
+	int buffercount = -1;
 	while(1)
 	{
 		if(state == 0) //End of file
 			break;
 		#pragma omp parallel sections
 		{
+			//Here we fill one half of the memory used with n-grams.
 			#pragma omp section	
 			{
 				newstate = 1;
@@ -375,6 +380,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 					}
 				}
 			}
+			//Here we concurrently write out  the n-grams from the other half of memory.
 			#pragma omp section
 			{
 				if(state == -1)
@@ -383,19 +389,75 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 					safe_to_switch = 0;
 					#pragma omp flush(safe_to_switch)
 					printf("Switching buffers\n");
-					sleep(3);
-					/*
-					#pragma omp paralell for
+					#pragma omp parallel for
 					for(int i = 0; i< 256;i++)
 					{
-						writeLetterDict(i);
+						writeLetterDict(buffercount+1,i);
 					}
-					*/
 					#pragma omp flush(safe_to_switch)
 					safe_to_switch = 1;
 					#pragma omp flush(safe_to_switch)
 					state = 1;
 					#pragma omp flush(state)
+
+					#pragma omp flush(buffercount)
+					buffercount++;
+					#pragma omp flush(buffercount)
+
+				}
+			}
+			//Here we merge the buffers that are already on disk.
+			#pragma omp section
+			{
+				#pragma omp flush(buffercount)
+				if((buffercount > 0) && (buffercount % 2))
+				{
+					#pragma omp parallel for
+					for(int i = 0; i< 256;i++)
+					{
+						int n = buffercount;
+						int k = 0;
+						while(n % 2)
+						{
+							char buf[256];
+							char buf2[256];
+							char output[256];
+							char outdir[256];
+							snprintf(buf, 256, "./%d_%d/%d.out",k,n,i);
+							snprintf(buf2, 256,"./%d_%d/%d.out",k,n-1,i);
+							n = (n - 1)/2;
+							k++;
+							snprintf(outdir, 256,"./%d_%d",k,n);
+							mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
+							snprintf(output, 256,"./%d_%d/%d.out",k,n,i);
+							FILE* firstfile = fopen(buf, "r");
+							FILE* secondfile = fopen(buf2, "r");
+							FILE* outputfile = fopen(output, "w");
+							if(!firstfile)
+							{
+								fprintf(stderr, "Unable to open %s for reading", buf);
+								exit(-1);
+							}else if(!secondfile)
+							{
+								fprintf(stderr,"Unable to open %s for reading", buf2);
+								exit(-1);
+							}else if(!outputfile)
+							{
+								fprintf(stderr, "Unable to open %s for writing",output);
+								exit(-1);
+							}
+
+							int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
+							fclose(firstfile);
+							fclose(secondfile);
+							fclose(outputfile);
+							if(mergefile_out)
+							{
+								fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
+								exit(-1);
+							}
+						}
+					}
 				}
 			}
 		}

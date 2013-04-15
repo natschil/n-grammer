@@ -65,7 +65,7 @@ getbothfiles:
 			if((buf2_read = getline(&buf2, &buf2_size,in_second)) < 3)
 			{
 				*ptr1 = '\t';
-				fputs(buf2,out);
+				fputs(buf,out);
 				copy_rest_of_file_to_output(in_first,out);
 				free(buf);
 				free(buf2);
@@ -79,7 +79,7 @@ getbothfiles:
 				second_number = strtoll(ptr2+1,&endptr,10);
 				if(*endptr != '\n')
 				{
-					fprintf(stderr,"Input file is wrongly formatted");
+					fprintf(stderr,"Input file is wrongly formatted\n");
 					free(buf);
 					free(buf2);
 					return -1;
@@ -110,6 +110,11 @@ getbothfiles:
 			long long int finalnum = first_number + second_number;
 			fputs(buf,out);
 			fprintf(out,"\t%lld\n",finalnum);
+			//Given that we've written the relevant output for both lines
+			//We make sure that the previous buffer isn't written to disk if we reach
+			//The end of a file now
+			*buf2 = '\0';
+			*buf = '\0';
 			goto getbothfiles;
 
 		}else if(cmp < 0) //We write the first number.
