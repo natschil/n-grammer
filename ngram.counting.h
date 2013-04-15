@@ -50,5 +50,5 @@ extern letterDict *lexicon;
 
 int getnextword(UChar* &s, UFILE* f,const UNormalizer2* normalizer);
 
-long long int analyze_ngrams(unsigned int ngramsize,FILE* file);
+long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile);
 #endif

@@ -11,7 +11,7 @@ int max_ngram_string_length = 0;
 
 static void mark_ngram_occurance(myUString new_ngram);
 static void swapDicts();
-static void* writeLetterDict(int number);
+static void* writeLetterDict(int buffercount,int number);
 void writeLetterDictToFile(letterDict &sublexicon,FILE* outfile);
 struct word_list;
 int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myUString &str);
@@ -315,7 +315,7 @@ static void mark_ngram_occurance(myUString new_ngram)
 }
 
 
-long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
+long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 {
     //Initialization:
 	n_gram_size = ngramsize;
@@ -329,17 +329,17 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 	long long int totalwords = 0;
 	word_list my_n_words;
 	long long int count = 0;	
-    	UFILE* f = u_fadopt(file, "UTF8", NULL);
+    	UFILE* f = u_fadopt(infile, "UTF8", NULL);
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details.
 	UErrorCode e = U_ZERO_ERROR;
-	const UNormalizer2* n = unorm2_getNFKDInstance(&e);
+	const UNormalizer2* norm = unorm2_getNFKDInstance(&e);
 	if(!U_SUCCESS(e))
 		fprintf(stderr,"This is also a bug that needs to be fixed\n");
     //Stage 1: We get n-grams and mark them in paralell
 
 	myUString currentstring;
 	myUString nextstring;
-        int state = getnextngram(f,totalwords,n,my_n_words,currentstring);
+        int state = getnextngram(f,totalwords,norm,my_n_words,currentstring);
 	int newstate = state;
 	int buffercount = -1;
 	while(1)
@@ -365,7 +365,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 					{
 						#pragma omp section
 						{
-							newstate = getnextngram(f,totalwords,n,my_n_words,nextstring);
+							newstate = getnextngram(f,totalwords,norm,my_n_words,nextstring);
 						}
 						#pragma omp section
 						{
@@ -463,16 +463,84 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* file)
 		}
 		#pragma omp flush
 	}
-	//TODO: Comment out the following when multiprocessing works
-	if(state)
-	{
-		mark_ngram_occurance(currentstring);
-	}
-
+	//We've done all our reading to disk, let's close the input file.
 	u_fclose(f);
+	//Once we reach here we still have one buffer that needs to be written to disk.
+	
+	printf("Writing out last buffer \n");
+	swapDicts();
+	#pragma omp parallel for
 	for(int i = 0; i< 256;i++)
 	{
-		writeLetterDictToFile(lexicon[i],stdout);
+		writeLetterDict(buffercount+1,i);
+	}
+	buffercount++;
+	int n = buffercount;
+	int k = 0;
+	#pragma omp parallel for
+	for(int i = 0; i< 256;i++)
+	{
+		while(n)
+		{
+			int n2 = n - 1 ;
+			int k2 = k;
+			while(n2 && (n2 % 2)) //Go the the next "peak" in the merge tree.
+			{
+				n2 = (n2 - 1)/2;
+				k2++;
+			}
+			char buf[256];
+			char buf2[256];
+			char output[256];
+			char outdir[256];
+			snprintf(buf, 256, "./%d_%d/%d.out",k,n,i);
+			snprintf(buf2, 256,"./%d_%d/%d.out",k2,n2,i);
+
+			k++;
+			n = n2 / 2;
+
+			snprintf(outdir, 256,"./%d_%d",k,n);
+			mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
+			snprintf(output, 256,"./%d_%d/%d.out",k,n,i);
+			FILE* firstfile = fopen(buf, "r");
+			FILE* secondfile = fopen(buf2, "r");
+			FILE* outputfile = fopen(output, "w");
+			if(!firstfile)
+			{
+				fprintf(stderr, "Unable to open %s for reading", buf);
+				exit(-1);
+			}else if(!secondfile)
+			{
+				fprintf(stderr,"Unable to open %s for reading", buf2);
+				exit(-1);
+			}else if(!outputfile)
+			{
+				fprintf(stderr, "Unable to open %s for writing",output);
+				exit(-1);
+			}
+
+			int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
+			fclose(firstfile);
+			fclose(secondfile);
+			fclose(outputfile);
+			if(mergefile_out)
+			{
+				fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
+				exit(-1);
+			}
+		}
+	}
+	//At this point we have 256 input files that can be combined.
+	for(int i = 0; i< 256; i++)
+	{
+		char buf[256];
+		snprintf(buf,256, "./%d_%d/%d.out",k,n,i);
+		FILE* cur = fopen(buf,"r");
+		int curchar;
+		while((curchar = fgetc(cur)) != EOF)
+		{
+			fputc((char) curchar,outfile);
+		}
 	}
 	return totalwords;
 }

@@ -6,10 +6,9 @@ using namespace std;
 
 int main (int argc, char* argv[])
 {
-  if((argc == 1) || (argc > 3))
+  if((argc == 1) || (argc > 4))
   {
-    cerr << "Usage: " << argv[0] << " N < input > output\n Where N is the size of the ngrams you want to count." << endl;
-    cerr << "OR" <<argv[0] << " N input > output"<<endl;
+    cerr << "Usage: " << argv[0] << " N [input = stdin] [output = stdout]\n \tWhere N is the size of the ngrams you want to count.\n";
     exit(1);
   }
 
@@ -25,7 +24,8 @@ int main (int argc, char* argv[])
   }
 
   FILE* f = NULL;
-  if(argc == 3)
+  FILE* outfile =NULL;
+  if(argc >= 3)
   {
 	f = fopen(argv[2],"r");
 	if(!f)
@@ -37,8 +37,19 @@ int main (int argc, char* argv[])
   }else
 	f = stdin;
 
+  if(argc >= 4)
+  {
+	outfile = fopen(argv[3],"w");
+	if(!outfile)
+	{
+		cerr<<"Could not open file "<<argv[2]<<endl;
+		exit(1);
+	}
+  }else
+	  outfile = stdout;
+
   
-  double totalwords = analyze_ngrams(ngramsize,f);
+  double totalwords = analyze_ngrams(ngramsize,f,outfile);
   for(int j = 0; j < 256; j++)
   {
 	  lexicon[j].clear();
