@@ -191,21 +191,22 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
     word[wordlength+1] = '\0';
     if(first_is_hyphen && (wordlength == strlen("END.OF.DOCUMENT---")))
     {
-	//TODO: Fix this truly ugly code.
-	for(size_t itr = 0; itr < strlen("END.OF.DOCUMENT---");itr++)
+	size_t itr = 0;
+	for(itr = 0; itr < strlen("END.OF.DOCUMENT---");itr++)
 	{
 		if(((char) word[itr]) != "END.OF.DOCUMENT"[itr])
 		{
-			goto out;
+			break;
 		}
 	}
-	//TODO: Test whether the following works.
-	s = (UChar*) malloc(sizeof(*s));
-	*s = (UChar) 0;
-	
-	return MAX_WORD_SIZE + 1;
+	if(itr == strlen("END.OF.DOCUMENT---"))
+	{
+		s = (UChar*) malloc(sizeof(*s));
+		*s = (UChar) 0;
+		
+		return MAX_WORD_SIZE + 1;
+	}
     }
-    out:
 
     if(wordlength)
     {
@@ -239,7 +240,6 @@ static void swapDicts()
 
 static void *writeLetterDict(int buffercount,int i)
 {
-	//TODO: Paralellize this
 	char buf[256];//Big enough.
 	if(snprintf(buf,256,"./0_%d",buffercount) >= 256)
 	{
@@ -281,7 +281,7 @@ static void *writeLetterDict(int buffercount,int i)
 void writeLetterDictToFile(letterDict &D,FILE* outfile)
 {
   UnicodeString word;
-  double freq;
+  long long int freq;
 	  for (letterDict::iterator i = D.begin(); i != D.end(); i++) {
 	    int32_t wordlength;
 	    UErrorCode e = U_ZERO_ERROR; //This means no error
@@ -308,9 +308,12 @@ static void mark_ngram_occurance(myUString new_ngram)
 	size_t firstchar = (size_t) (unsigned char) new_ngram.str[0];
 	letterDict &lD = lexicon[firstchar];
 
-	if(lD.find(new_ngram) != lD.end())
-		lD[new_ngram]++;
-	else lD[new_ngram] = 1;
+	std::pair<letterDict::iterator,bool> old = lD.insert(letterDict::value_type(new_ngram,1));
+	if(!old.second) //The value was inserted.
+	{
+		old.first->second++;
+
+	}
 
 	return;
 }
@@ -575,6 +578,7 @@ int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_l
 			return 0;
 		}else if(wordlength > MAX_WORD_SIZE)
 		{
+			free(word);
 			my_n_words.clear();
 			continue;
 		}

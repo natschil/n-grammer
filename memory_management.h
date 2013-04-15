@@ -13,9 +13,9 @@
 
 
 //4M per memory "page" size.
-#define MEMORY_PAGE_SIZE (4 * 1024 * 1024)
 //Set this to half of the actual number of "pages" used. Because of the way buffer swapping is used and concurrency, etc...
-#define NUM_PAGES 3
+#define MEMORY_PAGE_SIZE (4 * 1024 * 1024)
+#define NUM_PAGES 10 
 //Therefore
 #define TOTAL_MEM_USED MEMORY_PAGE_SIZE * 2 * NUM_PAGES
 

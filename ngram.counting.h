@@ -42,7 +42,7 @@ struct uchar_cmp : public std::binary_function<myUString, myUString,bool>
 };
 
 
-typedef std::map<myUString, double,uchar_cmp> letterDict;
+typedef std::map<myUString, long long int,uchar_cmp> letterDict;
 //Use one "Dictionary" per letter.
 //This creates a somewhat strange sorting but because all we need is for the data to be sorted that is fine.
 typedef letterDict Dict[256];

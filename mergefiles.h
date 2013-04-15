@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+//How big our buffer for mergeing files should be
+#define MERGE_BUFFER_SIZE (4 * 1024)
 //Merges files in_first with in_second in way useful for the ngram counter.
 //See merge_files.c for an example program.
 //Note that max_string_length serves merely as a hint and that hence merge_files will work
