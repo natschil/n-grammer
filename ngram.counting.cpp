@@ -376,7 +376,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 					count++;
 					if((count % 1000000 == 0))
 					{
-						printf("%lld\n",(long long int) count);
+						fprintf(stderr,"%lld\n",(long long int) count);
 					}
 				}
 			}
@@ -388,7 +388,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 					#pragma omp flush(safe_to_switch)
 					safe_to_switch = 0;
 					#pragma omp flush(safe_to_switch)
-					printf("Switching buffers\n");
+					fprintf(stderr,"Switching buffers\n");
 					#pragma omp parallel for
 					for(int i = 0; i< 256;i++)
 					{
@@ -447,6 +447,9 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 								exit(-1);
 							}
 
+							
+							if(!i)
+								fprintf(stderr,"Mergeing %s with %s to give %s\n", buf, buf2, output);
 							int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
 							fclose(firstfile);
 							fclose(secondfile);
@@ -467,7 +470,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	u_fclose(f);
 	//Once we reach here we still have one buffer that needs to be written to disk.
 	
-	printf("Writing out last buffer \n");
+	fprintf(stderr,"Writing out last buffer \n");
 	swapDicts();
 	#pragma omp parallel for
 	for(int i = 0; i< 256;i++)
@@ -475,14 +478,16 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 		writeLetterDict(buffercount+1,i);
 	}
 	buffercount++;
-	int n = buffercount;
+	int n = 0;
 	int k = 0;
-	#pragma omp parallel for
+	#pragma omp parallel for firstprivate(n) firstprivate(k) lastprivate(n) lastprivate(k)
 	for(int i = 0; i< 256;i++)
 	{
+		n = buffercount;
+		k = 0;
 		while(n)
 		{
-			int n2 = n - 1 ;
+			int n2 = n -1;
 			int k2 = k;
 			while(n2 && (n2 % 2)) //Go the the next "peak" in the merge tree.
 			{
@@ -496,12 +501,12 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 			snprintf(buf, 256, "./%d_%d/%d.out",k,n,i);
 			snprintf(buf2, 256,"./%d_%d/%d.out",k2,n2,i);
 
-			k++;
-			n = n2 / 2;
+			n2 = n2 /2;
+			k2++;
 
-			snprintf(outdir, 256,"./%d_%d",k,n);
+			snprintf(outdir, 256,"./%d_%d",k2,n2);
 			mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
-			snprintf(output, 256,"./%d_%d/%d.out",k,n,i);
+			snprintf(output, 256,"./%d_%d/%d.out",k2,n2,i);
 			FILE* firstfile = fopen(buf, "r");
 			FILE* secondfile = fopen(buf2, "r");
 			FILE* outputfile = fopen(output, "w");
@@ -519,6 +524,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 				exit(-1);
 			}
 
+
 			int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
 			fclose(firstfile);
 			fclose(secondfile);
@@ -528,6 +534,8 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 				fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
 				exit(-1);
 			}
+			n = n2;
+			k = k2;
 		}
 	}
 	//At this point we have 256 input files that can be combined.
@@ -536,6 +544,11 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 		char buf[256];
 		snprintf(buf,256, "./%d_%d/%d.out",k,n,i);
 		FILE* cur = fopen(buf,"r");
+		if(!cur)
+		{
+			fprintf(stderr,"The programmer has made an error, this should never happen. Could not open file %s\n",buf);
+			exit(-1);
+		}
 		int curchar;
 		while((curchar = fgetc(cur)) != EOF)
 		{

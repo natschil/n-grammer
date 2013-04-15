@@ -101,7 +101,18 @@ getbothfiles:
 			ptr1 = buf + buf_read - 2; //one for the newline, one for the null.
 			while(isdigit(*ptr1)) ptr1--;
 			*ptr1 = '\0';		
-	
+			first_number = 0;
+			ptr1 = buf + buf_read -2  ;
+			while(isdigit(*ptr1)) ptr1--;
+			*ptr1 = '\0';
+			first_number = strtoll(ptr1+1,&endptr,10);
+			if(*endptr != '\n')
+			{
+				fprintf(stderr,"Input file is wrongly formatted\n");
+				free(buf);
+				free(buf2);
+				return -1;
+			}
 		}
 
 		int cmp = strcmp(buf, buf2);
