@@ -35,6 +35,7 @@ void init_permanent_malloc(void (*callback)(void))
 	buffer_switching_callback = callback;
 	return;
 }
+
 void* permanently_malloc(size_t numbytes,int* retval)
 {
 	setpagelock(current_page_group);
@@ -77,6 +78,15 @@ void* permanently_malloc(size_t numbytes,int* retval)
 		}
 	}
 	return NULL;
+}
+
+void rewind_permanent_malloc(size_t numbytes)
+{
+	return;
+	setpagelock(current_page_group);
+	if(current_page_occupied >= numbytes)
+		current_page_occupied -= numbytes;
+	unsetpagelock(current_page_group);
 }
 
 void free_all_pages()

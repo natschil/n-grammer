@@ -30,20 +30,25 @@ extern "C"{
 }
 
 
+struct myNGram
+{
+	UChar **ngram;	
+	~myNGram();
+};
 struct myUString
 {
-	size_t length;	
-	UChar* str;	
-	~myUString();
+	UChar* string;
+	size_t length;
+	~myUString(){return;};
 };
 
-struct uchar_cmp : public std::binary_function<myUString, myUString,bool>
+struct ngram_cmp : public std::binary_function<myNGram, myNGram,bool>
 {
-	bool operator()(myUString first, myUString second);
+	bool operator()(myNGram first, myNGram second);
 };
 
 
-typedef std::map<myUString, long long int,uchar_cmp> letterDict;
+typedef std::map<myNGram, long long int,ngram_cmp> letterDict;
 //Use one "Dictionary" per letter.
 //This creates a somewhat strange sorting but because all we need is for the data to be sorted that is fine.
 typedef letterDict Dict[256];

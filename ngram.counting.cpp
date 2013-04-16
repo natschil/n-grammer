@@ -3,54 +3,48 @@
 using namespace std;
 using namespace icu;
 
+//Some global variables
 letterDict *lexicon = NULL;
 letterDict *prev_lexicon = NULL;
-//pthread_t writerthread;
 int n_gram_size = 0;
 int max_ngram_string_length = 0;
+UChar* space;
 
-static void mark_ngram_occurance(myUString new_ngram);
+//Some function declarations.
+static void mark_ngram_occurance(myNGram new_ngram);
 static void swapDicts();
 static void* writeLetterDict(int buffercount,int number,letterDict* old_dict);
-void writeLetterDictToFile(letterDict &sublexicon,FILE* outfile);
+void writeLetterDictToFile(letterDict &sublexicon,UFILE* outfile);
 struct word_list;
-int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myUString &str);
 
-bool uchar_cmp::operator()(myUString first, myUString second)
+int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myNGram &str);
+
+bool ngram_cmp::operator()(myNGram first, myNGram second)
 {
-	/*
-	int diff = first.length - second.length;
-	if(!diff)
+	for(int i = 0; i<n_gram_size; i++)
 	{
-		return (u_strcmp(first.str,second.str)) < 0;
-	}else
-		return diff < 0;
-		*/
-	return u_strcmp(first.str,second.str) < 0; //Makes merging easier because we don't need to convert to UTF16 again..
+		int prevres;
+		if(!(prevres = (u_strcmp(first.ngram[i],second.ngram[i]))))//Makes merging easier because we don't need to convert to UTF16 again..
+		{
+			continue;
+		}
+		else return prevres < 0;
+	}
+	return false;
 }
 
-myUString::~myUString(){return;};
+myNGram::~myNGram(){return;};
 
 struct word_list : public std::deque<myUString>
 {
 	word_list() : std::deque<myUString>()
 	{
 		this->size = 0;
-		this->finalstring_length = 0;
-		UErrorCode e = U_ZERO_ERROR;
-		this->space = (UChar*) malloc(sizeof(*space));
-		int32_t spacelength = 0;
-		u_strFromUTF8(space,1,&spacelength," ",-1,&e);
-		if(!U_SUCCESS(e) || spacelength != 1)
-		{
-			fprintf(stderr,"This is a bug that needs to be fixed\n");
-	
-		}
+		this->uchars_used = 0;
 	}
 
 	~word_list() 
 	{
-		free(this->space);
 	}
 	void clear()
 	{
@@ -58,76 +52,95 @@ struct word_list : public std::deque<myUString>
 		{
 			this->pop_front();
 		}
-		this->finalstring_length = 0;
+		this->uchars_used = 0;
 		return;
 	}
 
 	void pop_front()
 	{
-		myUString cur = this->front();
-		free(cur.str);
 		this->size--;
-		this->finalstring_length--;
-		this->finalstring_length -=  cur.length;
+		myUString old_string = this->front();
+		this->uchars_used -= (old_string.length + 1);
 		this->std::deque<myUString>::pop_front();
 		return;
 	}
 
 	void push_back(myUString newstring)
 	{
-		if(finalstring_length)
-			finalstring_length++;
-		finalstring_length += newstring.length;
 		this->size++;
+		this->uchars_used += (newstring.length + 1);
 		this->std::deque<myUString>::push_back(newstring);
 	}
 
-	myUString join_as_ngram(int *retval);
-
-	int size;
-	int finalstring_length;
-	UChar* space;
-};
-myUString word_list::join_as_ngram(int *retval)
-{
-	myUString result;
-	result.str = (UChar*) permanently_malloc((this->finalstring_length + 1) * sizeof(*result.str) ,retval);
-	result.length = this->finalstring_length;
-
-	int first = 1;
-	UChar* ptr = result.str;
-	for(word_list::iterator j = this->begin(); j != this->end();j++)
+	//This function copies everything in the word list to a new buffer.
+	void migrate_to_new_buffer()
 	{
-		myUString cur = *j;
-		if(first)
+		int memmgnt_retval = 1;
+		UChar* in_new_buffer = (UChar*) permanently_malloc(this->uchars_used * sizeof(UChar),&memmgnt_retval);
+		if(memmgnt_retval == -1)
 		{
-			memcpy(ptr,cur.str,cur.length * sizeof(UChar));
-		}else
-		{
-			memcpy(ptr,this->space,sizeof(UChar));
-			ptr++;
-			memcpy(ptr,cur.str,sizeof(UChar) * cur.length);
+			fprintf(stderr,"Buffer size too small. Please reconfigure, recompile and rerun\n");
+			exit(-1);
 		}
-		ptr += cur.length;
-		first = 0;
+		UChar* ptr = in_new_buffer;
+		for(word_list::iterator i = this->begin(); i != this->end(); i++)
+		{
+			myUString cur = *i;
+			memcpy(ptr,cur.string,(cur.length + 1)*sizeof(*cur.string));
+			(*i).string = ptr;
+			ptr += (cur.length + 1);
+		}
 	}
-	*ptr = (UChar) 0;
 
-	return result;
-}
+	//This function ignores the contents of *retval
+	myNGram join_as_ngram(int *retval)
+	{
+		//We need a separate retval because at MARKER2 we rely on the fact that this function will only *change*
+		//retval if the buffer switch happens from this function, but ignore it if retval indicates that the buffer 
+		//was previously switched.
+		int memory_management_retval = 1;
+		//What we end up returning
+		myNGram result;
+		//We allocate enough space for the pointers to the words
+		result.ngram = (UChar**) permanently_malloc(sizeof(*result.ngram) * n_gram_size,&memory_management_retval);
+		//If it didn't all fit in the same buffer, we make sure it is all in the same buffer.
+		if(memory_management_retval == -1)
+		{
+			this->migrate_to_new_buffer();
+			*retval = -1;
+		}
+
+		//Two iterators
+		size_t j;
+		word_list::iterator i;
+
+		//The n-gram is stored as an array of pointers to the words it contains.
+		for(i = this->begin(), j = 0; i != this->end(); i++,j++)
+		{
+			result.ngram[j] = (*i).string;			
+		}
+		//We return the n-gram
+		return result;
+	}
+	int size;
+	private:
+	int uchars_used;
+};
+
 #define MAX_WORD_SIZE 40
-//Sets s to point to a normalized UChar* with the next word from f. s is allocated using malloc(3), and normalized using n.
+//Sets s to point to a normalized UChar* with the next word from f. s is allocated using permenently_malloc, and normalized using n.
 //Returns the size of f iff there is a next word.
-//Returns 0 if there is no subsequent word in f. However, s is still freeable even then.
-//Returns x so that x > MAX_WORD_SIZE if the contents of s should be ignored, but freed using free(3);
+//Returns 0 if there is no subsequent word in f. The value of s is undefined if this is the case.
+//Returns x so that x > MAX_WORD_SIZE if the contents of s, which are left undefined, should be ignored.
 //Alphabetic characters from f are converted to their lowercase equivalents.
 //Diacritics are left unmodified unless through normalization.
 //Hyphen Characters are ignored unless they are within a word. Therefore an input of --X-ray will result in the word x-ray being returned
 //Punctuation and Digit Characters are Ingored
 //Any whitespace constitutes a word delimiter.
-//Any other characters are ignored but cause a warning to be printed to stderr.
+//Any other characters are ignored.
 
-int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
+
+int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n,int *memmanagement_retval)
 {
 
     int wordlength = 0; 
@@ -184,11 +197,9 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
     }	
     if(wordlength > MAX_WORD_SIZE)
     {
-	    s = (UChar*) malloc(sizeof(*s));
-	    *s = (UChar) 0;
 	    return MAX_WORD_SIZE + 1;
     }
-    word[wordlength+1] = '\0';
+    word[wordlength] = '\0';
     if(first_is_hyphen && (wordlength == strlen("END.OF.DOCUMENT---")))
     {
 	size_t itr = 0;
@@ -201,9 +212,6 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
 	}
 	if(itr == strlen("END.OF.DOCUMENT---"))
 	{
-		s = (UChar*) malloc(sizeof(*s));
-		*s = (UChar) 0;
-		
 		return MAX_WORD_SIZE + 1;
 	}
     }
@@ -211,28 +219,29 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n)
     if(wordlength)
     {
 	//At this point we have a unicode string. However, normalization issues are still present
-	s = (UChar*) malloc(sizeof(*s) * MAX_WORD_SIZE);
+	s = (UChar*) permanently_malloc(sizeof(*s) * (MAX_WORD_SIZE + 1),memmanagement_retval);
 	UErrorCode e = U_ZERO_ERROR;
 	int retval =  unorm2_normalize(n,word,wordlength,s,MAX_WORD_SIZE,&e);
 	if(!U_SUCCESS(e))
 	{
+		rewind_permanent_malloc(sizeof(*s) * (MAX_WORD_SIZE + 1));	
 		retval = MAX_WORD_SIZE + 1;
 	}
+	s[retval] = (UChar) 0;
 	return retval;
    }else
    {
-	s = (UChar*) malloc(sizeof(*s));
-	*s = (UChar) 0;
 	return 0;
   }
 }
 
 static void swapDicts()
 {
-	//HERE1
+	//MARKER1
 	letterDict *tmp = prev_lexicon;
 	prev_lexicon = lexicon;
 	lexicon = tmp;
+	#pragma omp flush
 	return;	
 
 }
@@ -260,49 +269,46 @@ static void *writeLetterDict(int buffercount,int i,letterDict* old_dict)
 		fprintf(stderr,"Error, bad coding");
 		exit(-1);
 	}
-	FILE* cur = fopen(buf,"w");
-	if(!cur)
+	UFILE* outfile = u_fopen(buf,"w","UTF-8",NULL);
+	if(!outfile)
 	{
 		fprintf(stderr,"Unable to open file %s", buf);
 		exit(-1);
 	}
 
-	writeLetterDictToFile(old_dict[i],cur);
-	fflush(cur);
-	fclose(cur);
-	//HERE1 relies on the following step
+	writeLetterDictToFile(old_dict[i],outfile);
+	u_fclose(outfile);
+	//MARKER1 relies on the following step
 	old_dict[i].clear();
 	return NULL;
 }
 
 
-void writeLetterDictToFile(letterDict &D,FILE* outfile)
+void writeLetterDictToFile(letterDict &D,UFILE* outfile)
 {
-  UnicodeString word;
-  long long int freq;
-	  for (letterDict::iterator i = D.begin(); i != D.end(); i++) {
-	    int32_t wordlength;
-	    UErrorCode e = U_ZERO_ERROR; //This means no error
-	    char* myword = (char*) malloc(MAX_WORD_SIZE * (n_gram_size + 1) + 1 ); //TODO: Fix this.
-	    u_strToUTF8(myword,(n_gram_size + 1) * MAX_WORD_SIZE+1,&wordlength, i->first.str,i->first.length,&e);
-	    if(!U_SUCCESS(e))
-	    {
-		fprintf(stderr,"There was an error converting a string to UTF8\n");
-		//return;
-	    }
-	
-	    freq = i->second;
-	    fprintf(outfile,"%s\t%lld\n",myword,(long long int)freq);
-	    free(myword);
-  }
+	long long int freq;
+
+	for (letterDict::iterator i = D.begin(); i != D.end(); i++) {
+		UChar** n_gram = i->first.ngram;
+		for(int j = 0; j< n_gram_size; j++)
+		{
+			u_fprintf(outfile,"%S", n_gram[j]);
+			if(j != (n_gram_size -1))
+			{
+				u_fprintf(outfile," ");
+			}
+		}
+		freq = i->second;
+		u_fprintf(outfile,"\t%lld\n", (long long int) freq);
+	}
 }
 
 
-static void mark_ngram_occurance(myUString new_ngram)
+static void mark_ngram_occurance(myNGram new_ngram)
 {
 	
 	//We run a kind of bucket-sort which hopefully makes things slightly faster.
-	size_t firstchar = (size_t) (unsigned char) new_ngram.str[0];
+	size_t firstchar = (size_t) (unsigned char) new_ngram.ngram[0][0];
 	letterDict &lD = lexicon[firstchar];
 
 	std::pair<letterDict::iterator,bool> old = lD.insert(letterDict::value_type(new_ngram,1));
@@ -382,15 +388,15 @@ static void mergeNewBuffers(int buffercount)
 int fillABuffer(UFILE* f, long long int &totalwords, const UNormalizer2* norm, word_list &my_n_words,long long int &count)
 {
 	int state = 1;
-	myUString currentstring;
+	myNGram currentngram;
 	while(state == 1)
 	{
 
 
-		state = getnextngram(f,totalwords,norm,my_n_words,currentstring);
+		state = getnextngram(f,totalwords,norm,my_n_words,currentngram);
 		if(state == 0)
 			break;
-		mark_ngram_occurance(currentstring);
+		mark_ngram_occurance(currentngram);
 
 		count++;
 		if((count % 1000000 == 0))
@@ -488,6 +494,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	const UNormalizer2* norm = unorm2_getNFKDInstance(&e);
 	if(!U_SUCCESS(e))
 		fprintf(stderr,"This is also a bug that needs to be fixed\n");
+
     //Stage 1: We get n-grams and mark them in paralell
 
 	int state = 1;
@@ -500,19 +507,16 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 		//Here we fill one half of the memory used with n-grams.
 		while(1)
 		{
-			#pragma omp flush
+			#pragma omp flush(state)
 			if(!state)
 				break;
-
-			state = fillABuffer(f,totalwords,norm,my_n_words,count);
-
 			if(state == -1)
 			{
 				state = 1;
 				#pragma omp flush(buffercount)
 				buffercount++;
 				#pragma omp flush(buffercount)
-				//#pragma omp task firstprivate(buffercount,current_page_group,prev_lexicon) default(none)
+				#pragma omp task firstprivate(buffercount,current_page_group,prev_lexicon) default(none)
 				{
 
 						writeBufferToDisk(buffercount,!current_page_group,prev_lexicon);	
@@ -525,6 +529,8 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 						}
 				}
 			}
+			#pragma omp taskwait
+			state = fillABuffer(f,totalwords,norm,my_n_words,count);
 		}
 	}
 	}	
@@ -535,7 +541,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	
 	fprintf(stderr,"Writing out last buffer \n");
 	buffercount++;
-	writeBufferToDisk(buffercount,!current_page_group,lexicon);
+	writeBufferToDisk(buffercount,current_page_group,lexicon);
 	int n = buffercount;
 	int k = 0;
 	std::pair<int,int> result = doLastMerge(n,k,buffercount);
@@ -566,43 +572,46 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 //Returns 1 for simpl having fetched the next n-gram
 //Returns 0 if there is nothing more to fetch
 //Returns -1 if we need to switch buffers.
-int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myUString &str)
+int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myNGram &ngram)
 {
 	int retval;
 #pragma omp critical
 {
 	UChar* word;
-	while(1)
+	retval = 1;
+	while(true)
 	{
-		int wordlength = getnextword(word,f,n);
-		if(!wordlength) //We've reached the end of the file
+		int wordlength = getnextword(word,f,n,&retval);
+		
+		if(!wordlength) //We've reached the end of the file, and we didn't read anything this time.
 		{
-			free(word);
-			retval =  0;
+			retval =  0;//It is safe to set retval here because even if there was a buffer switch from reading in words, it doesn't matter.
 			break;
-		}else if(wordlength > MAX_WORD_SIZE)
+		}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
 		{
-			free(word);
 			my_n_words.clear();
 			continue;
 		}
-		totalwords++;
+		if(retval == -1) //I.e. the previous buffer is full
+		{
+			my_n_words.migrate_to_new_buffer(); //We migrate what we have so far the buffer that the current word was written to.
+		}
+
 		//We add the word to our list.
+		totalwords++;
 		myUString newUString;
-		newUString.str = word;
+		newUString.string = word;
 		newUString.length = wordlength;
-	
 		my_n_words.push_back(newUString);
-	
+
+		//If we don't have enough words for an n-gram, we get the next word.
 		if(my_n_words.size < n_gram_size)
 			continue;
-		else if(my_n_words.size > n_gram_size) //So that my_n_words does not grow infinitely.
-		{
-			my_n_words.pop_front();
-		}
 	
-		retval = 1;
-		str = my_n_words.join_as_ngram(&retval);
+		//If we do however have enough words for an n-gram, we write it out.
+		//MARKER2: We can pass retval in here even if it was changed by getnextword because join_as_ngram() ignores the value of retval
+		ngram = my_n_words.join_as_ngram(&retval);
+		my_n_words.pop_front();
 		break;
 	}
 }
