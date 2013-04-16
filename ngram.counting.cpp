@@ -11,7 +11,7 @@ int max_ngram_string_length = 0;
 
 static void mark_ngram_occurance(myUString new_ngram);
 static void swapDicts();
-static void* writeLetterDict(int buffercount,int number);
+static void* writeLetterDict(int buffercount,int number,letterDict* old_dict);
 void writeLetterDictToFile(letterDict &sublexicon,FILE* outfile);
 struct word_list;
 int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myUString &str);
@@ -238,7 +238,7 @@ static void swapDicts()
 }
 
 
-static void *writeLetterDict(int buffercount,int i)
+static void *writeLetterDict(int buffercount,int i,letterDict* old_dict)
 {
 	char buf[256];//Big enough.
 	if(snprintf(buf,256,"./0_%d",buffercount) >= 256)
@@ -267,13 +267,11 @@ static void *writeLetterDict(int buffercount,int i)
 		exit(-1);
 	}
 
-	writeLetterDictToFile(prev_lexicon[i],cur);
+	writeLetterDictToFile(old_dict[i],cur);
 	fflush(cur);
 	fclose(cur);
 	//HERE1 relies on the following step
-	prev_lexicon[i].clear();
-	//We tell memory_management.h that we've finished writing out this buffer.
-	safe_to_switch = 1;
+	old_dict[i].clear();
 	return NULL;
 }
 
@@ -302,7 +300,6 @@ void writeLetterDictToFile(letterDict &D,FILE* outfile)
 
 static void mark_ngram_occurance(myUString new_ngram)
 {
-	//TODO: Think about the fact that this has to lookup new_ngram in lexicon twice.
 	
 	//We run a kind of bucket-sort which hopefully makes things slightly faster.
 	size_t firstchar = (size_t) (unsigned char) new_ngram.str[0];
@@ -318,172 +315,96 @@ static void mark_ngram_occurance(myUString new_ngram)
 	return;
 }
 
-
-long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
+static void writeBufferToDisk(int buffercount,size_t page_group,letterDict* lexicon)
 {
-    //Initialization:
-	n_gram_size = ngramsize;
-	max_ngram_string_length = (ngramsize * (MAX_WORD_SIZE + 1)) + 1;
-	init_permanent_malloc(&swapDicts);
-	remove("./processing");
-	mkdir("./processing",S_IRUSR | S_IWUSR | S_IXUSR);
-	chdir("./processing");
-	lexicon = new Dict;
-	prev_lexicon = new Dict;
-	long long int totalwords = 0;
-	word_list my_n_words;
-	long long int count = 0;	
-    	UFILE* f = u_fadopt(infile, "UTF8", NULL);
-	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details.
-	UErrorCode e = U_ZERO_ERROR;
-	const UNormalizer2* norm = unorm2_getNFKDInstance(&e);
-	if(!U_SUCCESS(e))
-		fprintf(stderr,"This is also a bug that needs to be fixed\n");
-    //Stage 1: We get n-grams and mark them in paralell
-
-	myUString currentstring;
-	myUString nextstring;
-        int state = getnextngram(f,totalwords,norm,my_n_words,currentstring);
-	int newstate = state;
-	int buffercount = -1;
-	while(1)
-	{
-		if(state == 0) //End of file
-			break;
-		#pragma omp parallel sections
+		setpagelock(page_group);
+		fprintf(stderr,"Switching buffers\n");
+		#pragma omp parallel for
+		for(int i = 0; i< 256;i++)
 		{
-			//Here we fill one half of the memory used with n-grams.
-			#pragma omp section	
-			{
-				newstate = 1;
-				while(1)
-				{
-					if(newstate != 1)
-					{
-						#pragma omp flush(state,newstate)
-						state = newstate;
-						#pragma omp flush(state)
-						break;
-					}
-					#pragma omp parallel sections
-					{
-						#pragma omp section
-						{
-							newstate = getnextngram(f,totalwords,norm,my_n_words,nextstring);
-						}
-						#pragma omp section
-						{
-							mark_ngram_occurance(currentstring);
-						}
-					}
-					currentstring = nextstring;
-					count++;
-					if((count % 1000000 == 0))
-					{
-						fprintf(stderr,"%lld\n",(long long int) count);
-					}
-				}
-			}
-			//Here we concurrently write out  the n-grams from the other half of memory.
-			#pragma omp section
-			{
-				if(state == -1)
-				{
-					#pragma omp flush(safe_to_switch)
-					safe_to_switch = 0;
-					#pragma omp flush(safe_to_switch)
-					fprintf(stderr,"Switching buffers\n");
-					#pragma omp parallel for
-					for(int i = 0; i< 256;i++)
-					{
-						writeLetterDict(buffercount+1,i);
-					}
-					#pragma omp flush(safe_to_switch)
-					safe_to_switch = 1;
-					#pragma omp flush(safe_to_switch)
-					state = 1;
-					#pragma omp flush(state)
-
-					#pragma omp flush(buffercount)
-					buffercount++;
-					#pragma omp flush(buffercount)
-
-				}
-			}
-			//Here we merge the buffers that are already on disk.
-			#pragma omp section
-			{
-				#pragma omp flush(buffercount)
-				if((buffercount > 0) && (buffercount % 2))
-				{
-					#pragma omp parallel for
-					for(int i = 0; i< 256;i++)
-					{
-						int n = buffercount;
-						int k = 0;
-						while(n % 2)
-						{
-							char buf[256];
-							char buf2[256];
-							char output[256];
-							char outdir[256];
-							snprintf(buf, 256, "./%d_%d/%d.out",k,n,i);
-							snprintf(buf2, 256,"./%d_%d/%d.out",k,n-1,i);
-							n = (n - 1)/2;
-							k++;
-							snprintf(outdir, 256,"./%d_%d",k,n);
-							mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
-							snprintf(output, 256,"./%d_%d/%d.out",k,n,i);
-							FILE* firstfile = fopen(buf, "r");
-							FILE* secondfile = fopen(buf2, "r");
-							FILE* outputfile = fopen(output, "w");
-							if(!firstfile)
-							{
-								fprintf(stderr, "Unable to open %s for reading", buf);
-								exit(-1);
-							}else if(!secondfile)
-							{
-								fprintf(stderr,"Unable to open %s for reading", buf2);
-								exit(-1);
-							}else if(!outputfile)
-							{
-								fprintf(stderr, "Unable to open %s for writing",output);
-								exit(-1);
-							}
-
-							
-							if(!i)
-								fprintf(stderr,"Mergeing %s with %s to give %s\n", buf, buf2, output);
-							int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
-							fclose(firstfile);
-							fclose(secondfile);
-							fclose(outputfile);
-							if(mergefile_out)
-							{
-								fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
-								exit(-1);
-							}
-						}
-					}
-				}
-			}
+			writeLetterDict(buffercount,i,lexicon);
 		}
-		#pragma omp flush
-	}
-	//We've done all our reading to disk, let's close the input file.
-	u_fclose(f);
-	//Once we reach here we still have one buffer that needs to be written to disk.
 	
-	fprintf(stderr,"Writing out last buffer \n");
-	swapDicts();
-	#pragma omp parallel for
+		#pragma omp flush
+		unsetpagelock(page_group);
+}
+
+static void mergeNewBuffers(int buffercount)
+{
+	#pragma omp parallel for firstprivate(buffercount) shared(max_ngram_string_length)
 	for(int i = 0; i< 256;i++)
 	{
-		writeLetterDict(buffercount+1,i);
+		int n = buffercount;
+		int k = 0;
+		while(n % 2)
+		{
+			char buf[256];
+			char buf2[256];
+			char output[256];
+			char outdir[256];
+			snprintf(buf, 256, "./%d_%d/%d.out",k,n,i);
+			snprintf(buf2, 256,"./%d_%d/%d.out",k,n-1,i);
+			n = (n - 1)/2;
+			k++;
+			snprintf(outdir, 256,"./%d_%d",k,n);
+			mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
+			snprintf(output, 256,"./%d_%d/%d.out",k,n,i);
+			FILE* firstfile = fopen(buf, "r");
+			FILE* secondfile = fopen(buf2, "r");
+			FILE* outputfile = fopen(output, "w");
+			if(!firstfile)
+			{
+				fprintf(stderr, "Unable to open %s for reading", buf);
+				exit(-1);
+			}else if(!secondfile)
+			{
+				fprintf(stderr,"Unable to open %s for reading", buf2);
+				exit(-1);
+			}else if(!outputfile)
+			{
+				fprintf(stderr, "Unable to open %s for writing",output);
+				exit(-1);
+			}
+			if(!i)
+				fprintf(stderr,"Mergeing %s with %s to give %s\n", buf, buf2, output);
+			int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
+			fclose(firstfile);
+			fclose(secondfile);
+			fclose(outputfile);
+			if(mergefile_out)
+			{
+				fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
+				exit(-1);
+			}
+		}	
 	}
-	buffercount++;
-	int n = 0;
-	int k = 0;
+}
+int fillABuffer(UFILE* f, long long int &totalwords, const UNormalizer2* norm, word_list &my_n_words,long long int &count)
+{
+	int state = 1;
+	myUString currentstring;
+	while(state == 1)
+	{
+
+
+		state = getnextngram(f,totalwords,norm,my_n_words,currentstring);
+		if(state == 0)
+			break;
+		mark_ngram_occurance(currentstring);
+
+		count++;
+		if((count % 1000000 == 0))
+		{
+			fprintf(stderr,"%lld\n",(long long int) count);
+		}
+
+	}
+	return state;
+}
+
+std::pair<int,int> doLastMerge(int n, int k,int buffercount)
+{
+	k = 0;
 	#pragma omp parallel for firstprivate(n) firstprivate(k) lastprivate(n) lastprivate(k)
 	for(int i = 0; i< 256;i++)
 	{
@@ -542,6 +463,85 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 			k = k2;
 		}
 	}
+	return std::pair<int,int>(n,k);
+}
+
+
+long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
+{
+    //Initialization:
+	n_gram_size = ngramsize;
+	#pragma omp flush(n_gram_size)
+	max_ngram_string_length = (ngramsize * (MAX_WORD_SIZE + 1)) + 1;
+	init_permanent_malloc(&swapDicts);
+	remove("./processing");
+	mkdir("./processing",S_IRUSR | S_IWUSR | S_IXUSR);
+	chdir("./processing");
+	lexicon = new Dict;
+	prev_lexicon = new Dict;
+	long long int totalwords = 0;
+	word_list my_n_words;
+	long long int count = 0;	
+    	UFILE* f = u_fadopt(infile, "UTF8", NULL);
+	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details.
+	UErrorCode e = U_ZERO_ERROR;
+	const UNormalizer2* norm = unorm2_getNFKDInstance(&e);
+	if(!U_SUCCESS(e))
+		fprintf(stderr,"This is also a bug that needs to be fixed\n");
+    //Stage 1: We get n-grams and mark them in paralell
+
+	int state = 1;
+	volatile int buffercount = -1;
+	#pragma omp parallel 
+	{
+	#pragma omp master
+	{
+       		//shared(nextstring,f,norm,state,currentstring,stderr,count,totalwords,buffercount,current_page_group,my_n_words)
+		//Here we fill one half of the memory used with n-grams.
+		while(1)
+		{
+			#pragma omp flush
+			if(!state)
+				break;
+
+			state = fillABuffer(f,totalwords,norm,my_n_words,count);
+
+			if(state == -1)
+			{
+				state = 1;
+				#pragma omp flush(buffercount)
+				buffercount++;
+				#pragma omp flush(buffercount)
+				//#pragma omp task firstprivate(buffercount,current_page_group,prev_lexicon) default(none)
+				{
+
+						writeBufferToDisk(buffercount,!current_page_group,prev_lexicon);	
+						//Here we merge the buffers that are already on disk.
+						#pragma omp taskwait //This works taskwait waits for direct children of the master thread.
+						if((buffercount > 0) && (buffercount % 2))
+						{
+								#pragma omp task firstprivate(buffercount)
+								mergeNewBuffers(buffercount);
+						}
+				}
+			}
+		}
+	}
+	}	
+	
+	//We've done all our reading to disk, let's close the input file.
+	u_fclose(f);
+	//Once we reach here we still have one buffer that needs to be written to disk.
+	
+	fprintf(stderr,"Writing out last buffer \n");
+	buffercount++;
+	writeBufferToDisk(buffercount,!current_page_group,lexicon);
+	int n = buffercount;
+	int k = 0;
+	std::pair<int,int> result = doLastMerge(n,k,buffercount);
+	n = result.first;
+	k = result.second;
+	
 	//At this point we have 256 input files that can be combined.
 	for(int i = 0; i< 256; i++)
 	{
@@ -568,6 +568,9 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 //Returns -1 if we need to switch buffers.
 int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myUString &str)
 {
+	int retval;
+#pragma omp critical
+{
 	UChar* word;
 	while(1)
 	{
@@ -575,7 +578,8 @@ int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_l
 		if(!wordlength) //We've reached the end of the file
 		{
 			free(word);
-			return 0;
+			retval =  0;
+			break;
 		}else if(wordlength > MAX_WORD_SIZE)
 		{
 			free(word);
@@ -597,9 +601,11 @@ int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_l
 			my_n_words.pop_front();
 		}
 	
-		int retval = 1;
+		retval = 1;
 		str = my_n_words.join_as_ngram(&retval);
-		return retval;
+		break;
 	}
+}
+		return retval;
 }
 

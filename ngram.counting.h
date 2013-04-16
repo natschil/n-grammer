@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <omp.h>
 
 //#define U_CHARSET_IS_UTF8 1
 #include <unicode/utf.h>
