@@ -373,6 +373,8 @@ static void mergeNewBuffers(int buffercount)
 				fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
 				exit(-1);
 			}
+			remove(buf);
+			remove(buf2);
 		}	
 	}
 }
