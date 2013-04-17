@@ -127,7 +127,9 @@ struct word_list : public std::deque<myUString>
 };
 
 //The number of bytes to use per word. Any words larger than this are ignred.
+#ifndef MAX_WORD_SIZE
 #define MAX_WORD_SIZE 40
+#endif
 //Sets s to point to a normalized uint8_t* with the next word from f. s is allocated using permenently_malloc, and normalized using n.
 //Returns the size of f iff there is a next word.
 //Returns 0 if there is no subsequent word in f. The value of s is undefined if this is the case.
