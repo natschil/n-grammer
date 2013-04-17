@@ -15,12 +15,21 @@
 #include <errno.h>
 #include <omp.h>
 
+/*
 //#define U_CHARSET_IS_UTF8 1
 #include <unicode/utf.h>
 #include <unicode/uchar.h>
 #include <unicode/unistr.h>
 #include <unicode/unorm2.h>
 #include <unicode/ustdio.h>
+*/
+#include <unistr.h>
+#include <unistdio.h>
+#include <uninorm.h>
+#include <unitypes.h>
+#include <unictype.h>
+#include <unistdio.h>
+#include <unicase.h>
 
 
 
@@ -29,18 +38,19 @@ extern "C"{
 #include "mergefiles.h"
 }
 
-
-struct myNGram
-{
-	UChar **ngram;	
-	~myNGram();
-};
 struct myUString
 {
-	UChar* string;
+	uint8_t* string;
 	size_t length;
 	~myUString(){return;};
 };
+
+struct myNGram
+{
+	myUString *ngram;	
+	~myNGram();
+};
+
 
 struct ngram_cmp : public std::binary_function<myNGram, myNGram,bool>
 {
@@ -54,7 +64,7 @@ typedef std::map<myNGram, long long int,ngram_cmp> letterDict;
 typedef letterDict Dict[256];
 extern letterDict *lexicon;
 
-int getnextword(UChar* &s, UFILE* f,const UNormalizer2* normalizer);
+int getnextword(uint8_t* &s, FILE* f, uninorm_t);
 
 long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile);
 #endif

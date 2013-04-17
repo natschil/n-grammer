@@ -1,7 +1,6 @@
 #include "ngram.counting.h"
 
 using namespace std;
-using namespace icu;
 
 //Some global variables
 letterDict *lexicon = NULL;
@@ -16,18 +15,18 @@ static void* writeLetterDict(int buffercount,int number,letterDict* old_dict);
 void writeLetterDictToFile(letterDict &sublexicon,FILE* outfile);
 struct word_list;
 
-int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myNGram &str);
+int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,myNGram &str);
 
 bool ngram_cmp::operator()(myNGram first, myNGram second)
 {
 	for(int i = 0; i<n_gram_size; i++)
 	{
 		int prevres;
-		if(!(prevres = (u_strcmp(first.ngram[i],second.ngram[i]))))//Makes merging easier because we don't need to convert to UTF16 again..
+		if(!(prevres = (u8_cmp2(first.ngram[i].string,first.ngram[i].length,second.ngram[i].string,second.ngram[i].length))))//Makes merging easier because we don't need to convert to UTF16 again..
 		{
 			continue;
-		}
-		else return prevres < 0;
+		}else
+		       return prevres < 0;
 	}
 	return false;
 }
@@ -39,7 +38,7 @@ struct word_list : public std::deque<myUString>
 	word_list() : std::deque<myUString>()
 	{
 		this->size = 0;
-		this->uchars_used = 0;
+		this->u8_characters_used = 0;
 	}
 
 	~word_list() 
@@ -51,7 +50,7 @@ struct word_list : public std::deque<myUString>
 		{
 			this->pop_front();
 		}
-		this->uchars_used = 0;
+		this->u8_characters_used = 0;
 		return;
 	}
 
@@ -59,7 +58,7 @@ struct word_list : public std::deque<myUString>
 	{
 		this->size--;
 		myUString old_string = this->front();
-		this->uchars_used -= (old_string.length + 1);
+		this->u8_characters_used -= (old_string.length + 1);
 		this->std::deque<myUString>::pop_front();
 		return;
 	}
@@ -67,7 +66,7 @@ struct word_list : public std::deque<myUString>
 	void push_back(myUString newstring)
 	{
 		this->size++;
-		this->uchars_used += (newstring.length + 1);
+		this->u8_characters_used += (newstring.length + 1);
 		this->std::deque<myUString>::push_back(newstring);
 	}
 
@@ -75,13 +74,13 @@ struct word_list : public std::deque<myUString>
 	void migrate_to_new_buffer()
 	{
 		int memmgnt_retval = 1;
-		UChar* in_new_buffer = (UChar*) permanently_malloc(this->uchars_used * sizeof(UChar),&memmgnt_retval);
+		uint8_t* in_new_buffer = (uint8_t*) permanently_malloc(this->u8_characters_used * sizeof(uint8_t),&memmgnt_retval);
 		if(memmgnt_retval == -1)
 		{
 			fprintf(stderr,"Buffer size too small. Please reconfigure, recompile and rerun\n");
 			exit(-1);
 		}
-		UChar* ptr = in_new_buffer;
+		uint8_t* ptr = in_new_buffer;
 		for(word_list::iterator i = this->begin(); i != this->end(); i++)
 		{
 			myUString cur = *i;
@@ -101,7 +100,7 @@ struct word_list : public std::deque<myUString>
 		//What we end up returning
 		myNGram result;
 		//We allocate enough space for the pointers to the words
-		result.ngram = (UChar**) permanently_malloc(sizeof(*result.ngram) * n_gram_size,&memory_management_retval);
+		result.ngram = (myUString*) permanently_malloc(sizeof(*result.ngram) * n_gram_size,&memory_management_retval);
 		//If it didn't all fit in the same buffer, we make sure it is all in the same buffer.
 		if(memory_management_retval == -1)
 		{
@@ -116,18 +115,18 @@ struct word_list : public std::deque<myUString>
 		//The n-gram is stored as an array of pointers to the words it contains.
 		for(i = this->begin(), j = 0; i != this->end(); i++,j++)
 		{
-			result.ngram[j] = (*i).string;			
+			result.ngram[j] = *i;
 		}
 		//We return the n-gram
 		return result;
 	}
 	int size;
 	private:
-	int uchars_used;
+	int u8_characters_used;
 };
 
 #define MAX_WORD_SIZE 40
-//Sets s to point to a normalized UChar* with the next word from f. s is allocated using permenently_malloc, and normalized using n.
+//Sets s to point to a normalized uint8_t* with the next word from f. s is allocated using permenently_malloc, and normalized using n.
 //Returns the size of f iff there is a next word.
 //Returns 0 if there is no subsequent word in f. The value of s is undefined if this is the case.
 //Returns x so that x > MAX_WORD_SIZE if the contents of s, which are left undefined, should be ignored.
@@ -139,21 +138,22 @@ struct word_list : public std::deque<myUString>
 //Any other characters are ignored.
 
 
-int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n,int *memmanagement_retval)
+int getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
 {
 
     int wordlength = 0; 
     int first_is_hyphen = 0;
-    UChar word[MAX_WORD_SIZE+1]; //words may not be longer than MAX_WORD_SIZE characters.
+    uint8_t word[MAX_WORD_SIZE+1]; //words may not be longer than MAX_WORD_SIZE characters.
     //The size is MAX_WORD_SIZE + 1 so that it can hold a word of length MAX_WORD_SIZE+1 which is longer than MAX_WORD_SIZE characters and will hence trigger it to be ignored in 
     //The next code.
-    UChar32 character;
+    wint_t wide_char;
 
     //See http://icu-project.org/apiref/icu4c/ustdio_8h.html#a48b9be06c611643848639fa4c22a16f4
-    for(wordlength = 0;((character = u_fgetcx(f)) != U_EOF);)
+    for(wordlength = 0;((wide_char = fgetwc(f)) != WEOF);)
     { 
+	ucs4_t character = (ucs4_t) wide_char;
 	//We now check whether or not the character is a whitespace character:
-	if(u_isUWhiteSpace(character))
+	if(uc_is_property_white_space(character))
 	{
 		if(!wordlength) //We ignnore preceding whitespace.
 			continue;
@@ -161,37 +161,32 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n,int *memmanagement_retv
 			break;
 	}else if(wordlength <= MAX_WORD_SIZE) //After 41 characters we ignore all non-whitespace stuff.
 	{
-		if(u_isUAlphabetic(character))
+		if(uc_is_property_alphabetic(character))
 		{
-			UChar32 lowercase = u_tolower(character);
-
-			word[wordlength] = lowercase;
-			wordlength++;
-		}else if((u_hasBinaryProperty(character, UCHAR_HYPHEN) || u_hasBinaryProperty(character, UCHAR_DIACRITIC )))
+			character = uc_tolower(character);
+			size_t added_word_length = MAX_WORD_SIZE + 1 - wordlength;
+			u32_to_u8(&character, 1, word + wordlength,&added_word_length);
+			wordlength+= added_word_length;
+		}else if((uc_is_property_hyphen(character) || uc_is_property_diacritic(character)))
 		{
 
-			if(u_hasBinaryProperty(character,UCHAR_HYPHEN))
+			if(uc_is_property_hyphen(character))
 			{
 				first_is_hyphen = 1;	
 			}
 			if(wordlength)
 			{
 				//We treat hyphens like we treat normal characters..
-				word[wordlength] = character;
-				wordlength++;
+				size_t added_word_length = MAX_WORD_SIZE + 1 - wordlength;
+				u32_to_u8(&character,1,word+wordlength, &added_word_length);
+				wordlength += added_word_length;
 			}
-		}else if(u_ispunct(character) || u_isdigit(character))
+		}else if(uc_is_property_punctuation(character))
 		{
-			continue;
-		}else if(!U16_IS_SINGLE(character))
-		{
-			//We could relatively easily split c into it's surrogate pair,
-			//but it is probably better to simply ignore the character and print an error:
-			fprintf(stderr, "Found non-UTF16 character %x\n", (int) character);
 			continue;
 		}else
 		{
-			//This happens on some characters such as $ or °.
+			continue;
 		}
 	}
     }	
@@ -200,34 +195,24 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n,int *memmanagement_retv
 	    return MAX_WORD_SIZE + 1;
     }
     word[wordlength] = '\0';
-    if(first_is_hyphen && (wordlength == strlen("END.OF.DOCUMENT---")))
+    if(first_is_hyphen && !strcmp((const char*) word,"END.OF.DOCUMENT"))
     {
-	size_t itr = 0;
-	for(itr = 0; itr < strlen("END.OF.DOCUMENT---");itr++)
-	{
-		if(((char) word[itr]) != "END.OF.DOCUMENT"[itr])
-		{
-			break;
-		}
-	}
-	if(itr == strlen("END.OF.DOCUMENT---"))
-	{
-		return MAX_WORD_SIZE + 1;
-	}
+	return MAX_WORD_SIZE + 1;
     }
 
     if(wordlength)
     {
 	//At this point we have a unicode string. However, normalization issues are still present
-	s = (UChar*) permanently_malloc(sizeof(*s) * (MAX_WORD_SIZE + 1),memmanagement_retval);
-	UErrorCode e = U_ZERO_ERROR;
-	int retval =  unorm2_normalize(n,word,wordlength,s,MAX_WORD_SIZE,&e);
-	if(!U_SUCCESS(e))
+	s = (uint8_t*) permanently_malloc(sizeof(*s) * (MAX_WORD_SIZE + 1),memmanagement_retval);
+	size_t retval = MAX_WORD_SIZE + 1;
+	u8_normalize(norm,word, wordlength, s, &retval);
+	if((retval > MAX_WORD_SIZE))
 	{
 		rewind_permanent_malloc(sizeof(*s) * (MAX_WORD_SIZE + 1));	
 		retval = MAX_WORD_SIZE + 1;
 	}
-	s[retval] = (UChar) 0;
+	//TODO: run rewind_permanent_malloc here to save some memory.
+	s[retval] = (uint8_t) '\0';
 	return retval;
    }else
    {
@@ -289,14 +274,10 @@ void writeLetterDictToFile(letterDict &D,FILE* outfile)
 	long long int freq;
 
 	for (letterDict::iterator i = D.begin(); i != D.end(); i++) {
-		UChar** n_gram = i->first.ngram;
+		myUString* n_gram = i->first.ngram;
 		for(int j = 0; j< n_gram_size; j++)
 		{
-			wchar_t buf[MAX_WORD_SIZE+1];
-			int outlength = 0;
-			UErrorCode err = U_ZERO_ERROR;
-			u_strToWCS(buf,MAX_WORD_SIZE +1,&outlength,n_gram[j],-1,&err);
-			fprintf(outfile,"%ls", buf );
+			ulc_fprintf(outfile, "%U", n_gram[j].string);
 			if(j != n_gram_size - 1)
 			{
 				fprintf(outfile," ");
@@ -312,7 +293,7 @@ static void mark_ngram_occurance(myNGram new_ngram)
 {
 	
 	//We run a kind of bucket-sort which hopefully makes things slightly faster.
-	size_t firstchar = (size_t) (unsigned char) new_ngram.ngram[0][0];
+	size_t firstchar = (size_t) (unsigned char) new_ngram.ngram[0].string[0];
 	letterDict &lD = lexicon[firstchar];
 
 	std::pair<letterDict::iterator,bool> old = lD.insert(letterDict::value_type(new_ngram,1));
@@ -389,7 +370,7 @@ static void mergeNewBuffers(int buffercount)
 		}	
 	}
 }
-int fillABuffer(UFILE* f, long long int &totalwords, const UNormalizer2* norm, word_list &my_n_words,long long int &count)
+int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &my_n_words,long long int &count)
 {
 	int state = 1;
 	myNGram currentngram;
@@ -492,12 +473,8 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	long long int totalwords = 0;
 	word_list my_n_words;
 	long long int count = 0;	
-    	UFILE* f = u_fadopt(infile, "en_US", "UTF-8");
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details.
-	UErrorCode e = U_ZERO_ERROR;
-	const UNormalizer2* norm = unorm2_getNFKDInstance(&e);
-	if(!U_SUCCESS(e))
-		fprintf(stderr,"This is also a bug that needs to be fixed\n");
+	uninorm_t norm = UNINORM_NFKD; 
 	setlocale(LC_CTYPE, "");
 
 
@@ -509,7 +486,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	{
 	#pragma omp master
 	{
-       		//shared(nextstring,f,norm,state,currentstring,stderr,count,totalwords,buffercount,current_page_group,my_n_words)
+       		//shared(nextstring,infile,norm,state,currentstring,stderr,count,totalwords,buffercount,current_page_group,my_n_words)
 		//Here we fill one half of the memory used with n-grams.
 		while(1)
 		{
@@ -537,13 +514,12 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 				}
 			}
 			#pragma omp taskwait
-			state = fillABuffer(f,totalwords,norm,my_n_words,count);
+			state = fillABuffer(infile,totalwords,norm,my_n_words,count);
 		}
 	}
 	}	
 	
-	//We've done all our reading to disk, let's close the input file.
-	u_fclose(f);
+	//We've done all our reading from the input file.
 	//Once we reach here we still have one buffer that needs to be written to disk.
 	
 	buffercount++;
@@ -579,12 +555,12 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 //Returns 1 for simpl having fetched the next n-gram
 //Returns 0 if there is nothing more to fetch
 //Returns -1 if we need to switch buffers.
-int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myNGram &ngram)
+int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,myNGram &ngram)
 {
 	int retval;
 #pragma omp critical
 {
-	UChar* word;
+	uint8_t* word;
 	retval = 1;
 	while(true)
 	{
