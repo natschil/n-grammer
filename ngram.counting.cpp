@@ -22,7 +22,8 @@ bool ngram_cmp::operator()(myNGram first, myNGram second)
 	for(int i = 0; i<n_gram_size; i++)
 	{
 		int prevres;
-		if(!(prevres = (u8_cmp2(first.ngram[i].string,first.ngram[i].length,second.ngram[i].string,second.ngram[i].length))))//Makes merging easier because we don't need to convert to UTF16 again..
+		//if(!(prevres = (u8_cmp2(first.ngram[i].string,first.ngram[i].length,second.ngram[i].string,second.ngram[i].length))))//Makes merging easier because we don't need to convert to UTF16 again..
+		if(!(prevres = strcmp((const char*) first.ngram[i].string,(const char*) second.ngram[i].string)))
 		{
 			continue;
 		}else
@@ -151,7 +152,7 @@ int getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
     //See http://icu-project.org/apiref/icu4c/ustdio_8h.html#a48b9be06c611643848639fa4c22a16f4
     for(wordlength = 0;((wide_char = fgetwc(f)) != WEOF);)
     { 
-	ucs4_t character = (ucs4_t) wide_char;
+	ucs4_t character = (ucs4_t)(wchar_t) wide_char;
 	//We now check whether or not the character is a whitespace character:
 	if(uc_is_property_white_space(character))
 	{
@@ -167,7 +168,8 @@ int getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
 			size_t added_word_length = MAX_WORD_SIZE + 1 - wordlength;
 			u32_to_u8(&character, 1, word + wordlength,&added_word_length);
 			wordlength+= added_word_length;
-		}else if((uc_is_property_hyphen(character) || uc_is_property_diacritic(character)))
+		}else if(uc_is_property_hyphen(character) || 
+				(uc_is_property_diacritic(character) && !uc_is_general_category(character,UC_MODIFIER_SYMBOL)))
 		{
 
 			if(uc_is_property_hyphen(character))
