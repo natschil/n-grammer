@@ -8,13 +8,12 @@ letterDict *lexicon = NULL;
 letterDict *prev_lexicon = NULL;
 int n_gram_size = 0;
 int max_ngram_string_length = 0;
-UChar* space;
 
 //Some function declarations.
 static void mark_ngram_occurance(myNGram new_ngram);
 static void swapDicts();
 static void* writeLetterDict(int buffercount,int number,letterDict* old_dict);
-void writeLetterDictToFile(letterDict &sublexicon,UFILE* outfile);
+void writeLetterDictToFile(letterDict &sublexicon,FILE* outfile);
 struct word_list;
 
 int getnextngram(UFILE* f,long long int &totalwords,const UNormalizer2* n,word_list &my_n_words,myNGram &str);
@@ -168,8 +167,9 @@ int getnextword(UChar* &s,UFILE* f,const UNormalizer2* n,int *memmanagement_retv
 
 			word[wordlength] = lowercase;
 			wordlength++;
-		}else if(u_hasBinaryProperty(character, UCHAR_HYPHEN) || u_hasBinaryProperty(character, UCHAR_DIACRITIC ))
+		}else if((u_hasBinaryProperty(character, UCHAR_HYPHEN) || u_hasBinaryProperty(character, UCHAR_DIACRITIC )))
 		{
+
 			if(u_hasBinaryProperty(character,UCHAR_HYPHEN))
 			{
 				first_is_hyphen = 1;	
@@ -269,7 +269,7 @@ static void *writeLetterDict(int buffercount,int i,letterDict* old_dict)
 		fprintf(stderr,"Error, bad coding");
 		exit(-1);
 	}
-	UFILE* outfile = u_fopen(buf,"w","UTF-8",NULL);
+	FILE* outfile = fopen(buf,"w");
 	if(!outfile)
 	{
 		fprintf(stderr,"Unable to open file %s", buf);
@@ -277,14 +277,14 @@ static void *writeLetterDict(int buffercount,int i,letterDict* old_dict)
 	}
 
 	writeLetterDictToFile(old_dict[i],outfile);
-	u_fclose(outfile);
+	fclose(outfile);
 	//MARKER1 relies on the following step
 	old_dict[i].clear();
 	return NULL;
 }
 
 
-void writeLetterDictToFile(letterDict &D,UFILE* outfile)
+void writeLetterDictToFile(letterDict &D,FILE* outfile)
 {
 	long long int freq;
 
@@ -292,14 +292,18 @@ void writeLetterDictToFile(letterDict &D,UFILE* outfile)
 		UChar** n_gram = i->first.ngram;
 		for(int j = 0; j< n_gram_size; j++)
 		{
-			u_fprintf(outfile,"%S", n_gram[j]);
-			if(j != (n_gram_size -1))
+			wchar_t buf[MAX_WORD_SIZE+1];
+			int outlength = 0;
+			UErrorCode err = U_ZERO_ERROR;
+			u_strToWCS(buf,MAX_WORD_SIZE +1,&outlength,n_gram[j],-1,&err);
+			fprintf(outfile,"%ls", buf );
+			if(j != n_gram_size - 1)
 			{
-				u_fprintf(outfile," ");
+				fprintf(outfile," ");
 			}
 		}
 		freq = i->second;
-		u_fprintf(outfile,"\t%lld\n", (long long int) freq);
+		fprintf(outfile,"\t%lld\n", (long long int) freq);
 	}
 }
 
@@ -488,12 +492,14 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	long long int totalwords = 0;
 	word_list my_n_words;
 	long long int count = 0;	
-    	UFILE* f = u_fadopt(infile, "UTF8", NULL);
+    	UFILE* f = u_fadopt(infile, "en_US", "UTF-8");
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details.
 	UErrorCode e = U_ZERO_ERROR;
 	const UNormalizer2* norm = unorm2_getNFKDInstance(&e);
 	if(!U_SUCCESS(e))
 		fprintf(stderr,"This is also a bug that needs to be fixed\n");
+	setlocale(LC_CTYPE, "");
+
 
     //Stage 1: We get n-grams and mark them in paralell
 
@@ -522,6 +528,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 						writeBufferToDisk(buffercount,!current_page_group,prev_lexicon);	
 						//Here we merge the buffers that are already on disk.
 						#pragma omp taskwait //This works taskwait waits for direct children of the master thread.
+						//Though the line above is suboptimal performance wise, it (hopefully) means that we do not start mergeing before we can afford to do so.
 						if((buffercount > 0) && (buffercount % 2))
 						{
 								#pragma omp task firstprivate(buffercount)
@@ -539,7 +546,6 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	u_fclose(f);
 	//Once we reach here we still have one buffer that needs to be written to disk.
 	
-	fprintf(stderr,"Writing out last buffer \n");
 	buffercount++;
 	writeBufferToDisk(buffercount,current_page_group,lexicon);
 	int n = buffercount;
@@ -548,6 +554,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	n = result.first;
 	k = result.second;
 	
+	fprintf(stderr,"Mergeing subfiles\n");
 	//At this point we have 256 input files that can be combined.
 	for(int i = 0; i< 256; i++)
 	{
