@@ -205,15 +205,18 @@ int getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
     if(wordlength)
     {
 	//At this point we have a unicode string. However, normalization issues are still present
-	s = (uint8_t*) permanently_malloc(sizeof(*s) * (MAX_WORD_SIZE + 1),memmanagement_retval);
-	size_t retval = MAX_WORD_SIZE + 1;
+	const size_t allocated_buffer_size = sizeof(*s) * (MAX_WORD_SIZE + 1);
+	s = (uint8_t*) permanently_malloc(allocated_buffer_size,memmanagement_retval);
+	size_t retval = allocated_buffer_size;
+
 	u8_normalize(norm,word, wordlength, s, &retval);
 	if((retval > MAX_WORD_SIZE))
 	{
 		rewind_permanent_malloc(sizeof(*s) * (MAX_WORD_SIZE + 1));	
 		retval = MAX_WORD_SIZE + 1;
 	}
-	//TODO: run rewind_permanent_malloc here to save some memory.
+	if((allocated_buffer_size - retval) > 0)
+		rewind_permanent_malloc(allocated_buffer_size - retval - sizeof(*s)); //The last sizeof(*s) is so we don't rewind past the null byte
 	s[retval] = (uint8_t) '\0';
 	return retval;
    }else

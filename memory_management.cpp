@@ -82,7 +82,6 @@ void* permanently_malloc(size_t numbytes,int* retval)
 
 void rewind_permanent_malloc(size_t numbytes)
 {
-	return;
 	setpagelock(current_page_group);
 	if(current_page_occupied >= numbytes)
 		current_page_occupied -= numbytes;
