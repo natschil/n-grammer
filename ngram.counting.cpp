@@ -126,13 +126,14 @@ struct word_list : public std::deque<myUString>
 	int u8_characters_used;
 };
 
+//The number of bytes to use per word. Any words larger than this are ignred.
 #define MAX_WORD_SIZE 40
 //Sets s to point to a normalized uint8_t* with the next word from f. s is allocated using permenently_malloc, and normalized using n.
 //Returns the size of f iff there is a next word.
 //Returns 0 if there is no subsequent word in f. The value of s is undefined if this is the case.
 //Returns x so that x > MAX_WORD_SIZE if the contents of s, which are left undefined, should be ignored.
 //Alphabetic characters from f are converted to their lowercase equivalents.
-//Diacritics are left unmodified unless through normalization.
+//Diacritics are left unmodified unless through normalization, or if they in the Unicode Sk category
 //Hyphen Characters are ignored unless they are within a word. Therefore an input of --X-ray will result in the word x-ray being returned
 //Punctuation and Digit Characters are Ingored
 //Any whitespace constitutes a word delimiter.
