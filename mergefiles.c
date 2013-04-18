@@ -26,8 +26,6 @@ void schedule_next_merge(int k, int n,int rightmost_run)
 	{
 		fprintf(stderr, "Maximum number of buffers filled. Try adjusting MAX_BUFFERS in %s\n", __FILE__);
 	}
-	if(k > max_k)
-		max_k = k;
 
 	int other_n;
 
@@ -63,13 +61,15 @@ void schedule_next_merge(int k, int n,int rightmost_run)
 	#pragma omp critical(merge_scheduler)
 	{
 		#pragma omp flush
+		if(k > max_k)
+			max_k = k;
 		if(!(run_next_merge = scheduling_table[k][n]))
 			scheduling_table[k][other_n] = rightmost_run ? 2 : 1;
 		#pragma omp flush
 	}
 	if(run_next_merge)
 	{
-		#pragma omp task firstprivate(n,k,rightmost_run)
+		#pragma omp task firstprivate(n,k,rightmost_run,run_next_merge)
 		merge_next(k,n,rightmost_run || (run_next_merge == 2));
 	}
 }
@@ -123,8 +123,6 @@ static void merge_next(int k, int n,int rightmost_run)
 			fprintf(stderr, "Unable to open %s for writing",output);
 			exit(-1);
 		}
-		if(!i)
-			fprintf(stderr,"Mergeing %s with %s to give %s\n", buf, buf2, output);
 		int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
 		fclose(firstfile);
 		fclose(secondfile);

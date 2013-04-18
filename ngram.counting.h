@@ -35,7 +35,7 @@
 
 struct myUString
 {
-	uint8_t* string;
+	const uint8_t* string;
 	size_t length;
 	~myUString(){return;};
 };
@@ -57,7 +57,6 @@ typedef std::map<myNGram, long long int,ngram_cmp> letterDict;
 
 //Use one "Dictionary" per letter.
 typedef letterDict Dict[256];
-extern letterDict *lexicon;
 
 long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile);
 #endif
