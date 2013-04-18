@@ -52,7 +52,7 @@ void* permanently_malloc(size_t numbytes,int* retval)
 		#pragma omp flush(current_page_occupied)
 		if(current_page == (NUM_PAGES - 1))//On the last page
 		{
-			if(current_page_occupied >= (MEMORY_PAGE_SIZE - spare_space_at_end))
+			if(current_page_occupied > (MEMORY_PAGE_SIZE - spare_space_at_end))
 				*retval = -1;
 		}
 		return pages[current_page_group][current_page] + (current_page_occupied - numbytes);

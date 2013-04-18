@@ -479,8 +479,6 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,myNGram &ngram)
 {
 	int retval;
-#pragma omp critical
-{
 	uint8_t* word;
 	retval = 1;
 	while(true)
@@ -513,7 +511,6 @@ int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_w
 		my_n_words.pop_front();
 		break;
 	}
-}
 		return retval;
 }
 
