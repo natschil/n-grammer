@@ -10,21 +10,12 @@
 #ifndef MEMORY_MANAGMENT_H
 #define MEMORY_MANAGEMENT_H
 
-#include "stdlib.h"
+#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <omp.h>
+#include "config.h"
 
-
-//Set this to half of the actual number of "pages" used. 
-//4M per memory "page" size.
-#define MEMORY_PAGE_SIZE (4*1024*1024)
-//Set this to the number of "pages used"
-#define NUM_PAGES 1
-//Because we use two buffers that take up MEMORY_PAGE_SIZE*NUM_PAGES memory
-//Therefore
-#define TOTAL_MEM_USED MEMORY_PAGE_SIZE * 2 * NUM_PAGES
-//Note that the variable above is used only for documentation and should not be changed.
 
 void init_permanent_malloc(void(*)(void));
 extern volatile size_t current_page_group;

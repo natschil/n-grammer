@@ -5,24 +5,18 @@
 #include <vector>
 #include <map>
 #include <deque>
-#include <string>
 
 #include <stdio.h>
+#include <locale.h>
+#include <wchar.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <errno.h>
+
 #include <omp.h>
 
-/*
-//#define U_CHARSET_IS_UTF8 1
-#include <unicode/utf.h>
-#include <unicode/uchar.h>
-#include <unicode/unistr.h>
-#include <unicode/unorm2.h>
-#include <unicode/ustdio.h>
-*/
 #include <unistr.h>
 #include <unistdio.h>
 #include <uninorm.h>
@@ -30,6 +24,8 @@
 #include <unictype.h>
 #include <unistdio.h>
 #include <unicase.h>
+
+#include "config.h"
 
 
 

@@ -2,9 +2,6 @@
 
 #include "mergefiles.h"
 
-//Note that when changing the values below, for scheduling_table[k][n], k = log2(n) + 1
-#define MAX_BUFFERS  2048
-#define MAX_K 12
 static uint8_t scheduling_table[MAX_K][MAX_BUFFERS] = {{0}};
 static int max_k = 0;
 
