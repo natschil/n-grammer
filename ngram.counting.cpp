@@ -347,22 +347,38 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 	my_n_words.migrate_to_new_buffer();
 
 	int state = 1;
+	int first = 1;
 	myNGram currentngram;
+	myNGram previousngram;
 	while(state == 1)
 	{
+
+		if(!first)
+		{
+			#pragma omp task shared(previousngram)
+			{
+				mark_ngram_occurance(previousngram);
+			}
+		}
+
+		#pragma omp task shared(state,f,totalwords,norm,my_n_words,currentngram)
 		state = getnextngram(f,totalwords,norm,my_n_words,currentngram);
+
+		#pragma omp taskwait
+		#pragma omp flush(currentngram)
+		previousngram = currentngram;
+		#pragma omp flush(previousngram)
 		if(state == 0)
 			break;
-
-		mark_ngram_occurance(currentngram);
-
 		count++;
 		if((count % 1000000 == 0))
 		{
 			fprintf(stderr,"%lld\n",(long long int) count);
 		}
-
+		first = 0;
 	}
+	if(state == -1)
+		mark_ngram_occurance(previousngram);
 	//When the buffer is full, we switch buffers:
 	switch_permanent_malloc_buffers();	
 
@@ -412,7 +428,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 			//	a) When switching buffers, it waits for writeBufferToDisk to have finished with that buffer
 			//	b) All the strings in a Dictionary come from the same buffer
 			
-
+			#pragma omp flush(state)
 			if(!state)
 				break;
 			if(state == -1)
@@ -434,8 +450,15 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 						
 				}
 			}
-			state = fillABuffer(infile,totalwords,norm,my_n_words,count);
+			int newstate = 0;
+			#pragma omp task shared(infile,totalwords,norm, my_n_words,count,state,newstate) 
+			{
+				newstate = fillABuffer(infile,totalwords,norm,my_n_words,count);
+			}
 			#pragma omp taskwait //This is so that only one buffer is written to disk at any one time
+			#pragma omp flush(newstate)
+			state = newstate;
+			#pragma omp flush(state) //This might be uneccessary
 
 		}
 		//Once we reach here we still have one buffer that needs to be written to disk.
