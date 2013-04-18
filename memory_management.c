@@ -16,9 +16,11 @@ void (*buffer_switching_callback)(void) = NULL;
 void init_permanent_malloc(void (*callback)(void))
 {
 	//We allocate all pages at once: if we're going to run out of memory we want to know so before we do any processing.
-	for(int i = 0; i<2;i++)
+	int i;
+	for(i = 0; i<2;i++)
 	{
-		for(int j= 0; j<NUM_PAGES;j++)
+		int j;
+		for(j= 0; j<NUM_PAGES;j++)
 		{
 			if(!(pages[i][j] = malloc(MEMORY_PAGE_SIZE)))
 			{
@@ -90,9 +92,11 @@ void rewind_permanent_malloc(size_t numbytes)
 
 void free_all_pages()
 {
-	for(int i = 0; i< 2; i++)
+	int i;
+	for(i = 0; i< 2; i++)
 	{
-		for(int j = 0; j < NUM_PAGES; j++)
+		int j;
+		for(j = 0; j < NUM_PAGES; j++)
 		{
 			free(pages[i][j]);
 		}

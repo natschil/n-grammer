@@ -1,5 +1,8 @@
 #ifndef MERGEFILES_H
 #define MERGEFILES_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdio.h>
 #include <limits.h>
@@ -32,4 +35,7 @@ void schedule_next_merge(int k, int n,int rightmost_run);
 //Set a value to use as a hint as the buffer size of the buffer passed to getline for the ngram string length.
 void init_merger(int new_max_ngram_string_length);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

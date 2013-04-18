@@ -25,14 +25,13 @@
 #include <unistdio.h>
 #include <unicase.h>
 
+//We include our configuration options
 #include "config.h"
 
 
 
 #include "memory_management.h"
-extern "C"{
 #include "mergefiles.h"
-}
 
 struct myUString
 {
@@ -44,7 +43,7 @@ struct myUString
 struct myNGram
 {
 	myUString *ngram;	
-	~myNGram();
+	~myNGram(){return;};
 };
 
 
@@ -55,12 +54,10 @@ struct ngram_cmp : public std::binary_function<myNGram, myNGram,bool>
 
 
 typedef std::map<myNGram, long long int,ngram_cmp> letterDict;
+
 //Use one "Dictionary" per letter.
-//This creates a somewhat strange sorting but because all we need is for the data to be sorted that is fine.
 typedef letterDict Dict[256];
 extern letterDict *lexicon;
-
-int getnextword(uint8_t* &s, FILE* f, uninorm_t);
 
 long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile);
 #endif

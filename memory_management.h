@@ -9,6 +9,9 @@
 
 #ifndef MEMORY_MANAGMENT_H
 #define MEMORY_MANAGEMENT_H
+#ifdef __cplusplus
+extern "C"{
+#endif
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -30,5 +33,7 @@ void free_all_pages(void);
 void setpagelock(size_t);
 void unsetpagelock(size_t);
 
-
+#ifdef __cplusplus
+}
+#endif
 #endif

@@ -32,8 +32,6 @@ bool ngram_cmp::operator()(myNGram first, myNGram second)
 	return false;
 }
 
-myNGram::~myNGram(){return;};
-
 struct word_list : public std::deque<myUString>
 {
 	word_list() : std::deque<myUString>()
