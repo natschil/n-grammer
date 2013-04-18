@@ -4,7 +4,7 @@ LDFLAGS=`icu-config --ldflags  --ldflags-icuio`
 INSTALL=cp
 CPP = g++
 CC = gcc
-FLAGS = -Wall -g -O3 -fopenmp -Wextra -D NDEBUG -march=native  -I/usr/include -ldl -lm -lunistring
+FLAGS = -Wall -g -O3 -fopenmp  -Wextra -D NDEBUG -march=native  -I/usr/include -ldl -lm -lunistring
 CFLAGS = -Wall -g -O3 -fopenmp -Wextra -D NDEBUG -march=native  -I/usr/include -ldl -lm -lunistring
 
 TARGET = ngram.counting

@@ -328,58 +328,7 @@ static void writeBufferToDisk(int buffercount,size_t page_group,letterDict* lexi
 		unsetpagelock(page_group);
 }
 
-static void mergeNewBuffers(int buffercount)
-{
-	#pragma omp parallel for firstprivate(buffercount) shared(max_ngram_string_length)
-	for(int i = 0; i< 256;i++)
-	{
-		int n = buffercount;
-		int k = 0;
-		while(n % 2)
-		{
-			char buf[256];
-			char buf2[256];
-			char output[256];
-			char outdir[256];
-			snprintf(buf, 256, "./%d_%d/%d.out",k,n,i);
-			snprintf(buf2, 256,"./%d_%d/%d.out",k,n-1,i);
-			n = (n - 1)/2;
-			k++;
-			snprintf(outdir, 256,"./%d_%d",k,n);
-			mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
-			snprintf(output, 256,"./%d_%d/%d.out",k,n,i);
-			FILE* firstfile = fopen(buf, "r");
-			FILE* secondfile = fopen(buf2, "r");
-			FILE* outputfile = fopen(output, "w");
-			if(!firstfile)
-			{
-				fprintf(stderr, "Unable to open %s for reading", buf);
-				exit(-1);
-			}else if(!secondfile)
-			{
-				fprintf(stderr,"Unable to open %s for reading", buf2);
-				exit(-1);
-			}else if(!outputfile)
-			{
-				fprintf(stderr, "Unable to open %s for writing",output);
-				exit(-1);
-			}
-			if(!i)
-				fprintf(stderr,"Mergeing %s with %s to give %s\n", buf, buf2, output);
-			int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
-			fclose(firstfile);
-			fclose(secondfile);
-			fclose(outputfile);
-			if(mergefile_out)
-			{
-				fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
-				exit(-1);
-			}
-			remove(buf);
-			remove(buf2);
-		}	
-	}
-}
+
 int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &my_n_words,long long int &count)
 {
 	int state = 1;
@@ -403,78 +352,15 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 	return state;
 }
 
-std::pair<int,int> doLastMerge(int n, int k,int buffercount)
-{
-	k = 0;
-	#pragma omp parallel for firstprivate(n) firstprivate(k) lastprivate(n) lastprivate(k)
-	for(int i = 0; i< 256;i++)
-	{
-		n = buffercount;
-		k = 0;
-		while(n)
-		{
-			int n2 = n -1;
-			int k2 = k;
-			while(n2 && (n2 % 2)) //Go the the next "peak" in the merge tree.
-			{
-				n2 = (n2 - 1)/2;
-				k2++;
-			}
-			char buf[256];
-			char buf2[256];
-			char output[256];
-			char outdir[256];
-			snprintf(buf, 256, "./%d_%d/%d.out",k,n,i);
-			snprintf(buf2, 256,"./%d_%d/%d.out",k2,n2,i);
-
-			n2 = n2 /2;
-			k2++;
-
-			snprintf(outdir, 256,"./%d_%d",k2,n2);
-			mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
-			snprintf(output, 256,"./%d_%d/%d.out",k2,n2,i);
-			FILE* firstfile = fopen(buf, "r");
-			FILE* secondfile = fopen(buf2, "r");
-			FILE* outputfile = fopen(output, "w");
-			if(!firstfile)
-			{
-				fprintf(stderr, "Unable to open %s for reading", buf);
-				exit(-1);
-			}else if(!secondfile)
-			{
-				fprintf(stderr,"Unable to open %s for reading", buf2);
-				exit(-1);
-			}else if(!outputfile)
-			{
-				fprintf(stderr, "Unable to open %s for writing",output);
-				exit(-1);
-			}
-
-
-			int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
-			fclose(firstfile);
-			fclose(secondfile);
-			fclose(outputfile);
-			if(mergefile_out)
-			{
-				fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
-				exit(-1);
-			}
-			n = n2;
-			k = k2;
-		}
-	}
-	return std::pair<int,int>(n,k);
-}
-
-
 long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 {
     //Initialization:
 	n_gram_size = ngramsize;
 	#pragma omp flush(n_gram_size)
 	max_ngram_string_length = (ngramsize * (MAX_WORD_SIZE + 1)) + 1;
+	init_merger(max_ngram_string_length);
 	init_permanent_malloc(&swapDicts);
+
 	remove("./processing");
 	mkdir("./processing",S_IRUSR | S_IWUSR | S_IXUSR);
 	chdir("./processing");
@@ -513,39 +399,31 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 				{
 
 						writeBufferToDisk(buffercount,!current_page_group,prev_lexicon);	
-						//Here we merge the buffers that are already on disk.
-						#pragma omp taskwait //This works taskwait waits for direct children of the master thread.
-						//Though the line above is suboptimal performance wise, it (hopefully) means that we do not start mergeing before we can afford to do so.
-						if((buffercount > 0) && (buffercount % 2))
-						{
-								#pragma omp task firstprivate(buffercount)
-								mergeNewBuffers(buffercount);
-						}
+						//Once we have finished writing the buffer to disk, we start the merging process:
+						schedule_next_merge(0,buffercount,0);
 				}
 			}
 			#pragma omp taskwait
 			state = fillABuffer(infile,totalwords,norm,my_n_words,count);
 		}
+		//Once we reach here we still have one buffer that needs to be written to disk.
+		#pragma omp flush(buffercount)
+		buffercount++;
+		writeBufferToDisk(buffercount,current_page_group,lexicon);
+		schedule_next_merge(0,buffercount,1);
 	}
-	}	
-	
+	}		
 	//We've done all our reading from the input file.
-	//Once we reach here we still have one buffer that needs to be written to disk.
+	//We know that all merging is finished due to the implicit barrier at the end of the paralell section.
 	
-	buffercount++;
-	writeBufferToDisk(buffercount,current_page_group,lexicon);
-	int n = buffercount;
-	int k = 0;
-	std::pair<int,int> result = doLastMerge(n,k,buffercount);
-	n = result.first;
-	k = result.second;
-	
+	int k = get_final_k();
+
 	fprintf(stderr,"Mergeing subfiles\n");
 	//At this point we have 256 input files that can be combined.
 	for(int i = 0; i< 256; i++)
 	{
 		char buf[256];
-		snprintf(buf,256, "./%d_%d/%d.out",k,n,i);
+		snprintf(buf,256, "./%d_0/%d.out",k,i);
 		FILE* cur = fopen(buf,"r");
 		if(!cur)
 		{
