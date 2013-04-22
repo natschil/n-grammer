@@ -3,9 +3,6 @@
 // This file contains functions for (somewhat) efficiently allocating large amounts of memory
 // but without the ability to free small amounts of memory.
 
-//The global constant MEMORY_PAGE_SIZE and NUM_PAGES below should be modified before actually running.
-//The N-gram counter uses buffers to store word-ngrams. However, because the stl map containers used
-//to keep track n-grams do not use the buffers for memory, actual memory usage is higher.
 
 #ifndef MEMORY_MANAGMENT_H
 #define MEMORY_MANAGEMENT_H

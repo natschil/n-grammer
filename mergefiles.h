@@ -28,7 +28,7 @@ int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_string_length
 int get_final_k(void);
 
 //Call this function with k,n referring to an n-gram collection that already exists.
-//i.e. when the n-th nonterminal buffer has been written to disk, call schedule_next_merge(0,n,0)
+//i.e. when the n-th non-last buffer has been written to disk, call schedule_next_merge(0,n,0)
 //When the n-th buffer is also the last buffer, call schedule_next_merge(0,n,1)
 void schedule_next_merge(int k, int n,int rightmost_run);
 
