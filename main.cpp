@@ -18,8 +18,7 @@ int main (int argc, char* argv[])
   if(!ngramsize || (errptr && *errptr))
   {
     cerr << "The first parameter is not a valid number"<<endl;
-    cerr << "Usage: " << argv[0] << " N < input > output\n Where N is the size of the ngrams you want to count." << endl;
-    cerr << "OR" <<argv[0] << " N input > output"<<endl;
+    cerr << "Usage: " << argv[0] << " N [input = stdin] [output = stdout]\n \tWhere N is the size of the ngrams you want to count.\n";
     exit(1);
   }
 
