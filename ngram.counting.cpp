@@ -389,6 +389,9 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* outdir)
 {
     //Initialization:
+    	struct timeval start_time,end_time;
+  	gettimeofday(&start_time,NULL);
+
 	n_gram_size = ngramsize;
 	max_ngram_string_length = (ngramsize * (MAX_WORD_SIZE + 1)) + 1;
 	#pragma omp flush(n_gram_size,max_ngram_string_length) //This is probably uneccessary
@@ -410,7 +413,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 	uninorm_t norm = UNINORM_NFKD; 
 	setlocale(LC_CTYPE, "");
 
-
+   //Here we actually fetch the n-grams:
 	int state = 1;
 	volatile int buffercount = -1;
 
@@ -418,7 +421,6 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 	{
 	#pragma omp master
 	{
-       		//shared(nextstring,infile,norm,state,currentstring,stderr,count,totalwords,buffercount,current_page_group,my_n_words)
 		//Here we fill one half of the memory used with n-grams.
 		while(1)
 		{
@@ -480,7 +482,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 		exit(-1);
 	}
 
-	char* output_location = (char*) malloc(strlen("by")+  (ngramsize + 1)*10 + 1); //Much too much memory,but in this case is doesn't matter.
+	char* output_location = (char*) malloc(strlen("by")+  (ngramsize + 1)*10 + strlen(".metadata")+ 1); //Much too much memory,but in this case is doesn't matter.
 	char* ptr = output_location;
 	strcpy(ptr, "by");
 	ptr += strlen("by");
@@ -497,6 +499,9 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 
 	remove(output_location);
 	rename(buf,output_location);
+
+	strcat(output_location,".metadata");
+	FILE* metadata_file = fopen(output_location,"r");
 
 	return totalwords;
 }

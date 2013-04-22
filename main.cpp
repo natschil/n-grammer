@@ -43,9 +43,7 @@ int main (int argc, char* argv[])
 	  outdir = "./processing";
 
   
-  struct timeval start_time,end_time;
-  gettimeofday(&start_time,NULL);
-  long long int totalwords = analyze_ngrams(ngramsize,f,outdir);
+    long long int totalwords = analyze_ngrams(ngramsize,f,outdir);
   gettimeofday(&end_time,NULL);
   fprintf(stderr,"Finished writing %lld words and took %d seconds\n", (long long int) totalwords,(int)(end_time.tv_sec - start_time.tv_sec));
   return 0; 
