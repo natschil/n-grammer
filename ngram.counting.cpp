@@ -386,7 +386,7 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 	return state;
 }
 
-long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
+long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* outdir)
 {
     //Initialization:
 	n_gram_size = ngramsize;
@@ -396,9 +396,8 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	init_merger(max_ngram_string_length);
 	init_permanent_malloc(&swapDicts,max_ngram_string_length + n_gram_size*sizeof(myNGram::ngram));
 
-	remove("./processing");
-	mkdir("./processing",S_IRUSR | S_IWUSR | S_IXUSR);
-	chdir("./processing");
+	mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
+	chdir(outdir);
 
 	lexicon = new Dict;
 	prev_lexicon = new Dict;
@@ -473,26 +472,32 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile)
 	//We know that all merging is finished due to the implicit barrier at the end of the paralell section.
 	
 	int k = get_final_k();
-
-	fprintf(stderr,"Merging subfiles\n");
-	//At this point we have 256 input files that can be combined.
-	for(int i = 0; i< 256; i++)
+	//We move the final directory to outdir/by_word_1/
+	char buf[256];
+	if(snprintf(buf,256,"%d_0",k) >= 256)
 	{
-		char buf[256];
-		snprintf(buf,256, "./%d_0/%d.out",k,i);
-		FILE* cur = fopen(buf,"r");
-		if(!cur)
+		fprintf(stderr, "This should never happen\n");
+		exit(-1);
+	}
+
+	char* output_location = (char*) malloc(strlen("by")+  (ngramsize + 1)*10 + 1); //Much too much memory,but in this case is doesn't matter.
+	char* ptr = output_location;
+	strcpy(ptr, "by");
+	ptr += strlen("by");
+	for(int i = 0; i < ngramsize; i++)
+	{
+		int numbytes = sprintf(ptr,"_%d", i);
+		if(!numbytes || (numbytes < 0))
 		{
-			fprintf(stderr,"The programmer has made an error, this should never happen. Could not open file %s\n",buf);
+			fprintf(stderr, "Error, this should never happen though\n");
 			exit(-1);
 		}
-		int curchar;
-		while((curchar = fgetc(cur)) != EOF)
-		{
-			fputc((char) curchar,outfile);
-		}
+		ptr += numbytes;
 	}
-	free_all_pages();
+
+	remove(output_location);
+	rename(buf,output_location);
+
 	return totalwords;
 }
 

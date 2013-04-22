@@ -8,7 +8,7 @@ int main (int argc, char* argv[])
 {
   if((argc == 1) || (argc > 4))
   {
-    cerr << "Usage: " << argv[0] << " N [input = stdin] [output = stdout]\n \tWhere N is the size of the ngrams you want to count.\n";
+    cerr << "Usage: " << argv[0] << " N [input = stdin] [outputdir = ./processing]\n \tWhere N is the size of the ngrams you want to count.\n";
     exit(1);
   }
 
@@ -18,12 +18,12 @@ int main (int argc, char* argv[])
   if(!ngramsize || (errptr && *errptr))
   {
     cerr << "The first parameter is not a valid number"<<endl;
-    cerr << "Usage: " << argv[0] << " N [input = stdin] [output = stdout]\n \tWhere N is the size of the ngrams you want to count.\n";
+    cerr << "Usage: " << argv[0] << " N [input = stdin] [outputdir = ./processing]\n \tWhere N is the size of the ngrams you want to count.\n";
     exit(1);
   }
 
   FILE* f = NULL;
-  FILE* outfile =NULL;
+  char* outdir =NULL;
   if(argc >= 3)
   {
 	f = fopen(argv[2],"r");
@@ -38,19 +38,14 @@ int main (int argc, char* argv[])
 
   if(argc >= 4)
   {
-	outfile = fopen(argv[3],"w");
-	if(!outfile)
-	{
-		cerr<<"Could not open file "<<argv[2]<<endl;
-		exit(1);
-	}
+	outdir = argv[3];
   }else
-	  outfile = stdout;
+	  outdir = "./processing";
 
   
   struct timeval start_time,end_time;
   gettimeofday(&start_time,NULL);
-  long long int totalwords = analyze_ngrams(ngramsize,f,outfile);
+  long long int totalwords = analyze_ngrams(ngramsize,f,outdir);
   gettimeofday(&end_time,NULL);
   fprintf(stderr,"Finished writing %lld words and took %d seconds\n", (long long int) totalwords,(int)(end_time.tv_sec - start_time.tv_sec));
   return 0; 

@@ -59,5 +59,5 @@ typedef std::map<myNGram, long long int,ngram_cmp> letterDict;
 //Use one "Dictionary" per letter.
 typedef letterDict Dict[256];
 
-long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,FILE* outfile);
+long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* outdir);
 #endif
