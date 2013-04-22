@@ -1,11 +1,11 @@
 BINDIR=~/bin
 INC=
-LDFLAGS=-lunistring
+LDFLAGS=-lunistring -ldl -lm
 INSTALL=cp
 CPP = g++
 CC = gcc
-FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm 
-CFLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm
+FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include 
+CFLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include 
 
 TARGET = ngram.counting
 OBJS = ngram.counting.o main.o memory_management.o mergefiles.o

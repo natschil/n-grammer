@@ -49,10 +49,10 @@ int main (int argc, char* argv[])
 	  outfile = stdout;
 
   
-  struct timeval start_time,end_time,difference;
+  struct timeval start_time,end_time;
   gettimeofday(&start_time,NULL);
   long long int totalwords = analyze_ngrams(ngramsize,f,outfile);
   gettimeofday(&end_time,NULL);
-  fprintf(stderr,"Finished writing %lld words and took %d seconds\n", (long long int) totalwords,end_time.tv_sec - start_time.tv_sec);
+  fprintf(stderr,"Finished writing %lld words and took %d seconds\n", (long long int) totalwords,(int)(end_time.tv_sec - start_time.tv_sec));
   return 0; 
 }
