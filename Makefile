@@ -1,11 +1,11 @@
 BINDIR=~/bin
 INC=
-LDFLAGS=`icu-config --ldflags  --ldflags-icuio` 
+LDFLAGS=-lunistring
 INSTALL=cp
 CPP = g++
 CC = gcc
-FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm -lunistring
-CFLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm -lunistring
+FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm 
+CFLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include -ldl -lm
 
 TARGET = ngram.counting
 OBJS = ngram.counting.o main.o memory_management.o mergefiles.o
