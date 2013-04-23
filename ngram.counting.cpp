@@ -15,24 +15,24 @@ using namespace std;
 
 /* Function Declarations*/
 
-	static void mark_ngram_occurance(myNGram new_ngram);
+	static void mark_ngram_occurance(myNGram *new_ngram);
 	static void swapDicts();
 	static void* writeLetterDict(int buffercount,int number,letterDict &sublexicon);
 
 
 	class word_list;
-	int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,myNGram &str);
+	int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,myNGram *&str);
 
 
 /*myNGram comparison function which is used by stl map*/
 
-bool ngram_cmp::operator()(myNGram first, myNGram second)
+bool ngram_cmp::operator()(myNGram *first, myNGram *second)
 {
 	for(int i = 0; i<n_gram_size; i++)
 	{
 		int prevres;
 		//We compare the words in exactly the same way as done by the merger, which is required by the merger.
-		if(!(prevres = strcmp((const char*) first.ngram[i].string,(const char*) second.ngram[i].string)))
+		if(!(prevres = strcmp((const char*) first->ngram[i].string,(const char*) second->ngram[i].string)))
 		{
 			continue;
 		}else
@@ -110,20 +110,19 @@ class word_list : public std::deque<myUString>
 
 	//This function returns a myNGram object corresponding to the strings in the word-list.
 	//It sets retval to -1 if permanently_malloc() does so.
-	myNGram join_as_ngram(int *retval)
+	myNGram* join_as_ngram(int *retval)
 	{
 		//What we end up returning
-		myNGram result;
 
 		//We allocate enough space for the n-gram.
 		//The n-gram is stored as an array of pointers to the words it contains.
-		result.ngram = (myUString*) permanently_malloc(sizeof(*result.ngram) * n_gram_size,retval);
+		myNGram* result = (myNGram*)permanently_malloc(sizeof(*result) + (sizeof(*result->ngram) *n_gram_size),retval);
 
 		size_t j;
 		word_list::iterator i;
 		for(i = this->begin(), j = 0; i != this->end(); i++,j++)
 		{
-			result.ngram[j] = *i;
+			result->ngram[j] = *i;
 		}
 
 		return result;
@@ -284,7 +283,7 @@ static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon)
 	long long int freq;
 	for (letterDict::iterator itr = sublexicon.begin(); itr != sublexicon.end(); itr++)
        	{
-		myUString* n_gram = itr->first.ngram;
+		myUString* n_gram = itr->first->ngram;
 		for(int j = 0; j< n_gram_size; j++)
 		{
 			ulc_fprintf(outfile, "%U", n_gram[j].string);
@@ -293,7 +292,7 @@ static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon)
 				fprintf(outfile," ");
 			}
 		}
-		freq = itr->second;
+		freq = itr->first->num_occurances;
 		fprintf(outfile,"\t%lld\n", (long long int) freq);
 	}
 	fclose(outfile);
@@ -304,19 +303,20 @@ static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon)
 
 
 /*Marks the occurance of an n-gram in the dictionary, or increments the counter if it already exists*/
-static void mark_ngram_occurance(myNGram new_ngram)
+static void mark_ngram_occurance(myNGram *new_ngram)
 {
+	new_ngram->num_occurances = 1;
 	//We distribute the elements by their first character, which hopefully makes things slightly faster.
-	size_t firstchar = (size_t) (uint8_t) new_ngram.ngram[0].string[0];
+	size_t firstchar = (size_t) (uint8_t) new_ngram->ngram[0].string[0];
 
 	letterDict &lD = lexicon[firstchar];
 
 	//The following method makes it possible to only lookup the element once when either inserting or incrementing the count.
 	
-	std::pair<letterDict::iterator,bool> old = lD.insert(letterDict::value_type(new_ngram,1));
+	std::pair<letterDict::iterator,bool> old = lD.insert(letterDict::value_type(new_ngram,0));
 	if(!old.second) //The value was inserted.
 	{
-		old.first->second++;
+		old.first->first->num_occurances++;
 
 	}
 	return;
@@ -353,8 +353,8 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 
 	int state = 1;
 	int first = 1;
-	myNGram currentngram;
-	myNGram previousngram;
+	myNGram *currentngram;
+	myNGram *previousngram;
 	while(state == 1)
 	{
 
@@ -403,7 +403,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 	#pragma omp flush(n_gram_size,max_ngram_string_length) //This is probably uneccessary
 
 	init_merger(max_ngram_string_length);
-	init_permanent_malloc(&swapDicts,max_ngram_string_length + n_gram_size*sizeof(myNGram::ngram));
+	init_permanent_malloc(&swapDicts,max_ngram_string_length + n_gram_size*sizeof(*(myNGram::ngram)) + sizeof(myNGram));
 
 	mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
 	chdir(outdir);
@@ -495,9 +495,9 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 	char* ptr = output_location;
 	strcpy(ptr, "by");
 	ptr += strlen("by");
-	for(int i = 0; i < ngramsize; i++)
+	for(size_t i = 0; i < ngramsize; i++)
 	{
-		int numbytes = sprintf(ptr,"_%d", i);
+		int numbytes = sprintf(ptr,"_%d", (int)i);
 		if(!numbytes || (numbytes < 0))
 		{
 			fprintf(stderr, "Error, this should never happen though\n");
@@ -510,7 +510,10 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 	rename(buf,output_location);
 
 	strcat(output_location,".metadata");
-	FILE* metadata_file = fopen(output_location,"r");
+	FILE* metadata_file = fopen(output_location,"w");
+	fprintf(metadata_file,"numwords\t%lld\n",totalwords);
+  	gettimeofday(&end_time,NULL);
+	fprintf(metadata_file,"time\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
 
 	return totalwords;
 }
@@ -519,7 +522,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 //Returns 0 if there is nothing more to fetch
 //Returns -1 if we need to switch buffers.
 
-int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,myNGram &ngram)
+int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,myNGram *&ngram)
 {
 	int retval;
 	uint8_t* word;

@@ -33,6 +33,7 @@
 
 #include "memory_management.h"
 #include "mergefiles.h"
+#include "searchindexcombinations.h"
 
 struct myUString
 {
@@ -43,18 +44,24 @@ struct myUString
 
 struct myNGram
 {
-	myUString *ngram;	
 	~myNGram(){return;};
+	int num_occurances;
+	myUString ngram[0];//See "flexible array members" for why this hack (arguable) works.
+};
+struct randomstruct
+{
+	char something;
 };
 
 
 struct ngram_cmp : public std::binary_function<myNGram, myNGram,bool>
 {
-	bool operator()(myNGram first, myNGram second);
+	bool operator()(myNGram *first, myNGram *second);
 };
 
 
-typedef std::map<myNGram, long long int,ngram_cmp> letterDict;
+//We do not actually use the char
+typedef std::map<myNGram*,char,ngram_cmp> letterDict;
 
 //Use one "Dictionary" per letter.
 typedef letterDict Dict[256];

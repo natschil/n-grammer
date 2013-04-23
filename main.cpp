@@ -6,6 +6,7 @@ using namespace std;
 
 int main (int argc, char* argv[])
 {
+
   if((argc == 1) || (argc > 4))
   {
     cerr << "Usage: " << argv[0] << " N [input = stdin] [outputdir = ./processing]\n \tWhere N is the size of the ngrams you want to count.\n";
@@ -23,7 +24,7 @@ int main (int argc, char* argv[])
   }
 
   FILE* f = NULL;
-  char* outdir =NULL;
+  const char* outdir =NULL;
   if(argc >= 3)
   {
 	f = fopen(argv[2],"r");
@@ -43,8 +44,6 @@ int main (int argc, char* argv[])
 	  outdir = "./processing";
 
   
-    long long int totalwords = analyze_ngrams(ngramsize,f,outdir);
-  gettimeofday(&end_time,NULL);
-  fprintf(stderr,"Finished writing %lld words and took %d seconds\n", (long long int) totalwords,(int)(end_time.tv_sec - start_time.tv_sec));
+  long long int totalwords = analyze_ngrams(ngramsize,f,outdir);
   return 0; 
 }
