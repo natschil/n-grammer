@@ -11,10 +11,8 @@ static size_t current_page = 0;
 static size_t current_page_occupied = 0;
 static size_t spare_space_at_end = 0;
 
-void (*buffer_switching_callback)(void) = NULL;
 
-
-void init_permanent_malloc(void (*callback)(void),size_t maximum_single_allocation)
+void init_permanent_malloc(size_t maximum_single_allocation)
 {
 	//We allocate all pages at once: if we're going to run out of memory we want to know so before we do any processing.
 	int i;
@@ -35,7 +33,6 @@ void init_permanent_malloc(void (*callback)(void),size_t maximum_single_allocati
 	}
 	current_page_group = 0;
 	current_page = 0;
-	buffer_switching_callback = callback;
 	spare_space_at_end = maximum_single_allocation;
 	#pragma omp flush
 	return;
@@ -87,9 +84,6 @@ void switch_permanent_malloc_buffers(void)
 	current_page_occupied = 0;
 	current_page_group = !current_page_group; 
 	#pragma omp flush(current_page_group,current_page,current_page_occupied)
-
-	if(buffer_switching_callback)
-		(*buffer_switching_callback)();
 
 	unsetpagelock(current_page_group);
 	return;

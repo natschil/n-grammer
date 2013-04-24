@@ -18,7 +18,7 @@ extern "C"{
 
 
 //These functions should only be called from the function filling the buffer.
-void init_permanent_malloc(void(*)(void),size_t);
+void init_permanent_malloc(size_t);
 extern volatile size_t current_page_group;
 
 void* permanently_malloc(size_t size,int* swapbuffer_retval);

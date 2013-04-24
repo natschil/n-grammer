@@ -4,42 +4,17 @@ using namespace std;
 
 /*Some global variables*/
 
-	//lexicon and prev_lexicon both are set to be pointers to an array of 256 map containers in analyze_ngrams()
-	//(one for each starting byte of the n-gram)
-	letterDict *lexicon = NULL;
-	letterDict *prev_lexicon = NULL;
-
-	//These two global variables are set the start of analyze_ngrams(), and are not excpected to change after that
+	//These two global variables are set the start of count_ngrams(), and are not excpected to change after that
 	int n_gram_size = 0;
 	int max_ngram_string_length = 0;
 
 /* Function Declarations*/
 
-	static void mark_ngram_occurance(myNGram *new_ngram);
-	static void swapDicts();
-	static void* writeLetterDict(int buffercount,int number,letterDict &sublexicon);
-
-
 	class word_list;
-	int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,myNGram *&str);
+	int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,NGram *&str);
 
 
-/*myNGram comparison function which is used by stl map*/
 
-bool ngram_cmp::operator()(myNGram *first, myNGram *second)
-{
-	for(int i = 0; i<n_gram_size; i++)
-	{
-		int prevres;
-		//We compare the words in exactly the same way as done by the merger, which is required by the merger.
-		if(!(prevres = strcmp((const char*) first->ngram[i].string,(const char*) second->ngram[i].string)))
-		{
-			continue;
-		}else
-		       return prevres < 0;
-	}
-	return false;
-}
 
 /*The word_list class is used to store a list of the last n words encountered. Querying it's length is an O(1) operation, 
  * which makes it more efficient than the stl deque for that purpose
@@ -108,15 +83,15 @@ class word_list : public std::deque<myUString>
 		}
 	}
 
-	//This function returns a myNGram object corresponding to the strings in the word-list.
+	//This function returns a NGram object corresponding to the strings in the word-list.
 	//It sets retval to -1 if permanently_malloc() does so.
-	myNGram* join_as_ngram(int *retval)
+	NGram* join_as_ngram(int *retval)
 	{
 		//What we end up returning
 
 		//We allocate enough space for the n-gram.
 		//The n-gram is stored as an array of pointers to the words it contains.
-		myNGram* result = (myNGram*)permanently_malloc(sizeof(*result) + (sizeof(*result->ngram) *n_gram_size),retval);
+		NGram* result = (NGram*)permanently_malloc(sizeof(*result) + (sizeof(*result->ngram) *n_gram_size),retval);
 
 		size_t j;
 		word_list::iterator i;
@@ -237,110 +212,67 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
   }
 }
 
-/*This function is passed as a callback to init_permanent_malloc(), and is called directly after the buffer switch*/
-static void swapDicts()
+//Returns 1 for simply having fetched the next n-gram
+//Returns 0 if there is nothing more to fetch
+//Returns -1 if we need to switch buffers.
+
+int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,NGram *&ngram)
 {
-	//MARKER1
-	#pragma omp flush
-	letterDict *tmp = prev_lexicon;
-	prev_lexicon = lexicon;
-	lexicon = tmp;
-	#pragma omp flush
-	return;	
-
-}
-
-/* This function writes out sublexicon to 0_<buffercount>/i.out
- */
-static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon)
-{
-	char buf[256];//256 Characters should be more than enough to hold 2 integers and a few characters.
-	if(snprintf(buf,256,"./0_%d",buffercount) >= 256)
+	int retval;
+	uint8_t* word;
+	retval = 1;
+	while(true)
 	{
-		//This should never happen.
-		fprintf(stderr,"Error, poor program design");
-		exit(-1);
-	}
-	if(mkdir(buf,S_IRUSR | S_IWUSR | S_IXUSR ) && (errno !=  EEXIST))
-	{
-		fprintf(stderr,"Unable to create directory %s",buf);
-		exit(-1);
-	}
-
-	if(snprintf(buf,256,"./0_%d/%d.out",buffercount,i) >= 256)
-	{
-		//This should never happen either.
-		fprintf(stderr,"Error, bad coding");
-		exit(-1);
-	}
-	FILE* outfile = fopen(buf,"w");
-	if(!outfile)
-	{
-		fprintf(stderr,"Unable to open file %s", buf);
-		exit(-1);
-	}
-
-	long long int freq;
-	for (letterDict::iterator itr = sublexicon.begin(); itr != sublexicon.end(); itr++)
-       	{
-		myUString* n_gram = itr->first->ngram;
-		for(int j = 0; j< n_gram_size; j++)
+		size_t wordlength = getnextword(word,f,n,&retval);
+		
+		if(!wordlength) //We've reached the end of the file.
 		{
-			ulc_fprintf(outfile, "%U", n_gram[j].string);
-			if(j != n_gram_size - 1)
-			{
-				fprintf(outfile," ");
-			}
+			retval =  0;
+			break;
+
+		}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
+		{
+			my_n_words.clear();
+			continue;
 		}
-		freq = itr->first->num_occurances;
-		fprintf(outfile,"\t%lld\n", (long long int) freq);
-	}
-	fclose(outfile);
-	//MARKER1 relies on the following step
-	sublexicon.clear();
-	return NULL;
-}
 
+		//We add the word to our list.
+		totalwords++;
+		myUString newUString;
+		newUString.string = word;
+		newUString.length = wordlength;
+		my_n_words.push_back(newUString);
 
-/*Marks the occurance of an n-gram in the dictionary, or increments the counter if it already exists*/
-static void mark_ngram_occurance(myNGram *new_ngram)
-{
-	new_ngram->num_occurances = 1;
-	//We distribute the elements by their first character, which hopefully makes things slightly faster.
-	size_t firstchar = (size_t) (uint8_t) new_ngram->ngram[0].string[0];
-
-	letterDict &lD = lexicon[firstchar];
-
-	//The following method makes it possible to only lookup the element once when either inserting or incrementing the count.
+		//If we don't have enough words for an n-gram, we get the next word.
+		if(my_n_words.size < n_gram_size)
+			continue;
 	
-	std::pair<letterDict::iterator,bool> old = lD.insert(letterDict::value_type(new_ngram,0));
-	if(!old.second) //The value was inserted.
-	{
-		old.first->first->num_occurances++;
+		//If we do however have enough words for an n-gram, we write it out.
+		ngram = my_n_words.join_as_ngram(&retval);
 
+		my_n_words.pop_front(); //So that the word-list does not grow infinitely
+		break;
 	}
-	return;
+		return retval;
 }
+
+
+
 
 /*Writes the dictionary associated with the buffer page_group to disk*/
-static void writeBufferToDisk(int buffercount,size_t page_group,letterDict* lexicon)
+static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollectionBufferPair &index_collection,size_t buffer_num)
 {
 		setpagelock(page_group);
-		fprintf(stderr,"Writing Buffer to disk\n");
+		fprintf(stderr,"Writing Buffer %d to disk\n",buffercount);
 		fflush(stderr);
-		#pragma omp parallel for
-		for(int i = 0; i< 256;i++)
-		{
-			writeLetterDict(buffercount,i,lexicon[i]);
-		}
-	
+		index_collection.writeBufferToDisk(buffer_num,buffercount);
 		#pragma omp flush
 		unsetpagelock(page_group);
 }
 
 
 //Fills a buffer with words and n-grams.
-int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &my_n_words,long long int &count)
+int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &my_n_words,long long int &count,IndexCollectionBufferPair &indeces)
 {
 
 	//We get the lock for the current page group.
@@ -353,16 +285,16 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 
 	int state = 1;
 	int first = 1;
-	myNGram *currentngram;
-	myNGram *previousngram;
+	NGram *currentngram;
+	NGram *previousngram;
 	while(state == 1)
 	{
 
 		if(!first)
 		{
-			#pragma omp task shared(previousngram)
+			#pragma omp task shared(previousngram,indeces) default(none)
 			{
-				mark_ngram_occurance(previousngram);
+				indeces.mark_ngram_occurance(previousngram);
 			}
 		}
 
@@ -383,16 +315,18 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 		first = 0;
 	}
 	if(state == -1)
-		mark_ngram_occurance(previousngram);
+		indeces.mark_ngram_occurance(previousngram);
 
 	//When the buffer almost full, we switch buffers:
 	switch_permanent_malloc_buffers();	
+	indeces.swapBuffers();
+
 	unsetpagelock(!current_page_group);
 
 	return state;
 }
 
-long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* outdir)
+long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdir,unsigned int wordsearch_index_depth)
 {
     //Initialization:
     	struct timeval start_time,end_time;
@@ -403,17 +337,16 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 	#pragma omp flush(n_gram_size,max_ngram_string_length) //This is probably uneccessary
 
 	init_merger(max_ngram_string_length);
-	init_permanent_malloc(&swapDicts,max_ngram_string_length + n_gram_size*sizeof(*(myNGram::ngram)) + sizeof(myNGram));
+	init_permanent_malloc(max_ngram_string_length + n_gram_size*sizeof(*(NGram::ngram)) + sizeof(NGram));
 
 	mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
 	chdir(outdir);
 
-	lexicon = new Dict;
-	prev_lexicon = new Dict;
-
 	long long int totalwords = 0;
 	long long int count = 0;	
 	word_list my_n_words;
+
+	IndexCollectionBufferPair *final_indices = new IndexCollectionBufferPair(ngramsize);
 
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details on normalization forms.
 	uninorm_t norm = UNINORM_NFKD; 
@@ -448,10 +381,11 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 				//Due to the fact that writeBufferToDisk obtains the lock for the buffer it is writing to disk,
 				//fillABuffer will always wait for the previous buffer to be written to disk, because 
 				//permanently_malloc() does so at MARKER4:
-				#pragma omp task firstprivate(buffercount,current_page_group,prev_lexicon) default(none)
+				size_t previous_buffer = !final_indices->get_current_buffer();
+				#pragma omp task firstprivate(buffercount,current_page_group,previous_buffer) shared(final_indices) default(none)
 				{
 
-						writeBufferToDisk(buffercount,!current_page_group,prev_lexicon);	
+						writeBufferToDisk(buffercount,!current_page_group,*final_indices,previous_buffer);
 						//Once we have finished writing the buffer to disk, we start the merging process:
 						schedule_next_merge(0,buffercount,0);
 						
@@ -460,7 +394,7 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 			int newstate = 0;
 			#pragma omp task shared(infile,totalwords,norm, my_n_words,count,state,newstate) 
 			{
-				newstate = fillABuffer(infile,totalwords,norm,my_n_words,count);
+				newstate = fillABuffer(infile,totalwords,norm,my_n_words,count,*final_indices);
 			}
 
 			#pragma omp taskwait //This is so that only one buffer is written to disk at any one time
@@ -474,8 +408,8 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
 		
 		#pragma omp flush(buffercount)
 		buffercount++;
-		//Because fillABuffer() swapped the lexica when swapping buffers, write out prev_lexicon here.
-		writeBufferToDisk(buffercount,!current_page_group,prev_lexicon);
+		//Because fillABuffer() swapped the buffers even if it read in nothing, write out the other buffer here.
+		writeBufferToDisk(buffercount,!current_page_group,*final_indices,!final_indices->get_current_buffer());
 		schedule_next_merge(0,buffercount,1);//This sets of the last chain of merges.
 	}
 	}		
@@ -515,50 +449,9 @@ long long int analyze_ngrams(unsigned int ngramsize,FILE* infile,const char* out
   	gettimeofday(&end_time,NULL);
 	fprintf(metadata_file,"time\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
 
+
+	delete final_indices;
+
 	return totalwords;
-}
-
-//Returns 1 for simply having fetched the next n-gram
-//Returns 0 if there is nothing more to fetch
-//Returns -1 if we need to switch buffers.
-
-int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,myNGram *&ngram)
-{
-	int retval;
-	uint8_t* word;
-	retval = 1;
-	while(true)
-	{
-		size_t wordlength = getnextword(word,f,n,&retval);
-		
-		if(!wordlength) //We've reached the end of the file.
-		{
-			retval =  0;
-			break;
-
-		}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
-		{
-			my_n_words.clear();
-			continue;
-		}
-
-		//We add the word to our list.
-		totalwords++;
-		myUString newUString;
-		newUString.string = word;
-		newUString.length = wordlength;
-		my_n_words.push_back(newUString);
-
-		//If we don't have enough words for an n-gram, we get the next word.
-		if(my_n_words.size < n_gram_size)
-			continue;
-	
-		//If we do however have enough words for an n-gram, we write it out.
-		ngram = my_n_words.join_as_ngram(&retval);
-
-		my_n_words.pop_front(); //So that the word-list does not grow infinitely
-		break;
-	}
-		return retval;
 }
 

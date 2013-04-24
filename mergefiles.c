@@ -112,15 +112,15 @@ static void merge_next(int k, int n,int rightmost_run)
 		FILE* outputfile = fopen(output, "w");
 		if(!firstfile)
 		{
-			fprintf(stderr, "Unable to open %s for reading", buf);
+			fprintf(stderr, "Unable to open %s for reading\n", buf);
 			exit(-1);
 		}else if(!secondfile)
 		{
-			fprintf(stderr,"Unable to open %s for reading", buf2);
+			fprintf(stderr,"Unable to open %s for reading\n", buf2);
 			exit(-1);
 		}else if(!outputfile)
 		{
-			fprintf(stderr, "Unable to open %s for writing",output);
+			fprintf(stderr, "Unable to open %s for writing\n",output);
 			exit(-1);
 		}
 		int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
