@@ -17,6 +17,9 @@
 #include <map>
 #include <vector>
 
+#include "config.h"
+#include "mergefiles.h"
+
 
 //We do not actually use the char
 using namespace std;
@@ -39,10 +42,12 @@ struct ngram_cmp : public std::binary_function<NGram, NGram,bool>
 	{
 		n_gram_size = ngramsize;
 	}
-	ngram_cmp(){return;};//Do NOT use
+	ngram_cmp(){return;};//So there is a default constructor and things like vector and map are happy.
+	ngram_cmp(unsigned int,vector<unsigned int>&); //<-This constructor is fine to use though.
 	bool operator()(NGram *first, NGram *second);
 	private:
-	size_t n_gram_size;
+	unsigned int n_gram_size;
+	vector<unsigned int> word_order;
 };
 
 typedef std::map<NGram*,char,ngram_cmp> letterDict;
@@ -51,35 +56,43 @@ class Index
 {
 	public:
 		Index(){};//Do not call.
-		Index(size_t ngramsize);
-		void mark_ngram_occurance(NGram*);
-		void writeToDisk(int buffercount);
+		Index(unsigned int ngramsize,vector<unsigned int> &combination);
+		int mark_ngram_occurance(NGram*);
+		void writeToDisk(int buffercount,int isfinalbuffer);
+		void copyToFinalPlace(int k);
 	private:
 		vector<letterDict> letters;
-		size_t n_gram_size;
-
-
+		unsigned int n_gram_size;
+		
+		//Word_order specifies which order the words should be in
+		vector<unsigned int> word_order;
+		uint8_t scheduling_table[MAX_K][MAX_BUFFERS]; //For merging 
+		char* prefix;
 };
 class IndexCollection
 {
 	public:
 		IndexCollection(){};//Do not call
-		IndexCollection(size_t ngramsize);
+		IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto);
 	  	void mark_ngram_occurance(NGram* new_ngram);
-	  	void writeToDisk(int buffercount);
+	  	void writeToDisk(int buffercount,int isfinalbuffer);
+		void copyToFinalPlace(int k);
   private:
-	  vector<Index> indeces;
- 	  size_t n_gram_size;
+	  vector<Index> indices;
+	  size_t indices_size;
+
+ 	  unsigned int n_gram_size;
 };
 
 class IndexCollectionBufferPair
 {
   public:
-	  IndexCollectionBufferPair(size_t ngramsize);
+	  IndexCollectionBufferPair(unsigned int ngramsize,unsigned int wordsearch_index_upto);
 	  void swapBuffers(void);
 	  void mark_ngram_occurance(NGram* new_ngram);
-	  void writeBufferToDisk(size_t buffer_num,size_t buffercount);
+	  void writeBufferToDisk(size_t buffer_num,size_t buffercount,int isfinalbuffer);
 	  size_t get_current_buffer(){return current_buffer;}
+	  void copyToFinalPlace(int k);
   private:		
 	  size_t n_gram_size;
 	  size_t current_buffer;

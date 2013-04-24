@@ -260,12 +260,12 @@ int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_w
 
 
 /*Writes the dictionary associated with the buffer page_group to disk*/
-static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollectionBufferPair &index_collection,size_t buffer_num)
+static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollectionBufferPair &index_collection,size_t buffer_num,int isfinalbuffer)
 {
 		setpagelock(page_group);
 		fprintf(stderr,"Writing Buffer %d to disk\n",buffercount);
 		fflush(stderr);
-		index_collection.writeBufferToDisk(buffer_num,buffercount);
+		index_collection.writeBufferToDisk(buffer_num,buffercount,isfinalbuffer);
 		#pragma omp flush
 		unsetpagelock(page_group);
 }
@@ -346,7 +346,7 @@ long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdi
 	long long int count = 0;	
 	word_list my_n_words;
 
-	IndexCollectionBufferPair *final_indices = new IndexCollectionBufferPair(ngramsize);
+	IndexCollectionBufferPair *final_indices = new IndexCollectionBufferPair(ngramsize,wordsearch_index_depth);
 
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details on normalization forms.
 	uninorm_t norm = UNINORM_NFKD; 
@@ -385,9 +385,8 @@ long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdi
 				#pragma omp task firstprivate(buffercount,current_page_group,previous_buffer) shared(final_indices) default(none)
 				{
 
-						writeBufferToDisk(buffercount,!current_page_group,*final_indices,previous_buffer);
-						//Once we have finished writing the buffer to disk, we start the merging process:
-						schedule_next_merge(0,buffercount,0);
+						//Note that writeBufferToDisk starts the merging process once a buffer has been written to disk.
+						writeBufferToDisk(buffercount,!current_page_group,*final_indices,previous_buffer,0);
 						
 				}
 			}
@@ -409,49 +408,26 @@ long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdi
 		#pragma omp flush(buffercount)
 		buffercount++;
 		//Because fillABuffer() swapped the buffers even if it read in nothing, write out the other buffer here.
-		writeBufferToDisk(buffercount,!current_page_group,*final_indices,!final_indices->get_current_buffer());
-		schedule_next_merge(0,buffercount,1);//This sets of the last chain of merges.
+		writeBufferToDisk(buffercount,!current_page_group,*final_indices,!final_indices->get_current_buffer(),1);
 	}
 	}		
 	//We've done all our reading from the input file.
 	//We know that all merging is finished due to the implicit barrier at the end of the paralell section.
 	
 	int k = get_final_k();
-	//We move the final directory to outdir/by_word_1/
-	char buf[256];
-	if(snprintf(buf,256,"%d_0",k) >= 256)
-	{
-		fprintf(stderr, "This should never happen\n");
-		exit(-1);
-	}
+	final_indices->copyToFinalPlace(k);
 
-	char* output_location = (char*) malloc(strlen("by")+  (ngramsize + 1)*10 + strlen(".metadata")+ 1); //Much too much memory,but in this case is doesn't matter.
-	char* ptr = output_location;
-	strcpy(ptr, "by");
-	ptr += strlen("by");
-	for(size_t i = 0; i < ngramsize; i++)
-	{
-		int numbytes = sprintf(ptr,"_%d", (int)i);
-		if(!numbytes || (numbytes < 0))
-		{
-			fprintf(stderr, "Error, this should never happen though\n");
-			exit(-1);
-		}
-		ptr += numbytes;
-	}
+	char* output_location = (char*) malloc(strlen("ngrams_")+  4 + strlen(".metadata")+ 1); //MARKER5
+	sprintf(output_location,"%u_grams.metadata",ngramsize);
 
 	remove(output_location);
-	rename(buf,output_location);
 
-	strcat(output_location,".metadata");
 	FILE* metadata_file = fopen(output_location,"w");
 	fprintf(metadata_file,"numwords\t%lld\n",totalwords);
   	gettimeofday(&end_time,NULL);
 	fprintf(metadata_file,"time\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
 
-
 	delete final_indices;
-
 	return totalwords;
 }
 

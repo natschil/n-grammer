@@ -16,7 +16,7 @@ CombinationIterator::~CombinationIterator()
 	return;
 }
 
-int* CombinationIterator::operator*()
+unsigned int* CombinationIterator::operator*()
 {
 	vector<int> A;
 	vector<int> B;
@@ -40,7 +40,7 @@ int* CombinationIterator::operator*()
 	sort(B.begin(), B.end());
 	sort(C.begin(),C.end());
 	int totalsize = A.size() + B.size() + C.size();
-	int* value = (int*) malloc(totalsize * sizeof(*value));
+	unsigned int* value = (unsigned int*) malloc(totalsize * sizeof(*value));
 
 	int sofar = 0;
 	for(size_t i = 0; i< A.size();i++)

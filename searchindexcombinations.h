@@ -36,7 +36,7 @@ public:
 	bool operator++();
 
 	//Returns 0 if this was the last one.
-	int* operator*();
+	unsigned int* operator*();
 
 private:
 	vector<int> currentbitstring;

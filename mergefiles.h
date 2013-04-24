@@ -30,8 +30,7 @@ int get_final_k(void);
 //Call this function with k,n referring to an n-gram collection that already exists.
 //i.e. when the n-th non-last buffer has been written to disk, call schedule_next_merge(0,n,0)
 //When the n-th buffer is also the last buffer, call schedule_next_merge(0,n,1)
-void schedule_next_merge(int k, int n,int rightmost_run);
-
+void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS]);
 //Set a value to use as a hint as the buffer size of the buffer passed to getline for the ngram string length.
 void init_merger(int new_max_ngram_string_length);
 

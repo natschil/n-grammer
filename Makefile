@@ -4,7 +4,7 @@ LDFLAGS=-lunistring -ldl -lm
 INSTALL=cp
 CPP = g++
 CC = gcc
-FLAGS = -Wall -g -O3 -fopenmp -Wextra  -D NDEBUG -march=native  -I/usr/include 
+FLAGS = -Wall -g -O3 -fopenmp  -Wextra  -D NDEBUG -march=native  -I/usr/include 
 CFLAGS = -Wall -g -O3 -fopenmp -Wextra  -D NDEBUG -march=native  -I/usr/include 
 
 TARGET = ngram.counting

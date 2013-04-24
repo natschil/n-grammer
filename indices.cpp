@@ -4,17 +4,23 @@
 
 /*NGram comparison function which is used by stl map*/
 #include "indices.h"
+#include "searchindexcombinations.h"
 
+static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,unsigned int n_gram_size,const char* prefix,const vector<unsigned int> &word_order);
 
-static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,int n_gram_size);
+ngram_cmp::ngram_cmp(unsigned int ngramsize,vector<unsigned int> &word_order)
+{
+	this->word_order = word_order;
+	n_gram_size = ngramsize;
+}
 
 bool ngram_cmp::operator()(NGram *first, NGram *second)
 {
 	for(size_t i = 0; i<this->n_gram_size; i++)
 	{
 		int prevres;
-		//We compare the words in exactly the same way as done by the merger, which is required by the merger.
-		if(!(prevres = strcmp((const char*) first->ngram[i].string,(const char*) second->ngram[i].string)))
+		//Here we compare words in the order specified by word_order.
+		if(!(prevres = strcmp((const char*) first->ngram[word_order[i]].string,(const char*) second->ngram[word_order[i]].string)))
 		{
 			continue;
 		}else
@@ -25,31 +31,61 @@ bool ngram_cmp::operator()(NGram *first, NGram *second)
 		
 
 
-Index::Index(size_t ngramsize)
+Index::Index(unsigned int ngramsize,vector<unsigned int> &combination)
 {
 	 n_gram_size = ngramsize;
-	 ngram_cmp compare(ngramsize);
+	 ngram_cmp compare(ngramsize,combination);
 	 letters = vector<letterDict>(256);
-	 for(int i = 0; i<256;i++)
+	 for(size_t i = 0; i<256;i++)
 	 {
 		letters[i] = letterDict(compare);
 	 }
+
+	 word_order = combination;
+	 prefix = (char*) malloc(ngramsize*5 + strlen("tmp.by") + 1); //Assuming ngramsize fits into 4 decimal characters. MARKER5
+	 strcpy(prefix,"tmp.by");
+
+	 size_t size = combination.size();
+	 char* ptr  = prefix + strlen(prefix);
+	 for(size_t i = 0; i < size;i++)
+	 {
+		 *(ptr++) = '_';
+		 ptr += sprintf(ptr,"%u",combination[i]);
+	 }
+	 memset(scheduling_table,0,sizeof(scheduling_table));
 	return;
 }
 
 
-void Index::writeToDisk(int buffercount)
+void Index::writeToDisk(int buffercount,int isfinalbuffer)
 {
 	#pragma omp parallel for
 	for(int i = 0; i < 256;i++)
 	{
-		writeLetterDict(buffercount,i,letters[i],this->n_gram_size);
+		writeLetterDict(buffercount,i,letters[i],this->n_gram_size,prefix,word_order);
 	}
+	schedule_next_merge(0,buffercount,isfinalbuffer,&scheduling_table);
 	return;
 } 
 
-void Index::mark_ngram_occurance(NGram* new_ngram)
+void Index::copyToFinalPlace(int k)
 {
+	//TODO: Copy any relevant metadata here...
+	char* finalpath = (char*) malloc(strlen(prefix) * sizeof(*finalpath) + 1);
+	strcpy(finalpath,prefix + 4);//To remove trailing "tmp.by"
+	remove(finalpath);
+	char* original_path = (char*) malloc(strlen(prefix) + 256 );//More than enough
+	sprintf(original_path, "%s/%d_0",prefix,k);
+	rename(original_path,finalpath);
+	remove(prefix);
+	return;
+}
+
+//Returns 0 if the ngram was already there
+//Returns 1 otherwise.
+int Index::mark_ngram_occurance(NGram* new_ngram)
+{
+	int retval = 1;
 	new_ngram->num_occurances = 1;
 	//We distribute the elements by their first character, which hopefully makes things slightly faster.
 	size_t firstchar = (size_t) (uint8_t) new_ngram->ngram[0].string[0];
@@ -61,41 +97,137 @@ void Index::mark_ngram_occurance(NGram* new_ngram)
 	if(!old.second) //The value was inserted.
 	{
 		old.first->first->num_occurances++;
+		retval = 0;
 	}
-	return;
+	return retval;
 }
 
-IndexCollection::IndexCollection(size_t ngramsize)
+unsigned long long int  factorial(unsigned int number)
+{
+	if(!number) return 1;
+	int result = number;
+	while(--number)
+	{
+		result *= number;
+	}
+	return result;
+}
+
+//Computes n C [n/2] where "n C r"  is  n choose r, and [n/2] means floor(n/2)
+//See the citiations in searchindexcombinations.h for justification of this
+unsigned long long number_of_special_combinations(unsigned int number)
+{
+	unsigned long long result = factorial(number)/
+					( 
+					 	factorial((number % 2)?(number - 1)/2:number/2)
+					 *
+					 	factorial(
+							number - 
+							((number % 2) ? (number -1)/2:number/2)
+							)
+					);
+	return result;	
+}
+
+IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto)
 {
 	 n_gram_size = ngramsize;
-	 indeces = vector<Index>(1);
-	 for(int i = 0; i< 1;i++)
+	 if(wordsearch_index_upto > MAX_INDICES)
 	 {
-		 indeces[i] = Index(ngramsize);
-	 }	
+		 fprintf(stderr,"About to generate too many indices. Change the value MAX_INDICES in config.h if you want to allow this\n");
+		 exit(-1);
+	 }
+	 unsigned long long numcombos = number_of_special_combinations(wordsearch_index_upto);
+
+	 indices = vector<Index>(numcombos);
+	 //indices.reserve(numcombos);
+
+	 if(wordsearch_index_upto != 1)
+	 {
+		 fprintf(stderr, "Generating %d indices\n",(int) numcombos);
+	 }
+
+
+	 CombinationIterator combinations(wordsearch_index_upto);
+	 size_t combo_number = 0;
+	 do
+	 {
+ 		unsigned int* current_combo = *combinations;		 
+	 	vector<unsigned int> new_word_combo(n_gram_size);
+
+	 	size_t j = 0;
+		for(size_t i = 0; i < wordsearch_index_upto;i++)
+		{
+			if(current_combo[i] != (wordsearch_index_upto - 1))
+			{
+				new_word_combo[j] = current_combo[i];
+				j++;
+			}else
+			{
+				for(size_t k = wordsearch_index_upto - 1; k < ngramsize; k++)
+				{
+					new_word_combo[j] = (unsigned int) k;		
+					j++;
+				}
+			}
+		}
+
+		indices[combo_number] =  Index(ngramsize,new_word_combo);
+		free(current_combo);
+		combo_number++;
+
+	 }while(++combinations);
+
+	 if(combo_number != numcombos)
+	 {
+		fprintf(stderr,"There is an bug in index calculating\n");
+		exit(-1);
+	 }
+
+	 indices_size = combo_number;//Since this doesn't change throughout.
+
+	 return;
+
 }
 
 void IndexCollection::mark_ngram_occurance(NGram* new_ngram)
 {
-	indeces[0].mark_ngram_occurance(new_ngram);
+	if(indices[0].mark_ngram_occurance(new_ngram))
+	{
+		//If the ngram is new, it needs to be added to all indices. Otherwise incrementing the first one
+		//increments them all.
+		#pragma omp parallel for
+		for(size_t i = 1; i < indices_size ;i++)
+		{
+			indices[i].mark_ngram_occurance(new_ngram);
+		}
+	}
 }
 
-void IndexCollection::writeToDisk(int buffercount)
+void IndexCollection::writeToDisk(int buffercount,int isfinalbuffer)
 {
 	#pragma omp parallel for
 	for(int i = 0; i< 1;i++)
 	{
-		indeces[i].writeToDisk(buffercount);
+		indices[i].writeToDisk(buffercount,isfinalbuffer);
 	}
 }
 
-IndexCollectionBufferPair::IndexCollectionBufferPair(size_t ngramsize)
+void IndexCollection::copyToFinalPlace(int k)
+{
+	for(size_t i = 0; i < indices_size;i++)
+	{
+		indices[i].copyToFinalPlace(k);
+	}
+}
+
+IndexCollectionBufferPair::IndexCollectionBufferPair(unsigned int ngramsize,unsigned int wordsearch_index_upto )
 {
 	current_buffer = 0;
 	n_gram_size = ngramsize;
 	for(size_t i = 0; i<2;i++)
 	{
-		buffers[i] = IndexCollection(ngramsize);
+		buffers[i] = IndexCollection(ngramsize,wordsearch_index_upto);
 	}
 	return;
 }
@@ -115,12 +247,19 @@ void IndexCollectionBufferPair::mark_ngram_occurance(NGram* new_ngram)
 	return;
 }
 
-/* This function writes out sublexicon to 0_<buffercount>/i.out
+/* This function writes out sublexicon to <prefix>/0_<buffercount>/i.out
+ * Note that <prefix> does not have to exist, but it may not exists as a non-directory.
  */
-static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,int n_gram_size)
+static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,unsigned int n_gram_size,const char* prefix,const vector<unsigned int> &word_order)
 {
-	char buf[256];//256 Characters should be more than enough to hold 2 integers and a few characters.
-	if(snprintf(buf,256,"./0_%d",buffercount) >= 256)
+	if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
+	{
+		fprintf(stderr, "Unable to create directory %s",prefix);
+	}
+
+	char buf[512];//512 Characters should be more than enough to hold 2 integers, a few characters and prefix.
+
+	if(snprintf(buf,512,"./%s/0_%d",prefix,buffercount) >= 512)
 	{
 		//This should never happen.
 		fprintf(stderr,"Error, poor program design");
@@ -132,7 +271,7 @@ static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,int n_
 		exit(-1);
 	}
 
-	if(snprintf(buf,256,"./0_%d/%d.out",buffercount,i) >= 256)
+	if(snprintf(buf,512,"./%s/0_%d/%d.out",prefix,buffercount,i) >= 512)
 	{
 		//This should never happen either.
 		fprintf(stderr,"Error, bad coding");
@@ -149,9 +288,9 @@ static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,int n_
 	for (letterDict::iterator itr = sublexicon.begin(); itr != sublexicon.end(); itr++)
 	{
 		myUString* n_gram = itr->first->ngram;
-		for(int j = 0; j< n_gram_size; j++)
+		for(size_t j = 0; j< n_gram_size; j++)
 		{
-			ulc_fprintf(outfile, "%U", n_gram[j].string);
+			ulc_fprintf(outfile, "%U", n_gram[word_order[j]].string);
 			if(j != n_gram_size - 1)
 			{
 				fprintf(outfile," ");
@@ -167,8 +306,14 @@ static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,int n_
 }
 
 
-void IndexCollectionBufferPair::writeBufferToDisk(size_t buffer_num,size_t buffercount)
+void IndexCollectionBufferPair::writeBufferToDisk(size_t buffer_num,size_t buffercount,int is_final_buffer)
 {
-	buffers[buffer_num].writeToDisk(buffercount);
+	buffers[buffer_num].writeToDisk(buffercount,is_final_buffer);
 	return;
+}
+
+void IndexCollectionBufferPair::copyToFinalPlace(int k)
+{
+	//It doesn't matter which buffer we pick, so we pick the first one:
+	buffers[0].copyToFinalPlace(k);
 }

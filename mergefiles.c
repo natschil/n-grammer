@@ -2,11 +2,11 @@
 
 #include "mergefiles.h"
 
-static uint8_t scheduling_table[MAX_K][MAX_BUFFERS] = {{0}};
+//static uint8_t scheduling_table[MAX_K][MAX_BUFFERS] = {{0}};
 static int max_k = 0;
 
 
-static void merge_next(int k, int n,int rightmost_run);
+static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS]);
 static int max_ngram_string_length = 40; //Given that this only serves as a hint, it doesn't matter whether or not it is set to the real value.
 
 void init_merger(int new_max_ngram_string_length)
@@ -20,7 +20,7 @@ void init_merger(int new_max_ngram_string_length)
 //Call this function with k,n referring to an n-gram collection that already exists.
 //i.e. when the n-th nonterminal buffer has been written to disk, call schedule_next_merge(0,n,0)
 //When the n-th buffer is also the last buffer, call schedule_next_merge(0,n,1)
-void schedule_next_merge(int k, int n,int rightmost_run)
+void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS])
 {
 	if(n > MAX_BUFFERS)
 	{
@@ -63,14 +63,14 @@ void schedule_next_merge(int k, int n,int rightmost_run)
 		#pragma omp flush
 		if(k > max_k)
 			max_k = k;
-		if(!(run_next_merge = scheduling_table[k][n]))
-			scheduling_table[k][other_n] = rightmost_run ? 2 : 1;
+		if(!(run_next_merge = (*scheduling_table)[k][n]))
+			(*scheduling_table)[k][other_n] = rightmost_run ? 2 : 1;
 		#pragma omp flush
 	}
 	if(run_next_merge)
 	{
-		#pragma omp task firstprivate(n,k,rightmost_run,run_next_merge)
-		merge_next(k,n,rightmost_run || (run_next_merge == 2));
+		#pragma omp task firstprivate(n,k,rightmost_run,run_next_merge,scheduling_table) default(none)
+		merge_next(k,n,rightmost_run || (run_next_merge == 2),scheduling_table);
 	}
 }
 
@@ -83,7 +83,7 @@ int get_final_k()
 	return max_k;
 }
 
-static void merge_next(int k, int n,int rightmost_run)
+static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS])
 {
 	int other_n = (n && (n % 2)) ? n - 1: n+1;
 	int final_n = ((n && (n % 2)) ? other_n : n) / 2;  //I.e. take the even one, divide by two
@@ -140,7 +140,7 @@ static void merge_next(int k, int n,int rightmost_run)
 	remove(dirbuf);
 	snprintf(dirbuf,256,"%d_%d",k,other_n);
 	remove(dirbuf);
-	schedule_next_merge(final_k,final_n,rightmost_run);
+	schedule_next_merge(final_k,final_n,rightmost_run,scheduling_table);
 	return;
 }
 

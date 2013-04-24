@@ -30,7 +30,6 @@
 
 #include "memory_management.h"
 #include "mergefiles.h"
-#include "searchindexcombinations.h"
 #include "indices.h"
 
 long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdir,unsigned int wordsearch_index_depth);
