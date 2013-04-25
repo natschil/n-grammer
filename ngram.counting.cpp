@@ -524,4 +524,3 @@ long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdi
 	delete final_indices;
 	return totalwords;
 }
-
