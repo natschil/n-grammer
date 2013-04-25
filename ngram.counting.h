@@ -22,6 +22,7 @@
 #include <unictype.h>
 #include <unistdio.h>
 #include <unicase.h>
+#include <ftw.h>
 
 //We include our configuration options
 #include "config.h"

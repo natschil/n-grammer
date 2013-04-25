@@ -4,11 +4,11 @@ LDFLAGS=-lunistring -ldl -lm
 INSTALL=cp
 CPP = g++
 CC = gcc
-FLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include 
-CFLAGS = -Wall -g -O3 -Wextra -fopenmp -D NDEBUG -march=native  -I/usr/include 
+FLAGS = -Wall -g -O3 -fopenmp -Wextra -D NDEBUG -march=native  -I/usr/include 
+CFLAGS = -Wall -g -O3 -fopenmp -Wextra -D NDEBUG -march=native  -I/usr/include 
 
 TARGET = ngram.counting
-OBJS = ngram.counting.o main.o memory_management.o mergefiles.o searchindexcombinations.o indices.o
+OBJS = ngram.counting.o main.o memory_management.o mergefiles.o searchindexcombinations.o indices.o util.o
 MERGER = merger
 
 MERGER_OBJS = mergefiles.o merge_files.o

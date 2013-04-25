@@ -28,7 +28,7 @@
 	#endif
 	//Set this to half of the actual number of "pages" used. 
 	#ifndef NUM_PAGES
-		#define NUM_PAGES 10
+		#define NUM_PAGES 1
 	#endif
 
 /*Options for Indices*/

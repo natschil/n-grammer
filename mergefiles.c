@@ -6,7 +6,7 @@
 static int max_k = 0;
 
 
-static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS]);
+static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char*);
 static int max_ngram_string_length = 40; //Given that this only serves as a hint, it doesn't matter whether or not it is set to the real value.
 
 void init_merger(int new_max_ngram_string_length)
@@ -20,7 +20,7 @@ void init_merger(int new_max_ngram_string_length)
 //Call this function with k,n referring to an n-gram collection that already exists.
 //i.e. when the n-th nonterminal buffer has been written to disk, call schedule_next_merge(0,n,0)
 //When the n-th buffer is also the last buffer, call schedule_next_merge(0,n,1)
-void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS])
+void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char* prefix)
 {
 	if(n > MAX_BUFFERS)
 	{
@@ -42,10 +42,10 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 
 		if(other_n != (n - 1))
 		{
-			char old_directory_name[256];
-			char new_directory_name[256];
-			snprintf(old_directory_name, 256,"%d_%d",k,n);
-			snprintf(new_directory_name, 256,"%d_%d", other_k,other_n + 1);
+			char old_directory_name[512];
+			char new_directory_name[512];
+			snprintf(old_directory_name, 512,"%s/%d_%d",prefix,k,n);
+			snprintf(new_directory_name, 512,"%s/%d_%d", prefix,other_k,other_n + 1);
 			remove(new_directory_name); //This shouldn't exist, so better be safe.
 			rename(old_directory_name,new_directory_name);
 			n = other_n + 1;
@@ -69,8 +69,8 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 	}
 	if(run_next_merge)
 	{
-		#pragma omp task firstprivate(n,k,rightmost_run,run_next_merge,scheduling_table) default(none)
-		merge_next(k,n,rightmost_run || (run_next_merge == 2),scheduling_table);
+		#pragma omp task firstprivate(n,k,rightmost_run,run_next_merge,scheduling_table,prefix) default(none)
+		merge_next(k,n,rightmost_run || (run_next_merge == 2),scheduling_table,prefix);
 	}
 }
 
@@ -83,14 +83,18 @@ int get_final_k()
 	return max_k;
 }
 
-static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS])
+static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char* prefix)
 {
 	int other_n = (n && (n % 2)) ? n - 1: n+1;
 	int final_n = ((n && (n % 2)) ? other_n : n) / 2;  //I.e. take the even one, divide by two
 	int final_k = k + 1;
-	char dirbuf[256];
+	char dirbuf[512];//Should be more than enough
 
-	snprintf(dirbuf, 256,"./%d_%d",final_k,final_n);
+	if(snprintf(dirbuf, 512,"%s/%d_%d",prefix,final_k,final_n) >= 512)
+	{
+		fprintf(stderr, "The buffer is too small, this should be fixed\n");
+		exit(-1);
+	}
 	mkdir(dirbuf,S_IRUSR | S_IWUSR | S_IXUSR);
 	fprintf(stderr, "Merging %d_%d with %d_%d to give %d_%d\n",k,n,k,other_n,final_k,final_n);
 
@@ -100,12 +104,12 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 	for(i = 0; i< 256;i++)
 	{
 
-		char buf[256];
-		char buf2[256];
-		char output[256];
-		snprintf(buf, 256, "./%d_%d/%d.out",k,n,i);
-		snprintf(buf2, 256,"./%d_%d/%d.out",k,other_n,i);
-		snprintf(output, 256,"./%d_%d/%d.out",final_k,final_n,i);
+		char buf[512];
+		char buf2[512];
+		char output[512];
+		snprintf(buf, 512, "%s/%d_%d/%d.out",prefix,k,n,i);
+		snprintf(buf2, 512,"%s/%d_%d/%d.out",prefix,k,other_n,i);
+		snprintf(output, 512,"%s/%d_%d/%d.out",prefix,final_k,final_n,i);
 
 		FILE* firstfile = fopen(buf, "r");
 		FILE* secondfile = fopen(buf2, "r");
@@ -136,11 +140,11 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 		remove(buf2);
 	}
 
-	snprintf(dirbuf,256,"%d_%d",k,n);
+	snprintf(dirbuf,512,"%s/%d_%d",prefix,k,n);
 	remove(dirbuf);
-	snprintf(dirbuf,256,"%d_%d",k,other_n);
+	snprintf(dirbuf,512,"%s/%d_%d",prefix,k,other_n);
 	remove(dirbuf);
-	schedule_next_merge(final_k,final_n,rightmost_run,scheduling_table);
+	schedule_next_merge(final_k,final_n,rightmost_run,scheduling_table,prefix);
 	return;
 }
 

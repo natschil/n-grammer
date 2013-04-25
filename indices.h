@@ -19,6 +19,7 @@
 
 #include "config.h"
 #include "mergefiles.h"
+#include "util.h"
 
 
 //We do not actually use the char
@@ -56,47 +57,51 @@ class Index
 {
 	public:
 		Index(){};//Do not call.
-		Index(unsigned int ngramsize,vector<unsigned int> &combination);
+		Index(unsigned int ngramsize,vector<unsigned int> &combination,const char* prefix);
 		int mark_ngram_occurance(NGram*);
-		void writeToDisk(int buffercount,int isfinalbuffer);
+		void writeToDisk(int buffercount);
 		void copyToFinalPlace(int k);
 	private:
-		vector<letterDict> letters;
-		unsigned int n_gram_size;
-		
 		//Word_order specifies which order the words should be in
+		vector<letterDict> letters;
 		vector<unsigned int> word_order;
+		const char* prefix;
+		unsigned int n_gram_size;
+};
+
+class IndexBufferPair
+{
+	public:
+	      	IndexBufferPair(){}; //Do not call
+		IndexBufferPair(unsigned int ngramsize, vector<unsigned int> &combination);
+		int mark_ngram_occurance(NGram*);
+		void writeBufferToDisk(int buffer_num, int buffercount, int isfinalbuffer);
+		void copyToFinalPlace(int k);
+		void swapBuffers();
+		int getCurrentBuffer(void);
+	private:
+		Index buffers[2];	
+		size_t current_buffer;
 		uint8_t scheduling_table[MAX_K][MAX_BUFFERS]; //For merging 
 		char* prefix;
+		vector<unsigned int> word_order;
 };
+
 class IndexCollection
 {
 	public:
-		IndexCollection(){};//Do not call
-		IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto);
-	  	void mark_ngram_occurance(NGram* new_ngram);
-	  	void writeToDisk(int buffercount,int isfinalbuffer);
+		IndexCollection(){};//Do not call.
+		IndexCollection(unsigned int ngramsize, unsigned int word_search_index_depth);
+		void mark_ngram_occurance(NGram*);
+		void writeBufferToDisk(int buffer_num, int buffercount, int isfinalbuffer);
 		void copyToFinalPlace(int k);
-  private:
-	  vector<Index> indices;
-	  size_t indices_size;
+		void swapBuffers(void);
+		int getCurrentBuffer(void);
+	private:
+		vector<IndexBufferPair> indices;
+		size_t indices_size;
 
- 	  unsigned int n_gram_size;
-};
-
-class IndexCollectionBufferPair
-{
-  public:
-	  IndexCollectionBufferPair(unsigned int ngramsize,unsigned int wordsearch_index_upto);
-	  void swapBuffers(void);
-	  void mark_ngram_occurance(NGram* new_ngram);
-	  void writeBufferToDisk(size_t buffer_num,size_t buffercount,int isfinalbuffer);
-	  size_t get_current_buffer(){return current_buffer;}
-	  void copyToFinalPlace(int k);
-  private:		
-	  size_t n_gram_size;
-	  size_t current_buffer;
-	  IndexCollection buffers[2];
+		unsigned int n_gram_size;
 };
 
 #endif

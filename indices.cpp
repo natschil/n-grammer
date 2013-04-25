@@ -31,55 +31,34 @@ bool ngram_cmp::operator()(NGram *first, NGram *second)
 		
 
 
-Index::Index(unsigned int ngramsize,vector<unsigned int> &combination)
+Index::Index(unsigned int ngramsize,vector<unsigned int> &combination,const char* prefix)
 {
-	 n_gram_size = ngramsize;
 	 ngram_cmp compare(ngramsize,combination);
+	 n_gram_size = ngramsize;
+	 word_order = combination;
+
 	 letters = vector<letterDict>(256);
 	 for(size_t i = 0; i<256;i++)
 	 {
 		letters[i] = letterDict(compare);
 	 }
 
-	 word_order = combination;
-	 prefix = (char*) malloc(ngramsize*5 + strlen("tmp.by") + 1); //Assuming ngramsize fits into 4 decimal characters. MARKER5
-	 strcpy(prefix,"tmp.by");
+	 this->prefix = prefix;
 
-	 size_t size = combination.size();
-	 char* ptr  = prefix + strlen(prefix);
-	 for(size_t i = 0; i < size;i++)
-	 {
-		 *(ptr++) = '_';
-		 ptr += sprintf(ptr,"%u",combination[i]);
-	 }
-	 memset(scheduling_table,0,sizeof(scheduling_table));
-	return;
 }
 
 
-void Index::writeToDisk(int buffercount,int isfinalbuffer)
+void Index::writeToDisk(int buffercount)
 {
 	#pragma omp parallel for
 	for(int i = 0; i < 256;i++)
 	{
 		writeLetterDict(buffercount,i,letters[i],this->n_gram_size,prefix,word_order);
 	}
-	schedule_next_merge(0,buffercount,isfinalbuffer,&scheduling_table);
 	return;
 } 
 
-void Index::copyToFinalPlace(int k)
-{
-	//TODO: Copy any relevant metadata here...
-	char* finalpath = (char*) malloc(strlen(prefix) * sizeof(*finalpath) + 1);
-	strcpy(finalpath,prefix + 4);//To remove trailing "tmp.by"
-	remove(finalpath);
-	char* original_path = (char*) malloc(strlen(prefix) + 256 );//More than enough
-	sprintf(original_path, "%s/%d_0",prefix,k);
-	rename(original_path,finalpath);
-	remove(prefix);
-	return;
-}
+
 
 //Returns 0 if the ngram was already there
 //Returns 1 otherwise.
@@ -100,6 +79,69 @@ int Index::mark_ngram_occurance(NGram* new_ngram)
 		retval = 0;
 	}
 	return retval;
+}
+
+IndexBufferPair::IndexBufferPair(unsigned int ngramsize, vector<unsigned int> &combination)
+{
+	word_order = combination;
+	prefix = (char*) malloc(ngramsize*5 + strlen("tmp.by") + 1); //Assuming ngramsize fits into 4 decimal characters. MARKER5
+	 strcpy(prefix,"tmp.by");
+
+	 size_t size = combination.size();
+	 char* ptr  = prefix + strlen(prefix);
+	 for(size_t i = 0; i < size;i++)
+	 {
+		 *(ptr++) = '_';
+		 ptr += sprintf(ptr,"%u",combination[i]);
+	 }
+
+	for(int i = 0; i < 2; i++)
+	{
+		buffers[i] = Index(ngramsize,word_order,prefix);
+	}
+
+	current_buffer = 0;
+	memset(scheduling_table,0,sizeof(scheduling_table));
+
+	return;
+
+}
+
+int IndexBufferPair::mark_ngram_occurance(NGram* new_ngram)
+{
+	return buffers[current_buffer].mark_ngram_occurance(new_ngram);
+}
+
+void IndexBufferPair::writeBufferToDisk(int buffer_num, int  buffercount,int is_finalbuffer)
+{
+	buffers[buffer_num].writeToDisk(buffercount);
+	schedule_next_merge(0,buffercount,is_finalbuffer,&scheduling_table,prefix);
+	return;
+}
+
+void IndexBufferPair::copyToFinalPlace(int k)
+{
+	//TODO: Copy any relevant metadata here...
+	char* finalpath = (char*) malloc(strlen(prefix) * sizeof(*finalpath) + 1);
+	strcpy(finalpath,prefix + 4);//To remove trailing "tmp.by"
+	recursively_remove_directory(finalpath);
+	char* original_path = (char*) malloc(strlen(prefix) + 256 );//More than enough
+	sprintf(original_path, "%s/%d_0",prefix,k);
+	rename(original_path,finalpath);
+	recursively_remove_directory(prefix);
+	return;
+}
+
+void IndexBufferPair::swapBuffers(void)
+{
+	//Due to MARKER6 we don't flush here.
+	current_buffer = !current_buffer;
+}
+
+int IndexBufferPair::getCurrentBuffer(void)
+{
+	#pragma omp flush
+	return current_buffer;
 }
 
 unsigned long long int  factorial(unsigned int number)
@@ -139,7 +181,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 	 }
 	 unsigned long long numcombos = number_of_special_combinations(wordsearch_index_upto);
 
-	 indices = vector<Index>(numcombos);
+	 indices = vector<IndexBufferPair>(numcombos);
 	 //indices.reserve(numcombos);
 
 	 if(wordsearch_index_upto != 1)
@@ -172,7 +214,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 			}
 		}
 
-		indices[combo_number] =  Index(ngramsize,new_word_combo);
+		indices[combo_number] =  IndexBufferPair(ngramsize,new_word_combo);
 		free(current_combo);
 		combo_number++;
 
@@ -204,12 +246,12 @@ void IndexCollection::mark_ngram_occurance(NGram* new_ngram)
 	}
 }
 
-void IndexCollection::writeToDisk(int buffercount,int isfinalbuffer)
+void IndexCollection::writeBufferToDisk(int buffer_num,int buffercount,int isfinalbuffer)
 {
 	#pragma omp parallel for
-	for(int i = 0; i< 1;i++)
+	for(int i = 0; i< indices_size;i++)
 	{
-		indices[i].writeToDisk(buffercount,isfinalbuffer);
+		indices[i].writeBufferToDisk(buffer_num,buffercount,isfinalbuffer);
 	}
 }
 
@@ -221,31 +263,23 @@ void IndexCollection::copyToFinalPlace(int k)
 	}
 }
 
-IndexCollectionBufferPair::IndexCollectionBufferPair(unsigned int ngramsize,unsigned int wordsearch_index_upto )
+void IndexCollection::swapBuffers(void)
 {
-	current_buffer = 0;
-	n_gram_size = ngramsize;
-	for(size_t i = 0; i<2;i++)
+	//MARKER6: we flush here	
+	#pragma omp flush
+	for(size_t i= 0; i< indices_size;i++)
 	{
-		buffers[i] = IndexCollection(ngramsize,wordsearch_index_upto);
+		indices[i].swapBuffers();
 	}
-	return;
-}
-
-void IndexCollectionBufferPair::swapBuffers(void)
-{
-	 
-	#pragma omp flush
-	this->current_buffer = !this->current_buffer;
 	#pragma omp flush
 	return;
 }
 
-void IndexCollectionBufferPair::mark_ngram_occurance(NGram* new_ngram)
+int IndexCollection::getCurrentBuffer(void)
 {
-	buffers[current_buffer].mark_ngram_occurance(new_ngram);
-	return;
+	return indices[0].getCurrentBuffer();
 }
+
 
 /* This function writes out sublexicon to <prefix>/0_<buffercount>/i.out
  * Note that <prefix> does not have to exist, but it may not exists as a non-directory.
@@ -306,14 +340,3 @@ static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,unsign
 }
 
 
-void IndexCollectionBufferPair::writeBufferToDisk(size_t buffer_num,size_t buffercount,int is_final_buffer)
-{
-	buffers[buffer_num].writeToDisk(buffercount,is_final_buffer);
-	return;
-}
-
-void IndexCollectionBufferPair::copyToFinalPlace(int k)
-{
-	//It doesn't matter which buffer we pick, so we pick the first one:
-	buffers[0].copyToFinalPlace(k);
-}

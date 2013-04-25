@@ -354,7 +354,7 @@ int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_w
 
 
 /*Writes the dictionary associated with the buffer page_group to disk*/
-static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollectionBufferPair &index_collection,size_t buffer_num,int isfinalbuffer)
+static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollection &index_collection,size_t buffer_num,int isfinalbuffer)
 {
 		setpagelock(page_group);
 		fprintf(stderr,"Writing Buffer %d to disk\n",buffercount);
@@ -366,7 +366,7 @@ static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollectionB
 
 
 //Fills a buffer with words and n-grams.
-int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &my_n_words,long long int &count,IndexCollectionBufferPair &indeces)
+int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &my_n_words,long long int &count,IndexCollection &indeces)
 {
 
 	//We get the lock for the current page group.
@@ -440,7 +440,7 @@ long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdi
 	long long int count = 0;	
 	word_list my_n_words;
 
-	IndexCollectionBufferPair *final_indices = new IndexCollectionBufferPair(ngramsize,wordsearch_index_depth);
+	IndexCollection *final_indices = new IndexCollection(ngramsize,wordsearch_index_depth);
 
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details on normalization forms.
 	uninorm_t norm = UNINORM_NFKD; 
@@ -475,7 +475,7 @@ long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdi
 				//Due to the fact that writeBufferToDisk obtains the lock for the buffer it is writing to disk,
 				//fillABuffer will always wait for the previous buffer to be written to disk, because 
 				//permanently_malloc() does so at MARKER4:
-				size_t previous_buffer = !final_indices->get_current_buffer();
+				size_t previous_buffer = !final_indices->getCurrentBuffer();
 				#pragma omp task firstprivate(buffercount,current_page_group,previous_buffer) shared(final_indices) default(none)
 				{
 
@@ -502,7 +502,7 @@ long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdi
 		#pragma omp flush(buffercount)
 		buffercount++;
 		//Because fillABuffer() swapped the buffers even if it read in nothing, write out the other buffer here.
-		writeBufferToDisk(buffercount,!current_page_group,*final_indices,!final_indices->get_current_buffer(),1);
+		writeBufferToDisk(buffercount,!current_page_group,*final_indices,!final_indices->getCurrentBuffer(),1);
 	}
 	}		
 	//We've done all our reading from the input file.
