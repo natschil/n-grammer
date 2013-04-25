@@ -160,8 +160,20 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
     //We read in unicode code points one at a time.
     wint_t wide_char;
 
-    for(wordlength = 0;(wide_char = fgetwc(f)) != WEOF;)
+    while(1)
     { 
+	wint_t wide_char = fgetwc(f);
+	if(wide_char == WEOF)
+	{
+		if(feof(f))
+		{
+			break;
+		}else if(errno == EILSEQ)
+		{
+			//fprintf(stderr, "Invalid UTF-8 input\n");
+			fgetc(f);//Skip the character.
+		}
+	}
 	ucs4_t character = (ucs4_t)(wchar_t) wide_char;
 
 	if(uc_is_property_white_space(character))
