@@ -10,12 +10,13 @@ void print_usage(char* argv[])
     cerr<<"\tWhere N is the size of the ngrams you want to count.\n";
     cerr<<"\tAnd options is one or many of:\n";
     cerr<<"\t\t--wordsearch_index_until=k	(Split the word into k groups and build an index for each combination of these groups)\n";
+    cerr<<endl;
 }
 
 int main (int argc, char* argv[])
 {
 
-  if((argc == 1) || (argc > 5))
+  if((argc == 1) || (argc > 6))
   {
 	  print_usage(argv);
           exit(1);
@@ -33,8 +34,10 @@ int main (int argc, char* argv[])
 
   FILE* f = NULL;
   const char* outdir =NULL;
-  if(argc >= 3)
+  int options_start = 2;
+  if(argc >= 3 && strncmp(argv[2],"--",2))
   {
+	options_start++;
 	f = fopen(argv[2],"r");
 	if(!f)
 	{
@@ -45,8 +48,9 @@ int main (int argc, char* argv[])
   }else
 	f = stdin;
 
-  if(argc >= 4)
+  if(argc >= 4 && strncmp(argv[3],"--",2))
   {
+	options_start++;
 	outdir = argv[3];
   }else
 	  outdir = "./processing";
@@ -55,20 +59,22 @@ int main (int argc, char* argv[])
   int wordsearch_index_depth = 1;
 
 
-  if(argc > 4)
+  if(argc > options_start)
   {
-	for(int i = 4; i<argc;i++)
+	for(int i = options_start; i<argc;i++)
 	{
 		if(strncmp(argv[i],"--",2))
 		{
+			fprintf(stderr,"\nInvalid option %s\n\n",argv[i]);
 			print_usage(argv);
 			exit(1);
-		}else if(!strncmp(argv[i],"--wordsearch-index-depth",strlen("--wordsearch-index-depth")))
+		}else if(!strncmp(argv[i],"--wordsearch-index-depth=",strlen("--wordsearch-index-depth=")))
 		{
-			char* ptr = argv[i] + strlen("--wordsearch-index-depth");
+			char* ptr = argv[i] + strlen("--wordsearch-index-depth=");
 			wordsearch_index_depth = atoi(ptr);
-			if(!(wordsearch_index_depth > 0))
+			if(!(wordsearch_index_depth > 0) || (wordsearch_index_depth > ngramsize) || (wordsearch_index_depth > MAX_INDICES))
 			{
+				fprintf(stderr,"\nInvalid parameter for --wordsearch-index-depth\n\n");
 				print_usage(argv);
 				exit(1);
 			}

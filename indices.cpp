@@ -67,7 +67,7 @@ int Index::mark_ngram_occurance(NGram* new_ngram)
 	int retval = 1;
 	new_ngram->num_occurances = 1;
 	//We distribute the elements by their first character, which hopefully makes things slightly faster.
-	size_t firstchar = (size_t) (uint8_t) new_ngram->ngram[0].string[0];
+	size_t firstchar = (size_t) (uint8_t) new_ngram->ngram[word_order[0]].string[0];
 
 	letterDict &lD = letters[firstchar];
 
