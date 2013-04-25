@@ -130,6 +130,102 @@ class word_list : public std::deque<myUString>
 	}
 };
 
+
+//Returns 0 if there is no next character.
+int get_next_ucs4t_from_file(FILE* f,ucs4_t *character)
+{
+start:
+	uint8_t buf[4];
+	int first = fgetc(f);
+	if(first == EOF)
+		return 0;
+
+	buf[0] = first;
+
+afterfirstcharacter:
+
+	if(!(first & (1 << 7)))
+	{
+		if(u8_mbtouc(character,buf,4) == -1)
+		{
+			goto start;
+		}else
+			return 1;
+	}else if(first &(1 << 6)  )
+	{
+		if(!(first &( 1 <<  5)))//There are two characters
+		{
+			int second = fgetc(f);
+			if(second == EOF)
+				return 0;
+			buf[1] = second;
+			if(u8_mbtouc(character,buf,2) == -1)
+			{
+				buf[0] = second; //Maybe simply the first byte was wrong.
+				goto afterfirstcharacter;
+			}else return 1;
+		}else if(!(first & ( 1 << 4) )) //There are three characters:
+		{
+			int second = fgetc(f);
+			if(second == EOF)
+				return 0;
+			if((second >> 6) != 2) //Invalid character here already.
+			{
+				buf[0] = second;	
+				goto afterfirstcharacter;
+			}
+			int third = fgetc(f);
+			if(third == EOF)
+				return 0;
+
+			buf[1] = second;
+			buf[2] = third;
+			if(u8_mbtouc(character,buf,3) == -1)
+			{
+				buf[0] = third;
+				goto afterfirstcharacter;
+			}else
+				return 1;
+		}else if(!(first  & ( 1 << 3)))
+		{
+			int second = fgetc(f);
+			if(second == EOF)
+				return 0;
+			if((second >> 6) != 2)
+			{
+				buf[0] = second;
+				goto afterfirstcharacter;
+			}
+
+			int third = fgetc(f);
+			if(third == EOF)
+				return 0;
+			if((third >> 6) != 2)
+			{
+				buf[0] = third;
+				goto afterfirstcharacter;
+			}
+			int fourth = fgetc(f);
+			if(fourth == EOF)
+				return 0;
+
+
+			buf[1] = second;
+			buf[2] = third;
+			buf[3] = fourth;
+			if(u8_mbtouc(character,buf,3) == -1)
+			{
+				buf[0] = fourth;
+				goto afterfirstcharacter;
+			}else
+				return 1;
+		}else
+			goto start;
+	}else
+		goto start;
+
+}
+
 /*Sets s to be a pointer to a (uint8_t, NUL terminated) string of the next word from f.
  * s is allocated using permenently_malloc, and normalized using norm.
  *
@@ -157,25 +253,10 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
     size_t wordlength = 0; 
     uint8_t word[MAX_WORD_SIZE+1]; 
 
-    //We read in unicode code points one at a time.
-    wint_t wide_char;
 
-    while(1)
+    ucs4_t character;
+    for(; get_next_ucs4t_from_file(f,&character);)
     { 
-	wint_t wide_char = fgetwc(f);
-	if(wide_char == WEOF)
-	{
-		if(feof(f))
-		{
-			break;
-		}else if(errno == EILSEQ)
-		{
-			//fprintf(stderr, "Invalid UTF-8 input\n");
-			fgetc(f);//Skip the character.
-		}
-	}
-	ucs4_t character = (ucs4_t)(wchar_t) wide_char;
-
 	if(uc_is_property_white_space(character))
 	{
 		if(!wordlength) //We ignore preceding whitespace.
