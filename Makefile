@@ -10,9 +10,10 @@ CPPLFAGS=-Wall -O3 -I/usr/include -ldl
 LDFLAGS=
 
 all: ngram.analysis
+OBJECTS=main.o invert_index.o manage_metadata.o
 
-ngram.analysis : main.o
-	$(CPP) $(CPPFLAGS)-o $@ main.o $(LIBS) $(LDFLAGS)
+ngram.analysis : $(OBJECTS)
+	$(CPP) $(CPPFLAGS)-o $@ $(OBJECTS) $(LIBS) $(LDFLAGS)
 
 .PHONY: clean test
 
