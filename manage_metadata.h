@@ -16,15 +16,15 @@ using namespace std;
 class Metadata
 {
 	public:
-		int read(string filename);
+		Metadata(){};//Do not use
+		Metadata(string filename);
 		void write();
 
-	private:
-	vector<vector<unsigned int> > indices;
-	unsigned long long num_words;
-	unsigned int time_taken;
-	unsigned int max_frequency;
-	string filename;
+		vector<vector<unsigned int> > indices;
+		unsigned long long num_words;
+		unsigned int time_taken;
+		unsigned int max_frequency;
+		string file_name;
 };
 
 

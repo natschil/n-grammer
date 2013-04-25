@@ -5,18 +5,17 @@ using namespace std;
 
 //Returns 1 on success
 //0 on failure
-int Metadata::read(string filename)
+Metadata::Metadata(string filename)
 {
 	num_words = 0;
 	time_taken = 0;
 	max_frequency = 0;
-	this->filename = filename;
 
 	ifstream metadata_file(filename.c_str(),ios::in);
 	if(!metadata_file)
 	{
 		cerr<<"File "<<filename<<" does not exists"<<endl;
-		return 0;
+		throw 0;
 	}
 	string nextline;
 	while(getline(metadata_file,nextline,':'))
@@ -59,10 +58,14 @@ loop_start:
 		{
 			metadata_file.get();
 			metadata_file >> max_frequency;
+		}else if(nextline == "Filename")
+		{
+			metadata_file.get();
+			metadata_file >> file_name;
 		}
 
 		metadata_file.get();//To get rid of newline character.
 	}
 
-	return 1;
+	throw 1;
 }

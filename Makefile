@@ -5,7 +5,7 @@ CC=gcc
 CFLAGS=
 
 CPP=g++
-CPPLFAGS=-Wall -O3 -I/usr/include -ldl
+CPPLFAGS=-Wall -O3 -I/usr/include -ldl -D_FILE_OFFSET_BITS=64
 
 LDFLAGS=
 
