@@ -132,6 +132,7 @@ class word_list : public std::deque<myUString>
 
 
 //Returns 0 if there is no next character.
+//See http://tools.ietf.org/html/rfc3629 Section 3
 int get_next_ucs4t_from_file(FILE* f,ucs4_t *character)
 {
 start:
