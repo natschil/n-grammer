@@ -96,7 +96,7 @@ static void merge_next(int k, int n,int rightmost_run)
 
 	#pragma omp flush //TODO: Research whether doing a flush here is neccessary, it probably isn't.
 	int i;
-	#pragma omp parallel for shared(other_n, final_n, final_k, n,k, max_ngram_string_length) private(i)
+	//#pragma omp parallel for shared(other_n, final_n, final_k, n,k, max_ngram_string_length) private(i)
 	for(i = 0; i< 256;i++)
 	{
 

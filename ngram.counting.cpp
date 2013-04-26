@@ -422,7 +422,7 @@ static void writeBufferToDisk(int buffercount,size_t page_group,letterDict* lexi
 		setpagelock(page_group);
 		fprintf(stderr,"Writing Buffer to disk\n");
 		fflush(stderr);
-		#pragma omp parallel for
+		//#pragma omp parallel for
 		for(int i = 0; i< 256;i++)
 		{
 			writeLetterDict(buffercount,i,lexicon[i]);
