@@ -212,7 +212,7 @@ static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* outpu
 			exit(-1);
 		}
 	
-		memcpy(output_map + (out_cur - output_offset_start ), input_map + (in_cur - input_offset_start ), (inputsize - in_cur +1));
+		memcpy(output_map + (out_cur - output_offset_start ), input_map + (in_cur - input_offset_start ), (inputsize - in_cur ));
 
 		munmap(input_map, inputsize-input_offset_start);
 		munmap(output_map,output_end - output_offset_start);
