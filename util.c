@@ -2,6 +2,7 @@
 static int callback_function(const char* filepath,const struct stat *sb, int typeflag,struct FTW* ignore)
 {
 	remove(filepath);
+	return 0;
 }
 
 void recursively_remove_directory(const char* directory_name)

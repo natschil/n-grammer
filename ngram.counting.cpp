@@ -11,8 +11,7 @@ using namespace std;
 /* Function Declarations*/
 
 	class word_list;
-	int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,NGram *&str);
-
+	int getnextngram( FILE* infile,long long int &totalwords,uninorm_t n,word_list &my_n_words,NGram *&str);
 
 
 
@@ -420,9 +419,10 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 	return state;
 }
 
-long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdir,unsigned int wordsearch_index_depth)
+long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const char* outdir,unsigned int wordsearch_index_depth)
 {
     //Initialization:
+    	FILE* infile = input_file ? fopen(input_file,"r") : stdin;
     	struct timeval start_time,end_time;
   	gettimeofday(&start_time,NULL);
 
@@ -517,9 +517,12 @@ long long int count_ngrams(unsigned int ngramsize,FILE* infile,const char* outdi
 	remove(output_location);
 
 	FILE* metadata_file = fopen(output_location,"w");
-	fprintf(metadata_file,"numwords\t%lld\n",totalwords);
+	fprintf(metadata_file,"Filename:\t%s\n",input_file);
+	fprintf(metadata_file,"Numwords:\t%lld\n",totalwords);
   	gettimeofday(&end_time,NULL);
-	fprintf(metadata_file,"time\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
+	fprintf(metadata_file,"Time:\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
+	final_indices->writeMetadata(metadata_file);
+
 
 	delete final_indices;
 	return totalwords;

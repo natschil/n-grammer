@@ -33,6 +33,8 @@ int main (int argc, char* argv[])
   }
 
   FILE* f = NULL;
+  const char* filename = argv[2];
+
   const char* outdir =NULL;
   int options_start = 2;
   if(argc >= 3 && strncmp(argv[2],"--",2))
@@ -46,7 +48,7 @@ int main (int argc, char* argv[])
 	}
 
   }else
-	f = stdin;
+	filename = NULL;
 
   if(argc >= 4 && strncmp(argv[3],"--",2))
   {
@@ -56,7 +58,7 @@ int main (int argc, char* argv[])
 	  outdir = "./processing";
 
  //Some default options:
-  int wordsearch_index_depth = 1;
+  unsigned int wordsearch_index_depth = 1;
 
 
   if(argc > options_start)
@@ -83,6 +85,6 @@ int main (int argc, char* argv[])
   }
 
   
-  count_ngrams(ngramsize,f,outdir,(unsigned int) wordsearch_index_depth);
+  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth);
   return 0; 
 }

@@ -58,7 +58,7 @@ class Index
 	public:
 		Index(){};//Do not call.
 		Index(unsigned int ngramsize,vector<unsigned int> &combination,const char* prefix);
-		int mark_ngram_occurance(NGram*);
+		long long int mark_ngram_occurance(NGram*);
 		void writeToDisk(int buffercount);
 		void copyToFinalPlace(int k);
 	private:
@@ -74,11 +74,12 @@ class IndexBufferPair
 	public:
 	      	IndexBufferPair(){}; //Do not call
 		IndexBufferPair(unsigned int ngramsize, vector<unsigned int> &combination);
-		int mark_ngram_occurance(NGram*);
+		long long int mark_ngram_occurance(NGram*);
 		void writeBufferToDisk(int buffer_num, int buffercount, int isfinalbuffer);
 		void copyToFinalPlace(int k);
 		void swapBuffers();
 		int getCurrentBuffer(void);
+		const char* getPrefix(void);
 	private:
 		Index buffers[2];	
 		size_t current_buffer;
@@ -97,11 +98,12 @@ class IndexCollection
 		void copyToFinalPlace(int k);
 		void swapBuffers(void);
 		int getCurrentBuffer(void);
+		void writeMetadata(FILE* metadata_file);
 	private:
 		vector<IndexBufferPair> indices;
 		size_t indices_size;
-
 		unsigned int n_gram_size;
+		long long int max_freq;
 };
 
 #endif

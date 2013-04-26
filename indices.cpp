@@ -60,11 +60,11 @@ void Index::writeToDisk(int buffercount)
 
 
 
-//Returns 0 if the ngram was already there
-//Returns 1 otherwise.
-int Index::mark_ngram_occurance(NGram* new_ngram)
+//Returns the (new) frequency if the ngram was already there
+//Returns 0 otherwise.
+long long int Index::mark_ngram_occurance(NGram* new_ngram)
 {
-	int retval = 1;
+	long long int retval = 0;
 	new_ngram->num_occurances = 1;
 	//We distribute the elements by their first character, which hopefully makes things slightly faster.
 	size_t firstchar = (size_t) (uint8_t) new_ngram->ngram[word_order[0]].string[0];
@@ -75,8 +75,7 @@ int Index::mark_ngram_occurance(NGram* new_ngram)
 	std::pair<letterDict::iterator,bool> old = lD.insert(letterDict::value_type(new_ngram,0));
 	if(!old.second) //The value was inserted.
 	{
-		old.first->first->num_occurances++;
-		retval = 0;
+		retval = ++old.first->first->num_occurances;
 	}
 	return retval;
 }
@@ -107,7 +106,7 @@ IndexBufferPair::IndexBufferPair(unsigned int ngramsize, vector<unsigned int> &c
 
 }
 
-int IndexBufferPair::mark_ngram_occurance(NGram* new_ngram)
+long long int IndexBufferPair::mark_ngram_occurance(NGram* new_ngram)
 {
 	return buffers[current_buffer].mark_ngram_occurance(new_ngram);
 }
@@ -144,6 +143,11 @@ int IndexBufferPair::getCurrentBuffer(void)
 	return current_buffer;
 }
 
+const char* IndexBufferPair::getPrefix(void)
+{
+	return (const char*) prefix;
+}
+
 unsigned long long int  factorial(unsigned int number)
 {
 	if(!number) return 1;
@@ -174,6 +178,7 @@ unsigned long long number_of_special_combinations(unsigned int number)
 IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto)
 {
 	 n_gram_size = ngramsize;
+	 max_freq = 0;
 	 if(wordsearch_index_upto > MAX_INDICES)
 	 {
 		 fprintf(stderr,"About to generate too many indices. Change the value MAX_INDICES in config.h if you want to allow this\n");
@@ -234,7 +239,8 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 
 void IndexCollection::mark_ngram_occurance(NGram* new_ngram)
 {
-	if(indices[0].mark_ngram_occurance(new_ngram))
+	long long int this_freq = 0;
+	if(!(this_freq = indices[0].mark_ngram_occurance(new_ngram)))
 	{
 		//If the ngram is new, it needs to be added to all indices. Otherwise incrementing the first one
 		//increments them all.
@@ -244,12 +250,15 @@ void IndexCollection::mark_ngram_occurance(NGram* new_ngram)
 			indices[i].mark_ngram_occurance(new_ngram);
 		}
 	}
+	if(this_freq > max_freq)
+		max_freq = this_freq;
+
 }
 
 void IndexCollection::writeBufferToDisk(int buffer_num,int buffercount,int isfinalbuffer)
 {
 	#pragma omp parallel for
-	for(int i = 0; i< indices_size;i++)
+	for(size_t i = 0; i< indices_size;i++)
 	{
 		indices[i].writeBufferToDisk(buffer_num,buffercount,isfinalbuffer);
 	}
@@ -278,6 +287,17 @@ void IndexCollection::swapBuffers(void)
 int IndexCollection::getCurrentBuffer(void)
 {
 	return indices[0].getCurrentBuffer();
+}
+
+void IndexCollection::writeMetadata(FILE* metadata_file)
+{
+	fprintf(metadata_file,"Indexes:\n");
+	for(size_t i = 0; i< indices_size;i++)
+	{
+		fprintf(metadata_file,"\t%s\n",indices[i].getPrefix() + 4);
+	}
+	fprintf(metadata_file,"MaxFrequency:\t%lld\n",max_freq);
+	return;
 }
 
 
