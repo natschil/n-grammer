@@ -454,16 +454,16 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 
 		if(!first)
 		{
-			#pragma omp task shared(previousngram)
+			//#pragma omp task shared(previousngram)
 			{
 				mark_ngram_occurance(previousngram);
 			}
 		}
 
-		#pragma omp task shared(state,f,totalwords,norm,my_n_words,currentngram)
+		//#pragma omp task shared(state,f,totalwords,norm,my_n_words,currentngram)
 		state = getnextngram(f,totalwords,norm,my_n_words,currentngram);
 
-		#pragma omp taskwait
+		//#pragma omp taskwait
 		#pragma omp flush(currentngram)
 		previousngram = currentngram;
 		#pragma omp flush(previousngram)
