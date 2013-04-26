@@ -203,7 +203,7 @@ static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* outpu
 		}
 	
 		off_t output_offset_start = sysconf(_SC_PAGESIZE) * (out_cur / sysconf(_SC_PAGESIZE));
-		void* output_map = mmap(NULL, output_end - output_offset_start +1  , PROT_WRITE , MAP_SHARED,out_fd,output_offset_start);
+		void* output_map = mmap(NULL, output_end - output_offset_start   , PROT_WRITE , MAP_SHARED,out_fd,output_offset_start);
 	
 		if(output_map == (void*) -1)
 		{
