@@ -358,8 +358,7 @@ static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollection 
 		setpagelock(page_group);
 		fprintf(stderr,"Writing Buffer %d to disk\n",buffercount);
 		fflush(stderr);
-		index_collection.writeBufferToDisk(buffer_num,buffercount,isfinalbuffer);
-		#pragma omp flush
+		//#pragma omp parallel for
 		unsetpagelock(page_group);
 }
 
@@ -385,16 +384,16 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 
 		if(!first)
 		{
-			#pragma omp task shared(previousngram,indeces) default(none)
+			//#pragma omp task shared(previousngram)
 			{
 				indeces.mark_ngram_occurance(previousngram);
 			}
 		}
 
-		#pragma omp task shared(state,f,totalwords,norm,my_n_words,currentngram)
+		//#pragma omp task shared(state,f,totalwords,norm,my_n_words,currentngram)
 		state = getnextngram(f,totalwords,norm,my_n_words,currentngram);
 
-		#pragma omp taskwait
+		//#pragma omp taskwait
 		#pragma omp flush(currentngram)
 		previousngram = currentngram;
 		#pragma omp flush(previousngram)

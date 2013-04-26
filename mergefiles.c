@@ -100,7 +100,7 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 
 	#pragma omp flush //TODO: Research whether doing a flush here is neccessary, it probably isn't.
 	int i;
-	#pragma omp parallel for shared(other_n, final_n, final_k, n,k, max_ngram_string_length) private(i)
+	//#pragma omp parallel for shared(other_n, final_n, final_k, n,k, max_ngram_string_length) private(i)
 	for(i = 0; i< 256;i++)
 	{
 
@@ -113,7 +113,7 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 
 		FILE* firstfile = fopen(buf, "r");
 		FILE* secondfile = fopen(buf2, "r");
-		FILE* outputfile = fopen(output, "w");
+		FILE* outputfile = fopen(output, "w+");
 		if(!firstfile)
 		{
 			fprintf(stderr, "Unable to open %s for reading\n", buf);
@@ -127,7 +127,16 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 			fprintf(stderr, "Unable to open %s for writing\n",output);
 			exit(-1);
 		}
-		int mergefile_out = merge_files(firstfile,secondfile,outputfile,max_ngram_string_length);
+
+		struct stat first_stat;
+		struct stat second_stat;
+		if( stat(buf,&first_stat) || stat(buf2, &second_stat))
+		{
+			fprintf(stderr, "Unable to stat either %s or %s", buf, buf2);
+			exit(-1);
+		}
+
+		int mergefile_out = merge_files(firstfile,first_stat.st_size,secondfile,second_stat.st_size,outputfile,max_ngram_string_length);
 		fclose(firstfile);
 		fclose(secondfile);
 		fclose(outputfile);
@@ -149,18 +158,74 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 }
 
 
-static void copy_rest_of_file_to_output(FILE* input, FILE* output)
+static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* output)
 {
-	int c;
-	while((c = fgetc(input)) != EOF)
+	if( output == stdout)
 	{
-		fputc(c,output);
-	}
-	return;
-}
+		int c;
+		while( (c = fgetc(input)) != EOF)
+		{
+			fputc(c,output);
+		}
+		return;
+	}else
+	{
+		if(inputsize == 0)
+		       return;	
+	
+		int in_fd = fileno(input);
+		int out_fd = fileno(output);
+	
+		off_t in_cur = ftell(input);
+		off_t out_cur = ftell(output);
 
+		if((inputsize - in_cur) == 0) //There's nothing left to write.
+			return;
+	
+		if(!in_fd || !out_fd)
+		{
+			fprintf(stderr, "merge:Unable to convert FILE* to fd\n");
+			exit(-1);
+		}
+	
+		off_t output_end = out_cur + inputsize - in_cur ;
+		ftruncate(out_fd, output_end);
+
+
+		off_t input_offset_start = sysconf(_SC_PAGESIZE) * (in_cur / sysconf(_SC_PAGESIZE)); //Round down to nearest page size.
+	
+		void* input_map = mmap(NULL, inputsize - input_offset_start , PROT_READ, MAP_SHARED, in_fd,  input_offset_start);
+		if(input_map == (void*) -1)
+		{
+			fprintf(stderr, "merge: Unable to mmap input file\n");
+			exit(-1);
+		}
+
+		if(madvise(input_map, inputsize - input_offset_start, MADV_SEQUENTIAL))
+		{
+			fprintf(stderr,"Madvise failed\n");
+		}
+	
+		off_t output_offset_start = sysconf(_SC_PAGESIZE) * (out_cur / sysconf(_SC_PAGESIZE));
+		void* output_map = mmap(NULL, output_end - output_offset_start +1  , PROT_WRITE , MAP_SHARED,out_fd,output_offset_start);
+	
+		if(output_map == (void*) -1)
+		{
+			munmap(input_map,inputsize-input_offset_start);
+			fprintf(stderr,"merge: Unable to mmap output file");
+			exit(-1);
+		}
+	
+		memcpy(output_map + (out_cur - output_offset_start ), input_map + (in_cur - input_offset_start ), (inputsize - in_cur +1));
+
+		munmap(input_map, inputsize-input_offset_start);
+		munmap(output_map,output_end - output_offset_start);
+		return;
+	}
+}
+	
 //Returns 0 on sucess, non-zero on error.
-int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_ngram_string_length)
+int merge_files(FILE* in_first,off_t first_size, FILE* in_second,off_t second_size, FILE* out,int max_ngram_string_length)
 {
 	//		   string_length	tab   ( length of number as text) '\0'
 	size_t buf_size = max_ngram_string_length + 1 + floor(log10(LLONG_MAX)) + 1 + 1;
@@ -186,7 +251,7 @@ getbothfiles:
 	if((buf_read = getline(&buf, &buf_size, in_first)) < 3) 
 	{
 		//We write the rest of the second file to output.
-		copy_rest_of_file_to_output(in_second,out);
+		copy_rest_of_file_to_output(in_second,second_size,out);
 		free(buf);
 		free(buf2);
 		return 0;
@@ -214,7 +279,7 @@ getbothfiles:
 			{
 				*ptr1 = '\t';
 				fputs(buf,out);
-				copy_rest_of_file_to_output(in_first,out);
+				copy_rest_of_file_to_output(in_first,first_size,out);
 				free(buf);
 				free(buf2);
 				return 0;
@@ -240,7 +305,7 @@ getbothfiles:
 			{
 				*ptr2 = '\t';
 				fputs(buf2,out);
-				copy_rest_of_file_to_output(in_second,out);
+				copy_rest_of_file_to_output(in_second,second_size,out);
 				free(buf);
 				free(buf2);
 				return 0;

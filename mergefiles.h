@@ -5,13 +5,18 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include <unistd.h>
 #include <limits.h>
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <stdint.h>
+#include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+
 #include "config.h"
 
 //Merges files in_first with in_second in way useful for the ngram counter.
@@ -20,7 +25,7 @@ extern "C" {
 //Even with input files containing lines with strings longer than max_string_length.
 
 //Returns 0 on sucess, non-zero on error.
-int merge_files(FILE* in_first, FILE* in_second, FILE* out,int max_string_length);
+int merge_files(FILE* in_first,off_t first_size, FILE* in_second,off_t second_size, FILE* out,int max_string_length);
 
 //This function outputs the location of the output file.
 //Only call this when you are sure that all merging has finished

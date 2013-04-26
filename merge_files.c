@@ -28,7 +28,18 @@ int main(int argc, char* argv[])
 		fprintf(stderr,"Unable to open file %s", argv[2]);
 		exit(-1);
 	}
-	merge_files(first,second,stdout,512);
+	struct stat first_stat;
+	struct stat second_stat;
+	stat(argv[1],&first_stat);
+	stat(argv[2], &second_stat);
+
+	FILE* outfile = stdout;
+	if(argc == 4)
+	{
+		outfile = fopen(argv[3],"w+");
+	}
+
+	merge_files(first,first_stat.st_size,second,second_stat.st_size,outfile,512);
 	fclose(first);
 	fclose(second);
 	return 0;
