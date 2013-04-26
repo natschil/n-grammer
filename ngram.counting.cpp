@@ -428,7 +428,6 @@ static void writeBufferToDisk(int buffercount,size_t page_group,letterDict* lexi
 			writeLetterDict(buffercount,i,lexicon[i]);
 		}
 	
-		#pragma omp flush
 		unsetpagelock(page_group);
 }
 
