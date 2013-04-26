@@ -11,13 +11,14 @@
 #include <fstream>
 #include <iostream>
 #include <string.h>
+#include <algorithm>
 
 using namespace std;
 class Metadata
 {
 	public:
 		Metadata(){};//Do not use
-		Metadata(string filename);
+		Metadata(string &filename,string &foldername);
 		void write();
 
 		vector<vector<unsigned int> > indices;
@@ -25,6 +26,7 @@ class Metadata
 		unsigned int time_taken;
 		unsigned int max_frequency;
 		string file_name;
+		string folder_name;
 };
 
 

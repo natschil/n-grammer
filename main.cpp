@@ -13,6 +13,7 @@
 
 #include "manage_metadata.h"
 #include "invert_index.h"
+#include "search.h"
 
 void print_usage(int argc,char* argv[]);
 
@@ -26,13 +27,13 @@ int main(int argc, char* argv[])
 	}
 
 	DIR* processing_folder = opendir(argv[1]);
-	if(processing_folder)
+	if(!processing_folder)
 	{
-		cerr<<"Cannot open directory"<<argv[1]<<endl;
+		cerr<<"Cannot open directory "<<argv[1]<<endl;
 		return -1;
 	}
 
-	map<int, Metadata> metadatas;
+	map<unsigned int, Metadata> metadatas;
 
 	struct dirent* current_entry;
 	while((current_entry = readdir(processing_folder)))
@@ -48,7 +49,9 @@ int main(int argc, char* argv[])
 
 			try
 			{
-				metadatas[atoi(current_entry->d_name)] = Metadata(string(current_entry->d_name));
+				string filename(current_entry->d_name);
+				string foldername(argv[1]);
+				metadatas[atoi(current_entry->d_name)] = Metadata(filename,foldername);
 			}catch(int i)
 			{
 			}
@@ -61,8 +64,9 @@ int main(int argc, char* argv[])
 	if(!metadatas.size())
 	{
 		fprintf(stderr,"No valid metadata found in directory %s\n",argv[1]);
+		exit(-1);
 	}
-	for(map<int,Metadata>::iterator i = metadatas.begin(); i != metadatas.end();i++)
+	for(map<unsigned int,Metadata>::iterator i = metadatas.begin(); i != metadatas.end();i++)
 	{
 		if(!first)
 		{
@@ -77,8 +81,8 @@ int main(int argc, char* argv[])
 	}
 
 	string command(argv[2]);
-	vector<string> arguments(2);
-	for(size_t i = 3; i< argc;i++)
+	vector<string> arguments;
+	for(int i = 3; i< argc;i++)
 	{
 		arguments.push_back(argv[i]);
 	}
@@ -87,7 +91,7 @@ int main(int argc, char* argv[])
 		invert_index(metadatas,arguments);
 	}else if(command == "search")
 	{
-		//search(metadatas,arguments);
+		do_search(metadatas,arguments);
 	}
 	return 0;
 

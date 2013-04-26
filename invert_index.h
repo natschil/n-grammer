@@ -20,7 +20,7 @@
 #include <fcntl.h>
 #include "manage_metadata.h"
 
-void invert_index(map<int,Metadata> &metadatas,vector<string> arguments);
+void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &arguments);
 
 
 #endif
