@@ -358,7 +358,8 @@ static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollection 
 		setpagelock(page_group);
 		fprintf(stderr,"Writing Buffer %d to disk\n",buffercount);
 		fflush(stderr);
-		//#pragma omp parallel for
+		index_collection.writeBufferToDisk(buffer_num, buffercount,isfinalbuffer);
+		#pragma omp flush
 		unsetpagelock(page_group);
 }
 
@@ -384,16 +385,13 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 
 		if(!first)
 		{
-			//#pragma omp task shared(previousngram)
 			{
 				indeces.mark_ngram_occurance(previousngram);
 			}
 		}
 
-		//#pragma omp task shared(state,f,totalwords,norm,my_n_words,currentngram)
 		state = getnextngram(f,totalwords,norm,my_n_words,currentngram);
 
-		//#pragma omp taskwait
 		#pragma omp flush(currentngram)
 		previousngram = currentngram;
 		#pragma omp flush(previousngram)
@@ -521,7 +519,13 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
   	gettimeofday(&end_time,NULL);
 	fprintf(metadata_file,"Time:\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
 	final_indices->writeMetadata(metadata_file);
-
+	fclose(metadata_file);
+	metadata_file = fopen(output_location,"r");
+	int c;
+	while((c = fgetc(metadata_file)) != EOF)
+	{
+		fputc(c,stdout);
+	};
 
 	delete final_indices;
 	return totalwords;

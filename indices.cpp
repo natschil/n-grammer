@@ -50,7 +50,6 @@ Index::Index(unsigned int ngramsize,vector<unsigned int> &combination,const char
 
 void Index::writeToDisk(int buffercount)
 {
-	#pragma omp parallel for
 	for(int i = 0; i < 256;i++)
 	{
 		writeLetterDict(buffercount,i,letters[i],this->n_gram_size,prefix,word_order);
@@ -244,7 +243,6 @@ void IndexCollection::mark_ngram_occurance(NGram* new_ngram)
 	{
 		//If the ngram is new, it needs to be added to all indices. Otherwise incrementing the first one
 		//increments them all.
-		#pragma omp parallel for
 		for(size_t i = 1; i < indices_size ;i++)
 		{
 			indices[i].mark_ngram_occurance(new_ngram);
@@ -257,7 +255,6 @@ void IndexCollection::mark_ngram_occurance(NGram* new_ngram)
 
 void IndexCollection::writeBufferToDisk(int buffer_num,int buffercount,int isfinalbuffer)
 {
-	#pragma omp parallel for
 	for(size_t i = 0; i< indices_size;i++)
 	{
 		indices[i].writeBufferToDisk(buffer_num,buffercount,isfinalbuffer);
