@@ -39,16 +39,13 @@ struct NGram
 
 struct ngram_cmp : public std::binary_function<NGram, NGram,bool>
 {
-	ngram_cmp(size_t ngramsize)
-	{
-		n_gram_size = ngramsize;
-	}
-	ngram_cmp(){return;};//So there is a default constructor and things like vector and map are happy.
-	ngram_cmp(unsigned int,vector<unsigned int>&); //<-This constructor is fine to use though.
+	ngram_cmp(unsigned int,const unsigned int*); //<-This constructor is fine to use though.
+	ngram_cmp(const ngram_cmp&);
+	ngram_cmp operator=(const ngram_cmp&);
 	bool operator()(NGram *first, NGram *second);
 	private:
 	unsigned int n_gram_size;
-	vector<unsigned int> word_order;
+	const unsigned int *word_order;
 };
 
 typedef std::map<NGram*,char,ngram_cmp> letterDict;
@@ -56,15 +53,15 @@ typedef std::map<NGram*,char,ngram_cmp> letterDict;
 class Index
 {
 	public:
-		Index(){};//Do not call.
-		Index(unsigned int ngramsize,vector<unsigned int> &combination,const char* prefix);
+		Index(){};
+		Index(unsigned int ngramsize,const unsigned int *combination,const char* prefix);
 		long long int mark_ngram_occurance(NGram*);
 		void writeToDisk(int buffercount);
 		void copyToFinalPlace(int k);
 	private:
 		//Word_order specifies which order the words should be in
 		vector<letterDict> letters;
-		vector<unsigned int> word_order;
+		const unsigned int *word_order;
 		const char* prefix;
 		unsigned int n_gram_size;
 };
@@ -72,12 +69,12 @@ class Index
 class IndexBufferPair
 {
 	public:
-	      	IndexBufferPair(){}; //Do not call
-		IndexBufferPair(unsigned int ngramsize, vector<unsigned int> &combination);
+		IndexBufferPair(unsigned int ngramsize, unsigned int *combination);
 		long long int mark_ngram_occurance(NGram*);
 		void writeBufferToDisk(int buffer_num, int buffercount, int isfinalbuffer);
 		void copyToFinalPlace(int k);
 		void swapBuffers();
+		void cleanUp(void);
 		int getCurrentBuffer(void);
 		const char* getPrefix(void);
 	private:
@@ -85,14 +82,14 @@ class IndexBufferPair
 		size_t current_buffer;
 		uint8_t scheduling_table[MAX_K][MAX_BUFFERS]; //For merging 
 		char* prefix;
-		vector<unsigned int> word_order;
+		unsigned int *word_order;
 };
 
 class IndexCollection
 {
 	public:
-		IndexCollection(){};//Do not call.
 		IndexCollection(unsigned int ngramsize, unsigned int word_search_index_depth);
+		~IndexCollection();
 		void mark_ngram_occurance(NGram*);
 		void writeBufferToDisk(int buffer_num, int buffercount, int isfinalbuffer);
 		void copyToFinalPlace(int k);

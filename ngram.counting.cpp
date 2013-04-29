@@ -293,7 +293,7 @@ int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_w
 		my_n_words.pop_front(); //So that the word-list does not grow infinitely
 		break;
 	}
-		return retval;
+	return retval;
 }
 
 
@@ -324,7 +324,6 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 	my_n_words.migrate_to_new_buffer();
 
 	int state = 1;
-	int first = 1;
 	NGram *currentngram;
 	while(state == 1)
 	{
@@ -337,7 +336,6 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 		{
 			fprintf(stderr,"%lld\n",(long long int) count);
 		}
-		first = 0;
 	}
 	//When the buffer almost full, we switch buffers:
 	switch_permanent_malloc_buffers();	
@@ -442,7 +440,6 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 
 	char* output_location = (char*) malloc(strlen("ngrams_")+  4 + strlen(".metadata")+ 1); //MARKER5
 	sprintf(output_location,"%u_grams.metadata",ngramsize);
-
 	remove(output_location);
 
 	FILE* metadata_file = fopen(output_location,"w");
@@ -453,6 +450,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 	final_indices->writeMetadata(metadata_file);
 	fclose(metadata_file);
 	metadata_file = fopen(output_location,"r");
+	free(output_location);
 	int c;
 	while((c = fgetc(metadata_file)) != EOF)
 	{

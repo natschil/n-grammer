@@ -6,14 +6,24 @@
 #include "indices.h"
 #include "searchindexcombinations.h"
 
-static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,unsigned int n_gram_size,const char* prefix,const vector<unsigned int> &word_order);
+static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,unsigned int n_gram_size,const char* prefix,const unsigned int *word_order);
 
-ngram_cmp::ngram_cmp(unsigned int ngramsize,vector<unsigned int> &word_order)
+ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int *combination)
 {
-	this->word_order = word_order;
+	this->word_order = combination;
 	n_gram_size = ngramsize;
 }
-
+ngram_cmp::ngram_cmp(const ngram_cmp &prev)
+{
+	this->word_order = prev.word_order;
+	this->n_gram_size = prev.n_gram_size;
+}
+ngram_cmp ngram_cmp::operator=(const ngram_cmp &prev)
+{
+	this->word_order = prev.word_order;
+	this->n_gram_size = prev.n_gram_size;
+	return *this;
+}
 bool ngram_cmp::operator()(NGram *first, NGram *second)
 {
 	for(size_t i = 0; i<this->n_gram_size; i++)
@@ -28,22 +38,21 @@ bool ngram_cmp::operator()(NGram *first, NGram *second)
 	}
 	return false;
 }
-		
 
-
-Index::Index(unsigned int ngramsize,vector<unsigned int> &combination,const char* prefix)
+Index::Index(unsigned int ngramsize,const unsigned int *combination,const char* prefix)
 {
+
 	 ngram_cmp compare(ngramsize,combination);
 	 n_gram_size = ngramsize;
 	 word_order = combination;
+	 this->prefix = prefix;
+	 letters.reserve(256);
 
-	 letters = vector<letterDict>(256);
 	 for(size_t i = 0; i<256;i++)
 	 {
-		letters[i] = letterDict(compare);
+		letters.push_back(letterDict(compare));
 	 }
 
-	 this->prefix = prefix;
 
 }
 
@@ -79,15 +88,14 @@ long long int Index::mark_ngram_occurance(NGram* new_ngram)
 	return retval;
 }
 
-IndexBufferPair::IndexBufferPair(unsigned int ngramsize, vector<unsigned int> &combination)
+IndexBufferPair::IndexBufferPair(unsigned int ngramsize, unsigned int *combination)
 {
 	word_order = combination;
 	prefix = (char*) malloc(ngramsize*5 + strlen("tmp.by") + 1); //Assuming ngramsize fits into 4 decimal characters. MARKER5
-	 strcpy(prefix,"tmp.by");
+	strcpy(prefix,"tmp.by");
 
-	 size_t size = combination.size();
 	 char* ptr  = prefix + strlen(prefix);
-	 for(size_t i = 0; i < size;i++)
+	 for(size_t i = 0; i < ngramsize;i++)
 	 {
 		 *(ptr++) = '_';
 		 ptr += sprintf(ptr,"%u",combination[i]);
@@ -95,7 +103,7 @@ IndexBufferPair::IndexBufferPair(unsigned int ngramsize, vector<unsigned int> &c
 
 	for(int i = 0; i < 2; i++)
 	{
-		buffers[i] = Index(ngramsize,word_order,prefix);
+		buffers[i] = Index(ngramsize,combination,prefix);
 	}
 
 	current_buffer = 0;
@@ -104,6 +112,13 @@ IndexBufferPair::IndexBufferPair(unsigned int ngramsize, vector<unsigned int> &c
 	return;
 
 }
+
+void IndexBufferPair::cleanUp(void)
+{
+	free(this->word_order);
+	free(this->prefix);
+}
+
 
 long long int IndexBufferPair::mark_ngram_occurance(NGram* new_ngram)
 {
@@ -127,6 +142,8 @@ void IndexBufferPair::copyToFinalPlace(int k)
 	sprintf(original_path, "%s/%d_0",prefix,k);
 	rename(original_path,finalpath);
 	recursively_remove_directory(prefix);
+	free(finalpath);
+	free(original_path);
 	return;
 }
 
@@ -185,8 +202,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 	 }
 	 unsigned long long numcombos = number_of_special_combinations(wordsearch_index_upto);
 
-	 indices = vector<IndexBufferPair>(numcombos);
-	 //indices.reserve(numcombos);
+	 indices.reserve(numcombos);
 
 	 if(wordsearch_index_upto != 1)
 	 {
@@ -199,7 +215,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 	 do
 	 {
  		unsigned int* current_combo = *combinations;		 
-	 	vector<unsigned int> new_word_combo(n_gram_size);
+		unsigned int *new_word_combo = (unsigned int *) malloc(sizeof(*new_word_combo) * ngramsize);
 
 	 	size_t j = 0;
 		for(size_t i = 0; i < wordsearch_index_upto;i++)
@@ -218,7 +234,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 			}
 		}
 
-		indices[combo_number] =  IndexBufferPair(ngramsize,new_word_combo);
+		indices.push_back(IndexBufferPair(ngramsize,new_word_combo));
 		free(current_combo);
 		combo_number++;
 
@@ -234,6 +250,14 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 
 	 return;
 
+}
+
+IndexCollection::~IndexCollection()
+{
+	for(int i = 0; i< indices.size(); i++)
+	{
+		indices[i].cleanUp();
+	}
 }
 
 void IndexCollection::mark_ngram_occurance(NGram* new_ngram)
@@ -301,7 +325,7 @@ void IndexCollection::writeMetadata(FILE* metadata_file)
 /* This function writes out sublexicon to <prefix>/0_<buffercount>/i.out
  * Note that <prefix> does not have to exist, but it may not exists as a non-directory.
  */
-static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,unsigned int n_gram_size,const char* prefix,const vector<unsigned int> &word_order)
+static void *writeLetterDict(int buffercount,int i,letterDict &sublexicon,unsigned int n_gram_size,const char* prefix,const unsigned int *word_order)
 {
 	if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
 	{
