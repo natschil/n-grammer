@@ -14,6 +14,7 @@
 #include "manage_metadata.h"
 #include "invert_index.h"
 #include "search.h"
+#include "view_inversion.h"
 
 void print_usage(int argc,char* argv[]);
 
@@ -92,6 +93,13 @@ int main(int argc, char* argv[])
 	}else if(command == "search")
 	{
 		do_search(metadatas,arguments);
+	}else if(command == "get_top")
+	{
+		search_inverted_index(metadatas,arguments);	
+	}else
+	{
+		print_usage(argc,argv);
+		exit(-1);
 	}
 	return 0;
 
@@ -104,6 +112,7 @@ void print_usage(int argc,char* argv[])
 	fprintf(stderr, "COMMAND is one of:\n");
 	fprintf(stderr,"\t\tinvert_index\n");
 	fprintf(stderr,"\t\tsearch\n");
+	fprintf(stderr,"\t\tget_top\n");
 	fflush(stderr);
 	return;
 }

@@ -34,11 +34,12 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	}
 	closedir(argument_folder);
 	long long int file_starts_at[256];
+	file_starts_at[0] = 0;
 	for(size_t i = 0; i<255;i++)
 	{
 		struct stat current_file;
-		char buf[3];
-		snprintf(buf,3,"%lu",i);
+		char buf[4];
+		snprintf(buf,4,"%lu",i);
 		string filename = foldername + string("/")  + string(buf) + string(".out");
 		if(stat(filename.c_str(), &current_file))
 		{
@@ -67,6 +68,9 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		FILE* currentfile = fopen(filename_buf,"r");
 		if(!currentfile)
 		{
+			free(string_buf);
+			free(filename_buf);
+			free(table);
 			cerr<<"Unable to open "<<filename_buf<<" for reading"<<endl;
 			exit(-1);
 		}
@@ -82,6 +86,10 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 			if((*errptr) != '\n'|| !number)
 			{
 				fprintf(stderr,"invert_index: File to read %lu has lines but no lines ending numbers then newlines\n",i);
+				free(string_buf);
+				free(filename_buf);
+				free(table);
+				exit(-1);
 			}
 			table[number]++;
 			output_file_size += (16 + 1 + 16 + 1); //16 characters per 64 bit hex number
@@ -97,6 +105,9 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	int fd = open(out_filename.c_str(),O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 	if(fd == -1)
 	{
+		free(string_buf);
+		free(filename_buf);
+		free(table);
 		cerr<<"invert_index: Unable to open file "<<out_filename.c_str()<<endl;
 		exit(-1);
 	}
@@ -106,6 +117,9 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	void* outfile_map = mmap(NULL,output_file_size,PROT_WRITE | PROT_READ,MAP_SHARED,fd,0);
 	if(outfile_map == MAP_FAILED)
 	{
+		free(string_buf);
+		free(filename_buf);
+		free(table);
 		cerr<<"invert_index: Unable to mmap file"<<endl;
 		exit(-1);
 	}
@@ -147,6 +161,9 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	
 	relevant_metadata.inverted_indices.insert(index_name_as_vector);
 	relevant_metadata.write();
+	free(filename_buf);
+	free(table);
+	free(string_buf);
 	return;
 
 }
