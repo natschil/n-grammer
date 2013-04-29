@@ -106,7 +106,7 @@ class word_list : public std::deque<myUString>
 
 //Returns 0 if there is no next character.
 //See http://tools.ietf.org/html/rfc3629 Section 3
-int get_next_ucs4t_from_file(FILE* f,ucs4_t *character)
+ int get_next_ucs4t_from_file(FILE* f,ucs4_t *character)
 {
 	static uint8_t buf[4];
 	static int numwords = 0;
@@ -174,7 +174,6 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
 
     size_t wordlength = 0; 
     uint8_t word[MAX_WORD_SIZE+1]; 
-
 
     ucs4_t character;
     for(; get_next_ucs4t_from_file(f,&character);)
@@ -313,7 +312,7 @@ static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollection 
 
 
 //Fills a buffer with words and n-grams.
-int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &my_n_words,long long int &count,IndexCollection &indeces)
+int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &my_n_words,long long int &count,IndexCollection &indices)
 {
 
 	//We get the lock for the current page group.
@@ -327,24 +326,12 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 	int state = 1;
 	int first = 1;
 	NGram *currentngram;
-	NGram *previousngram;
 	while(state == 1)
 	{
+		state = getnextngram(f, totalwords, norm, my_n_words,currentngram);
+		if(state != 0)
+			indices.mark_ngram_occurance(currentngram);
 
-		if(!first)
-		{
-			{
-				//indeces.mark_ngram_occurance(previousngram);
-			}
-		}
-
-		state = getnextngram(f,totalwords,norm,my_n_words,currentngram);
-
-		#pragma omp flush(currentngram)
-		previousngram = currentngram;
-		#pragma omp flush(previousngram)
-		if(state == 0)
-			break;
 		count++;
 		if((count % 1000000 == 0))
 		{
@@ -352,14 +339,9 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 		}
 		first = 0;
 	}
-	/*
-	if(state == -1)
-		indeces.mark_ngram_occurance(previousngram);
-		*/
-
 	//When the buffer almost full, we switch buffers:
 	switch_permanent_malloc_buffers();	
-	indeces.swapBuffers();
+	indices.swapBuffers();
 
 	unsetpagelock(!current_page_group);
 
