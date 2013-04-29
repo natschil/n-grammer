@@ -5,6 +5,7 @@
 #ifndef NGRAM_ANALYIS_METADATA_MANAGEMENT_H
 #define NGRAM_ANALYIS_METADATA_MANAGEMENT_H
 
+#include <set>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -21,11 +22,13 @@ class Metadata
 		Metadata(string &filename,string &foldername);
 		void write();
 
-		vector<vector<unsigned int> > indices;
+		set<vector<unsigned int> > indices;
+		set<vector<unsigned int> > inverted_indices;
 		unsigned long long num_words;
 		unsigned int time_taken;
 		unsigned int max_frequency;
 		string file_name;
+		string metadata_filename;
 		string folder_name;
 };
 
