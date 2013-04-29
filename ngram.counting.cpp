@@ -524,7 +524,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 	int c;
 	while((c = fgetc(metadata_file)) != EOF)
 	{
-		fputc(c,stdout);
+		fputc(c,stderr);
 	};
 
 	delete final_indices;
