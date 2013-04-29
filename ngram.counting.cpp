@@ -108,95 +108,43 @@ class word_list : public std::deque<myUString>
 //See http://tools.ietf.org/html/rfc3629 Section 3
 int get_next_ucs4t_from_file(FILE* f,ucs4_t *character)
 {
-start:
-	uint8_t buf[4];
-	int first = fgetc(f);
-	if(first == EOF)
-		return 0;
-
-	buf[0] = first;
-
-afterfirstcharacter:
-
-	if(!(first & (1 << 7)))
+	static uint8_t buf[4];
+	static int numwords = 0;
+	for(; numwords<4;numwords++)
 	{
-		if(u8_mbtouc(character,buf,4) == -1)
-		{
-			goto start;
-		}else
-			return 1;
-	}else if(first &(1 << 6)  )
+		int c = fgetc(f);
+		if(c == EOF)
+			break;
+		buf[numwords] = c;
+	}
+	int read = u8_mbtouc(character, buf, numwords);
+	while(numwords && (read <= 0))
 	{
-		if(!(first &( 1 <<  5)))//There are two characters
+		//We shift right;
+		for(int i = 1; i < numwords; i++)
 		{
-			int second = fgetc(f);
-			if(second == EOF)
-				return 0;
-			buf[1] = second;
-			if(u8_mbtouc(character,buf,2) == -1)
-			{
-				buf[0] = second; //Maybe simply the first byte was wrong.
-				goto afterfirstcharacter;
-			}else return 1;
-		}else if(!(first & ( 1 << 4) )) //There are three characters:
+			buf[i -1] = buf[i];
+		}
+		int c = fgetc(f);
+		if(c == EOF)
+			numwords--;
+		else
+			buf[numwords - 1] = c;
+
+		read = u8_mbtouc(character,buf,numwords);
+	}
+	if(numwords)
+	{
+		for(int i = read; i < numwords; i++)
 		{
-			int second = fgetc(f);
-			if(second == EOF)
-				return 0;
-			if((second >> 6) != 2) //Invalid character here already.
-			{
-				buf[0] = second;	
-				goto afterfirstcharacter;
-			}
-			int third = fgetc(f);
-			if(third == EOF)
-				return 0;
-
-			buf[1] = second;
-			buf[2] = third;
-			if(u8_mbtouc(character,buf,3) == -1)
-			{
-				buf[0] = third;
-				goto afterfirstcharacter;
-			}else
-				return 1;
-		}else if(!(first  & ( 1 << 3)))
-		{
-			int second = fgetc(f);
-			if(second == EOF)
-				return 0;
-			if((second >> 6) != 2)
-			{
-				buf[0] = second;
-				goto afterfirstcharacter;
-			}
-
-			int third = fgetc(f);
-			if(third == EOF)
-				return 0;
-			if((third >> 6) != 2)
-			{
-				buf[0] = third;
-				goto afterfirstcharacter;
-			}
-			int fourth = fgetc(f);
-			if(fourth == EOF)
-				return 0;
-
-
-			buf[1] = second;
-			buf[2] = third;
-			buf[3] = fourth;
-			if(u8_mbtouc(character,buf,3) == -1)
-			{
-				buf[0] = fourth;
-				goto afterfirstcharacter;
-			}else
-				return 1;
-		}else
-			goto start;
+			buf[i - read] = buf[i];
+		}	
+		numwords -= read;
+		return 1;
 	}else
-		goto start;
+	{
+		return 0;
+	}
 
 }
 
@@ -386,7 +334,7 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 		if(!first)
 		{
 			{
-				indeces.mark_ngram_occurance(previousngram);
+				//indeces.mark_ngram_occurance(previousngram);
 			}
 		}
 
@@ -404,8 +352,10 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 		}
 		first = 0;
 	}
+	/*
 	if(state == -1)
 		indeces.mark_ngram_occurance(previousngram);
+		*/
 
 	//When the buffer almost full, we switch buffers:
 	switch_permanent_malloc_buffers();	
