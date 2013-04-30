@@ -52,9 +52,9 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 
 					string index_fname;
 					if(!is_inverted)
-				        	index_fname	=  nextline.substr(strlen("\tby"));
+				        	index_fname	=  nextline.substr(strlen("by"));
 					else 
-						index_fname = nextline.substr(strlen("\tinverted_by"));
+						index_fname = nextline.substr(strlen("inverted_by"));
 
 					stringstream ss(index_fname);
 					ss.get();
