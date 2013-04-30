@@ -1,6 +1,12 @@
 #include "invert_index.h"
 
-
+static inline unsigned int integer_pow_10(unsigned int num)
+{
+	int result = 1;
+	while(num--)
+		result *= 10;
+	return result;
+}
 
 void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 {
@@ -39,7 +45,7 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	{
 		struct stat current_file;
 		char buf[4];
-		snprintf(buf,4,"%lu",i);
+		snprintf(buf,4,"%u",(unsigned int)i);
 		string filename = foldername + string("/")  + string(buf) + string(".out");
 		if(stat(filename.c_str(), &current_file))
 		{
@@ -49,7 +55,69 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		file_starts_at[i + 1] = current_file.st_size + file_starts_at[i];
 	}
 
-	long long *table = (long long*) calloc(relevant_metadata.max_frequency + 1,sizeof(*table));
+	if(!relevant_metadata.max_frequency)
+	{
+		long long int max_freq = 0;
+		char buf[4];
+		char* other_buf =(char*) malloc(1024);
+		size_t other_buf_size = 1024;
+		for(size_t i = 0; i< 255; i++)
+		{
+			snprintf(buf,4,"%u",(unsigned int)i);
+			string filename = foldername + string("/") + string(buf) + string(".out");
+			FILE* cur = fopen(filename.c_str(),"r");
+			if(!cur)
+			{
+				cerr<<"Could not open file "<<filename<<endl;
+				exit(-1);
+			}
+			ssize_t read;
+			while((read = getline(&other_buf, &other_buf_size,cur)) > 0)
+			{
+				const char* ptr = other_buf + read - 1 -1;
+				long long number = 0;
+				int index = 0;
+				while(1)
+				{
+					switch(*ptr--)
+					{
+					case '0':;
+					break;
+					case '1':number += 1*integer_pow_10(index);
+					break;
+					case '2': number += 2*integer_pow_10(index);
+					break;
+					case '3':number += 3*integer_pow_10(index);
+					break;
+					case '4':number += 4*integer_pow_10(index);
+					break;
+					case '5':number += 5*integer_pow_10(index);
+					break;
+					case '6':number += 6*integer_pow_10(index);
+					break;
+					case '7':number += 7*integer_pow_10(index);
+					break;
+					case '8':number += 8*integer_pow_10(index);
+					break;
+					case '9':number += 9*integer_pow_10(index);
+					break;
+					default: goto outofloop;
+
+					}
+					index++;
+				}
+outofloop:
+				if(number > max_freq)
+					max_freq = number;
+			}
+			fclose(cur);
+
+		}
+		free(other_buf);
+		relevant_metadata.max_frequency =max_freq;
+	}
+
+	long long int *table = (long long int*) calloc(relevant_metadata.max_frequency + 1,sizeof(*table));
 
 	//The first pass of a distribution sort.
 	char* filename_buf = (char*) malloc(foldername.length() + strlen("/") + strlen("256") + strlen(".out") + 1);
