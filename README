@@ -1,0 +1,54 @@
+ngram.analysis
+
+	The ngram.analysis program contains various functions for analysing the output
+	from the ngram.counting program.
+	
+	It has the following syntax:
+	
+	ngram.analysis processing_folder COMMAND OPTIONS
+	
+		where COMMAND is one of:
+				invert_index
+				search
+				get_top
+
+invert_index
+
+	invert_index is used for creating an index sorted by descending frequency
+	on the n-gram index specified by the first option.
+
+	For example, to create an index sorted by frequency on the 4-gram index where
+	the words are ordered as they were in the text, run invert_index 0_1_2_3
+
+	As another example, to create an index sorted by frequency on the 3-gram index
+	that has the word order so that the third word is first, then the first and then
+	the second word, run invert_index 2_0_1 .
+
+	invert_index has a complexity of O(N), where N is the size of the n-gram  index
+	to be created.
+
+get_top
+
+	get_top is the counterpart to invert_index. It displays the top m words of the 
+	inverted index specified, where m is the second argument to invert_index. The first
+	argument to invert_index is the the n-gram number. Currently get_top only supports
+	outputting from indexes like 0 or 0_1 or 0_1_2 or 0_1_2_3 etc..
+
+	For example, to get the 10 most frequent 2-grams, run get_top 2 10
+	after having run invert_index 0_1
+
+	get_top has a complexity of O(1).
+
+search
+
+	search is used for searching for n-grams. It takes a single option as an argument
+	which is the search string. 
+
+	For example run ./search "this is * test"  to search for all 4-grams where the first
+	word is "this", the second word is "is" and the last word is "test". The search would
+	find 4-grams like "this is a test" or "this is the test".
+
+	search has a worst case complexity of O(log(N)), where N is the size of the n-gram index.
+
+
+
