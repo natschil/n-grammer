@@ -9,7 +9,7 @@ void print_usage(char* argv[])
     cerr << "Usage: " << argv[0] << " N [input = stdin] [outputdir = ./processing] [options]\n";
     cerr<<"\tWhere N is the size of the ngrams you want to count.\n";
     cerr<<"\tAnd options is one or many of:\n";
-    cerr<<"\t\t--wordsearch_index_until=k	(Split the word into k groups and build an index for each combination of these groups)\n";
+    cerr<<"\t\t--wordsearch-index-depth=k	(Split the word into k groups and build an index for each combination of these groups)\n";
     cerr<<endl;
 }
 
@@ -80,6 +80,11 @@ int main (int argc, char* argv[])
 				print_usage(argv);
 				exit(1);
 			}
+		}else
+		{
+			fprintf(stderr,"\nInvalid option %s\n\n",argv[i]);
+			print_usage(argv);
+			exit(1);
 		}
 	}
   }

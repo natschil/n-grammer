@@ -100,7 +100,6 @@ class IndexCollection
 		vector<IndexBufferPair> indices;
 		size_t indices_size;
 		unsigned int n_gram_size;
-		long long int max_freq;
 };
 
 #endif

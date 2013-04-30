@@ -194,7 +194,6 @@ unsigned long long number_of_special_combinations(unsigned int number)
 IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto)
 {
 	 n_gram_size = ngramsize;
-	 max_freq = 0;
 	 if(wordsearch_index_upto > MAX_INDICES)
 	 {
 		 fprintf(stderr,"About to generate too many indices. Change the value MAX_INDICES in config.h if you want to allow this\n");
@@ -272,8 +271,6 @@ void IndexCollection::mark_ngram_occurance(NGram* new_ngram)
 			indices[i].mark_ngram_occurance(new_ngram);
 		}
 	}
-	if(this_freq > max_freq)
-		max_freq = this_freq;
 
 }
 
@@ -317,7 +314,6 @@ void IndexCollection::writeMetadata(FILE* metadata_file)
 	{
 		fprintf(metadata_file,"\t%s\n",indices[i].getPrefix() + 4);
 	}
-	fprintf(metadata_file,"MaxFrequency:\t%lld\n",max_freq);
 	return;
 }
 
