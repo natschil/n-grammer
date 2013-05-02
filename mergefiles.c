@@ -96,12 +96,11 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 		exit(-1);
 	}
 	mkdir(dirbuf,S_IRUSR | S_IWUSR | S_IXUSR);
-	fprintf(stderr, "Merging %d_%d with %d_%d to give %d_%d\n",k,n,k,other_n,final_k,final_n);
+	fprintf(stdout, "Merging %d_%d with %d_%d to give %d_%d\n",k,n,k,other_n,final_k,final_n);
 
 	#pragma omp flush //TODO: Research whether doing a flush here is neccessary, it probably isn't.
 	int i;
-	//#pragma omp parallel for shared(other_n, final_n, final_k, n,k, max_ngram_string_length) private(i)
-	for(i = 0; i< 256;i++)
+	for(i = 0; i< 1;i++)
 	{
 
 		char buf[512];

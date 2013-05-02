@@ -241,9 +241,9 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 	#pragma omp master
 	{
 		int state = 1;
-		//Because of the way buffers work, it should be noted that set_ending_pointer
+		//Because of the way buffers work, it should be noted that set_top_pointer
 		//refers to the number of words ignored at the *start* of the input.
-		final_indices->current_buffer->set_ending_pointer(0);
+		final_indices->current_buffer->set_top_pointer(0);
 		while(state)
 		{
 			state = fillABuffer(infile,totalwords,norm,count,*final_indices);
@@ -251,16 +251,29 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 			int numbuffers_in_use = final_indices->get_numbuffers_in_use();
 			Buffer* old_buffer = final_indices->current_buffer;
 
-			if(state)
+			if(state)//I.e this run is not the last one
 			{
 				final_indices->makeNewBuffer();
-				word* ptr = old_buffer->words_end() - 2*(ngramsize-1); 
-				for(;ptr != old_buffer->words_end(); ptr++)
+				word* ptr = old_buffer->words_buffer_bottom() + 2*(ngramsize-1) - 1; 
+				if(ptr > old_buffer->words_buffer_top())
+				{
+					cerr<<"Please use larger buffers"<<endl;
+					exit(-1);
+				}
+				final_indices->add_null_word();
+				for(;ptr >= old_buffer->words_buffer_bottom(); ptr--)
 				{
 					int tmp_retval = 1;
 					uint8_t* new_string = final_indices->allocate_for_string(strlen((const char*) ptr->contents) + 1,tmp_retval);
 					memcpy(new_string, ptr->contents, (strlen((const char*) ptr->contents) + 1) * sizeof(*new_string));
+
+					if(ptr->prev == final_indices->get_null_word())
+					{
+						final_indices->add_null_word();
+					}
+
 					final_indices->add_word(new_string,tmp_retval);
+
 					if(tmp_retval == -1)
 					{
 						cerr<<"Buffer sizes are too small,exiting..."<<endl;
@@ -268,16 +281,16 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 					}
 				}
 
-				//Because of the way buffers work, it should be noted that set_ending_pointer
+				//Because of the way buffers work, it should be noted that set_top_pointer
 				//refers to the number of words ignored at the *start* of the input and vice versa...
-				old_buffer->set_starting_pointer(ngramsize - 1);
-				final_indices->current_buffer->set_ending_pointer(ngramsize - 1);
+				old_buffer->set_bottom_pointer(ngramsize - 1);
+				final_indices->current_buffer->set_top_pointer(ngramsize - 1);
 			}else
 			{
 
-				//Because of the way buffers work, it should be noted that set_ending_pointer
+				//Because of the way buffers work, it should be noted that set_top_pointer
 				//refers to the number of words ignored at the *start* of the input and vice versa...
-				old_buffer->set_starting_pointer(0);
+				old_buffer->set_bottom_pointer(0);
 			}
 	
 			if(!state || (numbuffers_in_use >= (MAX_CONCURRENT_BUFFERS - 1)))
@@ -317,7 +330,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 	int c;
 	while((c = fgetc(metadata_file)) != EOF)
 	{
-		fputc(c,stderr);
+		fputc(c,stdout);
 	};
 
 	delete final_indices;

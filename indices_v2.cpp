@@ -37,7 +37,7 @@ class Dict
 			res.first->second++;
 		}
 	}
-	void writeToDisk( const char* prefix,unsigned int buffercount,uint8_t starting_character)
+	void writeToDisk( const char* prefix,unsigned int buffercount)
 	{
 		if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
 		{
@@ -58,7 +58,7 @@ class Dict
 			exit(-1);
 		}
 	
-		if(snprintf(buf,512,"./%s/0_%u/%u.out",prefix,buffercount,(unsigned int) starting_character) >= 512)
+		if(snprintf(buf,512,"./%s/0_%u/%u.out",prefix,buffercount,(unsigned int) 0) >= 512) //TODO: clean this up
 		{
 			//This should never happen either.
 			fprintf(stderr,"Error, bad coding");
@@ -102,13 +102,13 @@ Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_a
 {
 	this->internal_buffer = internal_buffer;
 	this->buffer_size = buffer_size;
-	this->words_bottom = buffer_size;
+	this->words_bottom_internal = buffer_size;
 	this->strings_top = 0;
 	this->maximum_single_allocation = maximum_single_allocation;
 	this->last_word = null_word;
 	//These two had better be set by hand, else garbage will come out.
-	this->starting_pointer = 0;
-	this->ending_pointer = 0;
+	this->top_pointer = 0;
+	this->bottom_pointer = 0;
 };
 
 Buffer::~Buffer()
@@ -119,12 +119,12 @@ Buffer::~Buffer()
 void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
 {
 	word* new_word;
-	words_bottom -= sizeof(*new_word);
-	new_word = (word*) (internal_buffer +  words_bottom);
+	words_bottom_internal -= sizeof(*new_word);
+	new_word = (word*) (internal_buffer +  words_bottom_internal);
 
 	new_word->contents = word_location;
 
-	if((words_bottom - strings_top) < maximum_single_allocation)
+	if((words_bottom_internal - strings_top) < maximum_single_allocation)
 	{
 		mmgnt_retval = -1;
 	}
@@ -145,7 +145,7 @@ uint8_t* Buffer::allocate_for_string(size_t numbytes, int &mmgnt_retval)
 {
 	strings_top += numbytes;
 	uint8_t* result = (uint8_t*) (internal_buffer + strings_top - numbytes);
-	if((words_bottom -  strings_top) < maximum_single_allocation)
+	if((words_bottom_internal -  strings_top) < maximum_single_allocation)
 	{
 		mmgnt_retval = -1;
 	}
@@ -159,34 +159,34 @@ void Buffer::rewind_string_allocation(size_t numbytes)
 		strings_top -= numbytes;
 }
 
-void Buffer::set_starting_pointer(size_t nmeb)
+void Buffer::set_top_pointer(size_t nmeb)
 {
-	starting_pointer = words_bottom +  nmeb * sizeof(word*);
+	top_pointer = buffer_size - nmeb* sizeof(word);
 }
 
-void Buffer::set_ending_pointer(size_t nmeb)
+void Buffer::set_bottom_pointer(size_t nmeb)
 {
-	ending_pointer = buffer_size - nmeb * sizeof(word*);
+	bottom_pointer = words_bottom_internal + nmeb*sizeof(word);
 }
 
-word* Buffer::words_begin()
+word* Buffer::words_top()
 {
-	return (word*)(internal_buffer + starting_pointer); 
+	return (word*)(internal_buffer + top_pointer); 
 }
 
-word* Buffer::words_end()
+word* Buffer::words_bottom()
 {
-	return (word*)(internal_buffer + ending_pointer);
+	return (word*)(internal_buffer + bottom_pointer);
 }
 
-word* Buffer::words_buffer_begin()
-{
-	return (word*) (internal_buffer + words_bottom);
-}
-
-word* Buffer::words_buffer_end()
+word* Buffer::words_buffer_top()
 {
 	return (word*) (internal_buffer + buffer_size);
+}
+
+word* Buffer::words_buffer_bottom()
+{
+	return (word*) (internal_buffer + words_bottom_internal);
 }
 
 
@@ -302,14 +302,14 @@ IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_
 
 void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write)
 {
-	word* words_begin = buffer_to_write->words_begin();
-	word* words_end = buffer_to_write->words_end();
+	word* words_bottom = buffer_to_write->words_bottom();
+	word* words_top = buffer_to_write->words_top();
 
 	#ifdef cplusplus11
 	//This step will take a long time:
-	std::sort(words_begin,words_end);
+	std::sort(words_bottom,words_top);
 	#else
-		my_qsort(words_begin, words_end - words_begin);
+		my_qsort(words_bottom, words_top - words_bottom);
 	#endif
 
 	vector<Dict> current_ngrams;
@@ -323,10 +323,10 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 
 
 	NGram new_ngram;
-	for(word* current_word = words_begin; current_word != words_end;)
+	for(word* current_word = words_bottom; current_word != words_top;)
 	{
 		const uint8_t *previous_word_str = current_word->contents;
-		while((current_word != words_end) && !strcmp((const char*) previous_word_str,(const char*) current_word->contents))
+		while((current_word != words_top) && !strcmp((const char*) previous_word_str,(const char*) current_word->contents))
 		{
 			for(size_t i = 0; i < numcombos; i++)
 			{
@@ -375,7 +375,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		//We now write out any n-grams that we have:
 		for(size_t i = 0; i< numcombos; i++)
 		{
-			current_ngrams[i].writeToDisk(prefixes[i],buffercount,previous_word_str[i]);
+			current_ngrams[i].writeToDisk(prefixes[i],buffercount);
 			current_ngrams[i].clear();
 		}	
 	}
