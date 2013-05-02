@@ -129,7 +129,7 @@ outofloop:
 	char* string_buf = (char*) malloc(1024); //This is more than enough.
 	size_t string_buf_size = 1024;
 	size_t output_file_size = 0;
-	for(size_t i = 0; i< 256; i++)
+	for(size_t i = 0; i< 0; i++)
 	{
 		//We use C here instead of C++ for maximum efficiency
 		sprintf(ptr,"%lu.out",i);
@@ -192,7 +192,7 @@ outofloop:
 		exit(-1);
 	}
 
-	for(size_t i = 0; i< 256; i++)
+	for(size_t i = 0; i< 0; i++)
 	{
 		long long current_offset = file_starts_at[i];
 		//We use C here instead of C++ for maximum efficientcy

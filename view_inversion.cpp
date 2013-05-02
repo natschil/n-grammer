@@ -7,14 +7,14 @@
  */
 static off_t* offsets_table(string folder_name)
 {
-	off_t* result = (off_t*) malloc(sizeof(off_t) * 257);
+	off_t* result = (off_t*) malloc(sizeof(off_t) * 2);//NOTE: Update this if we ever deal with multiple input files again.
 	result[0] = 0;
 	struct stat cur;
 	char* filename = (char*) malloc(strlen(folder_name.c_str()) + 1 +  3 + 4 + 1);
 	strcpy(filename,folder_name.c_str());
 	strcat(filename,"/");
 	char* ptr = filename + strlen(filename);
-	for(size_t i = 0; i< 256; i++)
+	for(size_t i = 0; i< 1; i++)
 	{
 		sprintf(ptr, "%u.out",(unsigned int) i);
 		if(stat(filename,&cur))
@@ -32,7 +32,7 @@ static void writeOutAddress(off_t address, off_t* offsets, string foldername,lon
 {
 	int i;
 
-	for( i= 256;(i > 0) &&( offsets[i] > address); i--)
+	for( i= 1;(i > 0) &&( offsets[i] > address); i--)
 		;
 
 	

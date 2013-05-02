@@ -78,7 +78,8 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 		index_filename_stream<<most_suitable_combination[i];
 	}
 	index_filename_stream<<"/";
-	index_filename_stream<<(int)(uint8_t) (char) strings[most_suitable_combination[0]].c_str()[0]<<".out";
+	//index_filename_stream<<(int)(uint8_t) (char) strings[most_suitable_combination[0]].c_str()[0]<<".out";
+	index_filename_stream<<"0.out";
 	index_filename = index_filename_stream.str();
 	
 	int fd = open(index_filename.c_str(), O_RDWR);
