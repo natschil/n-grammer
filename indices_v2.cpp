@@ -8,7 +8,7 @@ ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int *combination)
 
 bool ngram_cmp::operator()(NGram first, NGram second)
 {
-	for(size_t i = 0; i<this->n_gram_size; i++)
+	for(size_t i = 1; i<this->n_gram_size; i++)
 	{
 		int prevres;
 		//Here we compare words in the order specified by word_order.
