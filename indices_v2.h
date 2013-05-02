@@ -11,6 +11,8 @@ using namespace std;
 
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include <unistr.h>
 #include <unistdio.h>
 #include <sys/stat.h>
@@ -19,13 +21,62 @@ using namespace std;
 
 #include <iostream>
 #include <map>
+#include <vector>
+#include <algorithm>
 
+#include "config.h"
+#include "searchindexcombinations.h"
+#include "mergefiles.h"
+#include "util.h"
+//#include "qsort.h"
 
+//TODO: turn this into something meaningful
+#define cplusplus11
 
+class word
+{
 
+	public:
+	word(){};
+	#ifdef cplusplus11
+	word(word&& old) //move constructor
+	{
+		prev = old.prev;
+		next = old.next;
+		prev->next = this;
+		next->prev = this;	
+		this->contents = old.contents;
+		this->next = old.next;
+		this->prev = old.prev;
+	};
+
+	word& operator=(word&& old)
+	{			
+		prev = old.prev;
+		next = old.next;
+		prev->next = this;
+		next->prev = this;	
+		this->contents = old.contents;
+		this->next = old.next;
+		this->prev = old.prev;
+		return *this;
+	}
+
+	#endif
+	word* prev;
+	const uint8_t* contents;
+	word* next;
+	bool operator<(const word &second) const
+	{
+		return strcmp((const char*) this->contents,(const char*) second.contents) < 0;	
+	}
+};
+#ifndef cplusplus11
+//TODO: Reenable this once everything else works..
 namespace std
 {
-	template<> void swap(word& left, word& right)
+	template<>
+	void swap(word& left, word& right)
 	{
 		left.prev->next = &right;
 		left.next->prev = &right;
@@ -33,7 +84,7 @@ namespace std
 		right.prev->next = &left;
 		right.next->prev = &left;
 
-		uint8_t* tmp = left.contents;
+		const uint8_t* tmp = left.contents;
 		left.contents = right.contents;
 		right.contents = tmp;
 
@@ -45,25 +96,16 @@ namespace std
 		left.next = right.next;
 		right.next = tmp_word_ptr;
 	}
-}
 
-class word
-{
-	public:
-	word* prev;
-	const uint8_t* contents;
-	word* next;
-	bool operator<(word &second)
-	{
-		return strcmp(this->contents, second->contents) < 0;	
-	}
 }
-class NGram
+#endif
+struct NGram
 {
-	vector<uint8_t*> ngram;
-}
+	vector<const uint8_t*> ngram;
+};
 struct ngram_cmp : public std::binary_function<NGram, NGram,bool>
 {
+	ngram_cmp(){};//To make stl map happy
 	ngram_cmp(unsigned int,const unsigned int*);
 	bool operator()(NGram first, NGram second);
 	private:
@@ -74,23 +116,18 @@ struct ngram_cmp : public std::binary_function<NGram, NGram,bool>
 class Buffer
 {
 	public:
-		Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word)
-		{
-			this->internal_buffer = internal_buffer;
-			this->buffer_size = buffer_size;
-			this->words_bottom = 0;
-			this->strings_top = buffer_size;
-			this->maximum_single_allocation = maximum_single_allocation;
-			this->last_word = null_word;
-			this->null_word = null_word;
-		};
+		Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word);
+		~Buffer();
 		void add_word(uint8_t* word_location,int &memmgnt_retval );
+		void add_null_word(word* null_word);
 		uint8_t* allocate_for_string(size_t numbytes, int &memmngnt_retval);
 		void rewind_string_allocation(size_t numbytes);
 		void set_starting_pointer( size_t nmeb);
 		void set_ending_pointer( size_t nmeb);
-		word* words_begin(){ return (word*)(internal_buffer + starting_pointer);};
-		word* words_end(){ return (word*)(internal_buffer + ending_pointer);};
+		word* words_begin();
+		word* words_end();
+		word* words_buffer_begin();
+		word* words_buffer_end();
 		void writeToDisk();
 	private:
 		void* internal_buffer;
@@ -99,7 +136,6 @@ class Buffer
 		size_t strings_top;
 		size_t maximum_single_allocation;
 		word* last_word;
-		word* null_word;
 
 		//Points to the first word that should be counted.
 		size_t starting_pointer;
@@ -112,29 +148,45 @@ class Buffer
 class IndexCollection
 {
 	public:
-		IndexCollection(size_t buffer_size,size_t maximum_single_allocation);
+		IndexCollection(unsigned int buffer_size,size_t maximum_single_allocation,unsigned int ngramsize,unsigned int wordsearch_index_upto);
 		~IndexCollection();
 
 		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write);
+		void makeNewBuffer();
 		void writeMetadata(FILE* metadata_file);
-		void IndexCollection::copyToFinalPlace(int k);
+		void copyToFinalPlace(int k);
 
+		void increment_numbuffers_in_use()
+		{
+			#pragma omp atomic
+			numbuffers_in_use++;
+
+		}
+		void decrement_numbuffers_in_use()
+		{
+			#pragma omp atomic
+			numbuffers_in_use--;
+		}
+		int get_numbuffers_in_use()
+		{
+			return numbuffers_in_use;
+		}
 
 		void add_word(uint8_t* word_location, int &memmgnt_retval)
 		{
 			return current_buffer->add_word(word_location,memmgnt_retval);
 		};
 
-		void add_null_word(int &memmgnt_retval)
+		void add_null_word()
 		{
-			return current_buffer->add_word(&null_word,memmgnt_retval);
+			return current_buffer->add_null_word(&null_word);
 		}
 
 		uint8_t* allocate_for_string(size_t numbytes, int &memmngt_retval)
 		{
 			return current_buffer->allocate_for_string(numbytes,memmngt_retval);
 		};
-		void rewind_string_allocation(size_t numbytes);
+		void rewind_string_allocation(size_t numbytes)
 		{
 			return current_buffer->rewind_string_allocation(numbytes);
 		};
@@ -147,7 +199,6 @@ class IndexCollection
 			return current_buffer->set_ending_pointer(nmeb);
 		};
 
-
 		Buffer* current_buffer;
 	private:
 		size_t buffer_size;
@@ -157,8 +208,11 @@ class IndexCollection
 
 		size_t numcombos;
 		vector<unsigned int* >combinations;
-		char** prefixes;
-		uint8_t (*mergeschedulers)[MAX_K][MAX_BUFFERS]>; //For merging 
-}
+		vector<char*> prefixes;
+		uint8_t (*mergeschedulers)[MAX_K][MAX_BUFFERS]; //For merging 
+
+		int numbuffers_in_use;
+
+};
 
 #endif

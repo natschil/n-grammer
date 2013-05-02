@@ -5,17 +5,6 @@ ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int *combination)
 	this->word_order = combination;
 	n_gram_size = ngramsize;
 }
-ngram_cmp::ngram_cmp(const ngram_cmp &prev)
-{
-	this->word_order = prev.word_order;
-	this->n_gram_size = prev.n_gram_size;
-}
-ngram_cmp ngram_cmp::operator=(const ngram_cmp &prev)
-{
-	this->word_order = prev.word_order;
-	this->n_gram_size = prev.n_gram_size;
-	return *this;
-}
 
 bool ngram_cmp::operator()(NGram first, NGram second)
 {
@@ -23,7 +12,7 @@ bool ngram_cmp::operator()(NGram first, NGram second)
 	{
 		int prevres;
 		//Here we compare words in the order specified by word_order.
-		if(!(prevres = strcmp((const char*) first.ngram[word_order[i]].string,(const char*) second.ngram[word_order[i]].string)))
+		if(!(prevres = strcmp((const char*) first.ngram[word_order[i]],(const char*) second.ngram[word_order[i]])))
 		{
 			continue;
 		}else
@@ -34,7 +23,8 @@ bool ngram_cmp::operator()(NGram first, NGram second)
 
 class Dict
 {
-	Dict(ngram_cmp cmp,unsigned int ngramsize);
+	public:
+	Dict(ngram_cmp cmp,unsigned int ngramsize)
 	{
 		this->ngramsize = ngramsize;
 		innerMap = map<NGram, long long int, ngram_cmp>(cmp);
@@ -44,7 +34,7 @@ class Dict
 		pair<map<NGram,long long int>::iterator, bool> res = innerMap.insert(map<NGram, long long int>::value_type(to_add,1));
 		if(!res.second)
 		{
-			res.first.second++;
+			res.first->second++;
 		}
 	}
 	void writeToDisk( const char* prefix,unsigned int buffercount,uint8_t starting_character)
@@ -74,7 +64,7 @@ class Dict
 			fprintf(stderr,"Error, bad coding");
 			exit(-1);
 		}
-		FILE* outfile = fopen(buf,"w");
+		FILE* outfile = fopen(buf,"a");
 		if(!outfile)
 		{
 			fprintf(stderr,"Unable to open file %s", buf);
@@ -84,11 +74,11 @@ class Dict
 		long long int freq;
 		for (map<NGram, long long int>::const_iterator itr = innerMap.begin(); itr != innerMap.end(); itr++)
 		{
-			uint8_t* n_gram = itr->first.ngram;
-			for(size_t j = 0; j< n_gram_size; j++)
+			vector<const uint8_t*> n_gram = itr->first.ngram;
+			for(size_t j = 0; j< ngramsize; j++)
 			{
-				ulc_fprintf(outfile, "%U", n_gram[word_order[j]].string);
-				if(j != n_gram_size - 1)
+				ulc_fprintf(outfile, "%U", n_gram[j]);
+				if(j != ngramsize - 1)
 				{
 					fprintf(outfile," ");
 				}
@@ -107,14 +97,32 @@ class Dict
 	private:
 		map<NGram, long long int,ngram_cmp> innerMap;
 		unsigned int ngramsize;
-}
+};
+Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word)
+{
+	this->internal_buffer = internal_buffer;
+	this->buffer_size = buffer_size;
+	this->words_bottom = buffer_size;
+	this->strings_top = 0;
+	this->maximum_single_allocation = maximum_single_allocation;
+	this->last_word = null_word;
+	//These two had better be set by hand, else garbage will come out.
+	this->starting_pointer = 0;
+	this->ending_pointer = 0;
+};
 
+Buffer::~Buffer()
+{
+	free(internal_buffer);
+}
 
 void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
 {
 	word* new_word;
 	words_bottom -= sizeof(*new_word);
-	new_word = (word*) ((internal_buffer + buffer_size) - words_bottom);
+	new_word = (word*) (internal_buffer +  words_bottom);
+
+	new_word->contents = word_location;
 
 	if((words_bottom - strings_top) < maximum_single_allocation)
 	{
@@ -127,6 +135,11 @@ void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
 	return;
 }
 
+void Buffer::add_null_word(word* null_word)
+{
+	last_word->next = null_word;
+	last_word = null_word;
+}
 
 uint8_t* Buffer::allocate_for_string(size_t numbytes, int &mmgnt_retval)
 {
@@ -148,12 +161,35 @@ void Buffer::rewind_string_allocation(size_t numbytes)
 
 void Buffer::set_starting_pointer(size_t nmeb)
 {
-	starting_pointer = nmeb * sizeof(word*);
+	starting_pointer = words_bottom +  nmeb * sizeof(word*);
 }
 
 void Buffer::set_ending_pointer(size_t nmeb)
-	ending_pointer = buffer_size - nmeb * sizeof(*word);
+{
+	ending_pointer = buffer_size - nmeb * sizeof(word*);
 }
+
+word* Buffer::words_begin()
+{
+	return (word*)(internal_buffer + starting_pointer); 
+}
+
+word* Buffer::words_end()
+{
+	return (word*)(internal_buffer + ending_pointer);
+}
+
+word* Buffer::words_buffer_begin()
+{
+	return (word*) (internal_buffer + words_bottom);
+}
+
+word* Buffer::words_buffer_end()
+{
+	return (word*) (internal_buffer + buffer_size);
+}
+
+
 
 static unsigned long long int  factorial(unsigned int number)
 {
@@ -182,7 +218,7 @@ static unsigned long long int number_of_special_combinations(unsigned int number
 	return result;	
 }
 
-IndexCollection::IndexCollection(size_t buffer_size,size_t maximum_single_allocation,size_t ngramsize,unsigned int wordsearch_index_upto)
+IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_allocation,unsigned int ngramsize,unsigned int wordsearch_index_upto)
 {
 	this->buffer_size = buffer_size;
 	this->maximum_single_allocation = maximum_single_allocation;
@@ -190,7 +226,7 @@ IndexCollection::IndexCollection(size_t buffer_size,size_t maximum_single_alloca
 	this->numcombos = number_of_special_combinations(wordsearch_index_upto);
 	this->combinations.reserve(numcombos);
 	this->prefixes.reserve(numcombos);
-	this->mergeschedulers = calloc(sizeof(*this->mergeschedulers) * numcombos);
+	this->mergeschedulers = (uint8_t (*)[MAX_K][MAX_BUFFERS]) calloc(sizeof(*this->mergeschedulers), numcombos);
 	if(!this->mergeschedulers)
 	{
 		cerr<<"Not enough memory, exiting"<<endl;
@@ -203,20 +239,17 @@ IndexCollection::IndexCollection(size_t buffer_size,size_t maximum_single_alloca
 	}
 
 
-	 CombinationIterator combinations(wordsearch_index_upto);
+	 CombinationIterator combination_itr(wordsearch_index_upto);
 	 size_t combo_number = 0;
 	 do
 	 {
- 		unsigned int* current_combo = *combinations;		 
+ 		unsigned int* current_combo = *combination_itr;		 
 		unsigned int* new_word_combo = (unsigned int*) malloc(ngramsize * sizeof(new_word_combo));
 
-
-		new_word_combo.reserve(ngramsize);
 
 	 	size_t j = 0;
 		for(size_t i = 0; i < wordsearch_index_upto;i++)
 		{
-			char buf[4];
 			if(current_combo[i] != (wordsearch_index_upto - 1))
 			{
 				new_word_combo[j] = current_combo[i];
@@ -232,21 +265,23 @@ IndexCollection::IndexCollection(size_t buffer_size,size_t maximum_single_alloca
 		}
 
 
-		char* new_prefix = malloc(6 + (3 + 1) * ngramsize + 1);//this means 999-grams are the largest we can search for.
+		//MARKER5
+		char* new_prefix = (char*)  malloc(6 + (3 + 1) * ngramsize + 1);//this means 999-grams are the largest we can search for.
 		strcpy(new_prefix,"tmp.by");
 		char* ptr = new_prefix + strlen(new_prefix);
 		for(size_t i = 0; i<ngramsize; i++)
 		{
-			ptr += sprintf(ptr,"_%d",(int) current_prefix[i]);
+			ptr += sprintf(ptr,"_%d",(int) new_word_combo[i]);
 		}
 
+		recursively_remove_directory(new_prefix);
 
 		combinations.push_back(new_word_combo);
 		prefixes.push_back(new_prefix);
 		free(current_combo);
 		combo_number++;
 
-	 }while(++combinations);
+	 }while(++combination_itr);
 
 	 if(combo_number != numcombos)
 	 {
@@ -254,42 +289,45 @@ IndexCollection::IndexCollection(size_t buffer_size,size_t maximum_single_alloca
 		exit(-1);
 	 }
 
+	 void* first_internal_buffer = malloc(buffer_size);
+
 	if(!first_internal_buffer)
 	{
 		cerr<<"Not enough memory"<<endl;
 		exit(-1);
 	}
 	current_buffer = new Buffer(first_internal_buffer,buffer_size,maximum_single_allocation,&null_word);
+	IndexCollection::increment_numbuffers_in_use();
 }
 
-void IndexCollection::writeBufferToDisk(unsigned int old_buffer_count,unsigned int rightmost_run,Buffer* buffer_to_write)
+void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write)
 {
 	word* words_begin = buffer_to_write->words_begin();
 	word* words_end = buffer_to_write->words_end();
 
+	#ifdef cplusplus11
 	//This step will take a long time:
 	std::sort(words_begin,words_end);
+	#else
+		my_qsort(words_begin, words_end - words_begin);
+	#endif
 
 	vector<Dict> current_ngrams;
-	current_ngram.reserve(ngramsize);
+	current_ngrams.reserve(numcombos);
 
 	for(size_t i = 0; i < numcombos; i++)
 	{
 		ngram_cmp cur(ngramsize,combinations[i]);
-		current_ngrams.push(Dict(cur,ngramsize));
+		current_ngrams.push_back(Dict(cur,ngramsize));
 	}
 
 
-	uint8_t *previous_word = words_begin->contents;
-	NGram new_ngra;
+	NGram new_ngram;
 	for(word* current_word = words_begin; current_word != words_end;)
 	{
-		do
+		const uint8_t *previous_word_str = current_word->contents;
+		while((current_word != words_end) && !strcmp((const char*) previous_word_str,(const char*) current_word->contents))
 		{
-			if(current_word == words_end)
-				break;
-
-			current_word_str = current_word.contents;
 			for(size_t i = 0; i < numcombos; i++)
 			{
 				new_ngram.ngram.clear();
@@ -323,31 +361,49 @@ void IndexCollection::writeBufferToDisk(unsigned int old_buffer_count,unsigned i
 						skip = 1;
 						break;
 					}
-					new_ngram.push_back(the_added_word.contents);
+					new_ngram.ngram.push_back(the_added_word->contents);
 				}
 				if(!skip)
 				{
+					current_ngrams[i].addNGram(new_ngram);
 				}
 				else
 					skip = 0;
 			}
 			current_word++;
-		}while(!strcmp(previous_word_str,current_word_str));
+		}
 		//We now write out any n-grams that we have:
 		for(size_t i = 0; i< numcombos; i++)
 		{
-			current_ngrams[i].writeToDisk(prefixes[i],buffercount,previous_word[i]);
+			current_ngrams[i].writeToDisk(prefixes[i],buffercount,previous_word_str[i]);
 			current_ngrams[i].clear();
 		}	
 	}
+
+	IndexCollection::decrement_numbuffers_in_use();
+	delete buffer_to_write;
 	//At this point do all merging
-	for(int i = 0; i< numcombos; i++)
+	for(unsigned int i = 0; i< numcombos; i++)
 	{
 		schedule_next_merge(0,buffercount,rightmost_run,mergeschedulers+i,prefixes[i]);
 	}
 	//We've written out the old buffer, and merged up as far as it was possible.
 	//That's all this functions does.
 	return;
+}
+
+void IndexCollection::makeNewBuffer(void)
+{
+	void* new_internal_buffer = malloc(buffer_size);
+	if(!new_internal_buffer)
+	{
+		cerr<<"Not enough memory, exiting"<<endl;
+		exit(-1);
+	}
+	current_buffer = new Buffer(new_internal_buffer, buffer_size,maximum_single_allocation,&null_word);
+	IndexCollection::increment_numbuffers_in_use();
+	return;
+
 }
 
 IndexCollection::~IndexCollection()
@@ -374,15 +430,16 @@ void IndexCollection::copyToFinalPlace(int k)
 	for(size_t i = 0; i < numcombos;i++)
 	{
 		//TODO: Copy any relevant metadata here...
-		char* finalpath = (char*) malloc(strlen(prefix[i]) * sizeof(*finalpath) + 1);
-		strcpy(finalpath,prefix[i] + 4);//To remove preceding "tmp."
+		char* finalpath = (char*) malloc(strlen(prefixes[i]) * sizeof(*finalpath) + 1);
+		strcpy(finalpath,prefixes[i] + 4);//To remove preceding "tmp."
 		recursively_remove_directory(finalpath);
-		char* original_path = (char*) malloc(strlen(prefix[i]) + 256 );//More than enough
-		sprintf(original_path, "%s/%d_0",prefix[i],k);
+		char* original_path = (char*) malloc(strlen(prefixes[i]) + 256 );//More than enough
+		sprintf(original_path, "%s/%d_0",prefixes[i],k);
 		rename(original_path,finalpath);
-		recursively_remove_directory(prefix[i]);
+		recursively_remove_directory(prefixes[i]);
 		free(finalpath);
 		free(original_path);
 	}
 	return;
 }
+

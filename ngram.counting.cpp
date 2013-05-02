@@ -162,7 +162,7 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int &memmanagement_retval,
 //Returns 0 if there is nothing more to fetch
 //Returns -1 if we need to switch buffers.
 
-int mark_next_word(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,NGram *&ngram,IndexCollection &index_collection)
+int mark_next_word(FILE* f,long long int &totalwords,uninorm_t n,IndexCollection &index_collection)
 {
 	int retval;
 	uint8_t* word;
@@ -173,13 +173,13 @@ int mark_next_word(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n
 	if(!wordlength) //We've reached the end of the file.
 	{
 		retval =  0;
-		break;
 	}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
 	{
-		index_collection.mark_null_word(retval);
+		index_collection.add_null_word();
 	}else
 	{
-		index_collection.add_word(retval);
+		index_collection.add_word(word,retval);
+		totalwords++;
 	}
 
 	return retval;
@@ -188,35 +188,15 @@ int mark_next_word(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n
 
 
 
-/*Writes the dictionary associated with the buffer page_group to disk*/
-static void writeBufferToDisk(int buffercount,size_t page_group,IndexCollection &index_collection,size_t buffer_num,int isfinalbuffer)
-{
-		setpagelock(page_group);
-		fprintf(stderr,"Writing Buffer %d to disk\n",buffercount);
-		fflush(stderr);
-		index_collection.writeBufferToDisk(buffer_num, buffercount,isfinalbuffer);
-		#pragma omp flush
-		unsetpagelock(page_group);
-}
-
 
 //Fills a buffer with words and n-grams.
-int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &my_n_words,long long int &count,IndexCollection &indices)
+int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, long long int &count,IndexCollection &indices)
 {
 
-	//We get the lock for the current page group.
-	//If anything else still has the lock for it, this function will wait for that to finish.
-	setpagelock(current_page_group);
-
-	//Get whatever words are still in the old buffer and copy them to the new buffer
-	//The old buffer has not been modified because nothing writes to the buffers except fillABuffer
-	my_n_words.migrate_to_new_buffer();
-
 	int state = 1;
-	NGram *currentngram;
 	while(state == 1)
 	{
-		state = mark_next_word(f, totalwords, norm, my_n_words,currentngram,indices);
+		state = mark_next_word(f, totalwords, norm, indices);
 
 		count++;
 		if((count % 1000000 == 0))
@@ -224,13 +204,7 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 			fprintf(stderr,"%lld\n",(long long int) count);
 		}
 	}
-	//BACKHERE
-	//When the buffer almost full, we switch buffers:
-	switch_permanent_malloc_buffers();	
-	indices.swapBuffers();
-
-	unsetpagelock(!current_page_group);
-
+	indices.add_null_word();
 	return state;
 }
 
@@ -246,80 +220,81 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 	#pragma omp flush(n_gram_size,max_ngram_string_length) //This is probably uneccessary
 
 	init_merger(max_ngram_string_length);
-	init_permanent_malloc(max_ngram_string_length + n_gram_size*sizeof(*(NGram::ngram)) + sizeof(NGram));
+	setlocale(LC_CTYPE,"");
 
 	mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
 	chdir(outdir);
 
 	long long int totalwords = 0;
 	long long int count = 0;	
-	word_list my_n_words;
 
-	IndexCollection *final_indices = new IndexCollection(ngramsize,wordsearch_index_depth);
+	IndexCollection *final_indices = new IndexCollection(BUFFER_SIZE, (MAX_WORD_SIZE +1) + sizeof(word),ngramsize,wordsearch_index_depth);
 
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details on normalization forms.
 	uninorm_t norm = UNINORM_NFKD; 
-	setlocale(LC_CTYPE, "");
 
     //Here we fill the buffers, write them to disk and merge them.
-	int state = 1; //state is 0 when the file is finished, -1 if the buffer has just been switched and 1 otherwise.
 	volatile int buffercount = -1;
 
-	#pragma omp parallel 
+	#pragma omp parallel
 	{
 	#pragma omp master
 	{
-		//Here we fill one half of the memory used with n-grams.
-		while(1)
+		int state = 1;
+		//Because of the way buffers work, it should be noted that set_ending_pointer
+		//refers to the number of words ignored at the *start* of the input.
+		final_indices->current_buffer->set_ending_pointer(0);
+		while(state)
 		{
-			
-			//fillABuffer has the following characteristics:
-			//	a) When switching buffers, it waits for writeBufferToDisk to have finished with that buffer
-			//	b) All the strings and n-grams in a Dictionary come from the same buffer
-			
-			#pragma omp flush(state)
-			if(!state)
-				break;
-			if(state == -1)
-			{
-				state = 1;
-				#pragma omp flush(buffercount)
-				buffercount++;
-				#pragma omp flush(buffercount)
-				//We write the buffer to disk concurrently, and allow for the next buffer to be read in.
-				//Due to the fact that writeBufferToDisk obtains the lock for the buffer it is writing to disk,
-				//fillABuffer will always wait for the previous buffer to be written to disk, because 
-				//permanently_malloc() does so at MARKER4:
-				size_t previous_buffer = !final_indices->getCurrentBuffer();
-				#pragma omp task firstprivate(buffercount,current_page_group,previous_buffer) shared(final_indices) default(none)
-				{
+			state = fillABuffer(infile,totalwords,norm,count,*final_indices);
+			buffercount++;
+			int numbuffers_in_use = final_indices->get_numbuffers_in_use();
+			Buffer* old_buffer = final_indices->current_buffer;
 
-						//Note that writeBufferToDisk starts the merging process once a buffer has been written to disk.
-						writeBufferToDisk(buffercount,!current_page_group,*final_indices,previous_buffer,0);
-						
+			if(state)
+			{
+				final_indices->makeNewBuffer();
+				word* ptr = old_buffer->words_end() - 2*(ngramsize-1); 
+				for(;ptr != old_buffer->words_end(); ptr++)
+				{
+					int tmp_retval = 1;
+					uint8_t* new_string = final_indices->allocate_for_string(strlen((const char*) ptr->contents) + 1,tmp_retval);
+					memcpy(new_string, ptr->contents, (strlen((const char*) ptr->contents) + 1) * sizeof(*new_string));
+					final_indices->add_word(new_string,tmp_retval);
+					if(tmp_retval == -1)
+					{
+						cerr<<"Buffer sizes are too small,exiting..."<<endl;
+						exit(-1);
+					}
+				}
+
+				//Because of the way buffers work, it should be noted that set_ending_pointer
+				//refers to the number of words ignored at the *start* of the input and vice versa...
+				old_buffer->set_starting_pointer(ngramsize - 1);
+				final_indices->current_buffer->set_ending_pointer(ngramsize - 1);
+			}else
+			{
+
+				//Because of the way buffers work, it should be noted that set_ending_pointer
+				//refers to the number of words ignored at the *start* of the input and vice versa...
+				old_buffer->set_starting_pointer(0);
+			}
+	
+			if(!state || (numbuffers_in_use >= (MAX_CONCURRENT_BUFFERS - 1)))
+			{
+				final_indices->writeBufferToDisk(buffercount,state == -1 ? 0 : 1,old_buffer);
+			}else
+			{
+				#pragma omp task firstprivate(old_buffer, buffercount,state)
+				{
+					final_indices->writeBufferToDisk(buffercount,state == -1? 0:1,old_buffer);
 				}
 			}
-			int newstate = 0;
-			#pragma omp task shared(infile,totalwords,norm, my_n_words,count,state,newstate) 
-			{
-				newstate = fillABuffer(infile,totalwords,norm,my_n_words,count,*final_indices);
-			}
-
-			#pragma omp taskwait //This is so that only one buffer is written to disk at any one time
-			#pragma omp flush(newstate)
-			state = newstate;
-			#pragma omp flush(state) //This might be uneccessary
 
 		}
-
-	//Once we reach here we still have the last buffer that needs to be written to disk.
-		
-		#pragma omp flush(buffercount)
-		buffercount++;
-		//Because fillABuffer() swapped the buffers even if it read in nothing, write out the other buffer here.
-		writeBufferToDisk(buffercount,!current_page_group,*final_indices,!final_indices->getCurrentBuffer(),1);
 	}
-	}		
+	}
+
 	//We've done all our reading from the input file.
 	//We know that all merging is finished due to the implicit barrier at the end of the paralell section.
 	

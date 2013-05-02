@@ -13,22 +13,21 @@
 	//This isn't so much of an option, but something that various parts of the program rely on. Hence changing it does nothing
 	//and the setting is included only for documenation. Search for MARKER5 to find instances where code depends on this:
 	#ifndef MAX_NGRAM_SIZE
-		#define MAX_NGRAM_SIZE 9999
+		#define MAX_NGRAM_SIZE 999
 	#endif
 
 /* Options for memory management*/
 
-	/* The N-gram counter uses two buffers that consist of NUM_PAGES "pages" where each "page" is of size MEMORY_PAGE_SIZE*/
-	/* Note that the actual memory used is slightly higher than 2 * MEMORY_PAGE_SIZE * NUM_PAGES */
+	/* The N-gram counter uses (at most) MAX_CONCURRENT_BUFFERS buffers of size BUFFER_SIZE*/
+	/* Note that the actual memory used is higher than what is in these buffers */
 	/* Some options related to memory management are also found in the merger options below*/
 
-	//The memory size per "page"
-	#ifndef MEMORY_PAGE_SIZE
-		#define MEMORY_PAGE_SIZE (4*1024*1024)
+	#ifndef BUFFER_SIZE
+		#define BUFFER_SIZE (4*1024*1024)
 	#endif
 	//Set this to half of the actual number of "pages" used. 
-	#ifndef NUM_PAGES
-		#define NUM_PAGES 1
+	#ifndef MAX_CONCURRENT_BUFFERS
+		#define MAX_CONCURRENT_BUFFERS 10
 	#endif
 
 /*Options for Indices*/
@@ -45,6 +44,7 @@
 
 /*Options for the merger*/
 	//Note that when changing the values below, change them so that  MAX_K = log2(MAX_BUFFERS) + 1
+	//The MAX_BUFFERS option gives the maximum number of total buffers that will be used
 	#ifndef MAX_BUFFERS
 		#define MAX_BUFFERS  2048
 	#endif
