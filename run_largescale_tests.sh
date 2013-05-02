@@ -14,7 +14,7 @@ for i in `seq 1 6`; do
 
 	for current_directory in $(ls -d ./tests_output/`basename $1`.${i}.d/*/);
 	do
-		filename=./tests_output/$(basename $1).$(basename basename $current_directory).out;
+		filename=./tests_output/$(basename $1).$(basename $current_directory).out;
 		printf "" > ${filename}
 		firststring=""
 		for j in `seq 0 255`;
@@ -24,7 +24,7 @@ for i in `seq 1 6`; do
 					cat   ${current_directory}/${j}.out >> $filename;
 				fi;
 		done;
-		if cmp ./tests_output/$(basename $i).`basename $current_directory`.out ./reference_data/`$(basename $i).basename $current_directory`.out;
+		if cmp ./tests_output/$(basename $1).`basename $current_directory`.out ./reference_data/$(basename $1).`basename $current_directory`.out;
 		then
 			echo "Succeeded on try $filename";
 		else
