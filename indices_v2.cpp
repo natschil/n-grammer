@@ -12,7 +12,7 @@ bool ngram_cmp::operator()(NGram first, NGram second)
 	{
 		int prevres;
 		//Here we compare words in the order specified by word_order.
-		if(!(prevres = strcmp((const char*) first.ngram[word_order[i]],(const char*) second.ngram[word_order[i]])))
+		if(!(prevres = strcmp((const char*) first.ngram[i],(const char*) second.ngram[i])))
 		{
 			continue;
 		}else
@@ -24,7 +24,7 @@ bool ngram_cmp::operator()(NGram first, NGram second)
 class Dict
 {
 	public:
-	Dict(ngram_cmp cmp,unsigned int ngramsize,const char* prefix, unsigned int buffercount)
+	Dict(ngram_cmp &cmp,unsigned int ngramsize,const char* prefix, unsigned int buffercount)
 	{
 		this->ngramsize = ngramsize;
 		this->prefix = prefix;
