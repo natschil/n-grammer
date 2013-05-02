@@ -4,108 +4,14 @@ using namespace std;
 
 /*Some global variables*/
 
-	//These two global variables are set the start of count_ngrams(), and are not excpected to change after that
-	int n_gram_size = 0;
-	int max_ngram_string_length = 0;
+//These two global variables are set the start of count_ngrams(), and are not excpected to change after that
+int n_gram_size = 0;
+int max_ngram_string_length = 0;
 
-/* Function Declarations*/
-
-	class word_list;
-	int getnextngram( FILE* infile,long long int &totalwords,uninorm_t n,word_list &my_n_words,NGram *&str);
-
-
-
-/*The word_list class is used to store a list of the last n words encountered. Querying it's length is an O(1) operation, 
- * which makes it more efficient than the stl deque for that purpose
- */
-class word_list : public std::deque<myUString>
-{
-	private:
-	int u8_characters_used; //The combined number of characters of all n strings in the n-gram.
-	public:
-	int size; //The number of words in this word_list
-
-	word_list() : std::deque<myUString>()
-	{
-		this->size = 0;
-		this->u8_characters_used = 0;
-	}
-
-	~word_list(){return;};
-
-	void clear()
-	{
-		while(this->size)
-		{
-			this->pop_front();
-		}
-		this->u8_characters_used = 0;
-		return;
-	}
-
-	void pop_front()
-	{
-		this->size--;
-		this->u8_characters_used -= (this->front().length + 1);
-
-		this->std::deque<myUString>::pop_front();
-		return;
-	}
-
-	void push_back(myUString newstring)
-	{
-		this->size++;
-		this->u8_characters_used += (newstring.length + 1);
-		this->std::deque<myUString>::push_back(newstring);
-	}
-
-	//When switching buffers, some of the words in the word-list may still be in the old buffer.
-	//This function copies them to the new buffer.
-	void migrate_to_new_buffer()
-	{
-		int memmgnt_retval = 1;
-		uint8_t* in_new_buffer = (uint8_t*) permanently_malloc(this->u8_characters_used * sizeof(*in_new_buffer),&memmgnt_retval);
-		if(memmgnt_retval == -1)
-		{
-			//Because this function needs to be run right after a buffer switch, if nothing fits into the new buffer
-			//It means that a buffer cannot hold a single n-gram
-			fprintf(stderr,"Buffer size too small. Please reconfigure, recompile and rerun\n");
-			exit(-1);
-		}
-		uint8_t* ptr = in_new_buffer;
-		for(word_list::iterator i = this->begin(); i != this->end(); i++)
-		{
-			myUString cur = *i;
-			memcpy(ptr,cur.string,(cur.length + 1)*sizeof(*cur.string));
-			(*i).string = ptr;
-			ptr += (cur.length + 1);
-		}
-	}
-
-	//This function returns a NGram object corresponding to the strings in the word-list.
-	//It sets retval to -1 if permanently_malloc() does so.
-	NGram* join_as_ngram(int *retval)
-	{
-		//What we end up returning
-
-		//We allocate enough space for the n-gram.
-		//The n-gram is stored as an array of pointers to the words it contains.
-		NGram* result = (NGram*)permanently_malloc(sizeof(*result) + (sizeof(*result->ngram) *n_gram_size),retval);
-
-		size_t j;
-		word_list::iterator i;
-		for(i = this->begin(), j = 0; i != this->end(); i++,j++)
-		{
-			result->ngram[j] = *i;
-		}
-
-		return result;
-	}
-};
+/*The rest of the code*/
 
 
 //Returns 0 if there is no next character.
-//See http://tools.ietf.org/html/rfc3629 Section 3
  int get_next_ucs4t_from_file(FILE* f,ucs4_t *character)
 {
 	static uint8_t buf[4];
@@ -149,7 +55,7 @@ class word_list : public std::deque<myUString>
 }
 
 /*Sets s to be a pointer to a (uint8_t, NUL terminated) string of the next word from f.
- * s is allocated using permenently_malloc, and normalized using norm.
+ * s is allocated using index_collection.allocate_for_string, and normalized using norm.
  *
  * Returns the size of f if there is a next word.
  * Returns 0 if there is no subsequent word in f. The value of s is undefined if this is the case.
@@ -169,7 +75,7 @@ class word_list : public std::deque<myUString>
  */
 
 
-size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
+size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int &memmanagement_retval,IndexCollection &index_collection)
 {
 
     size_t wordlength = 0; 
@@ -229,19 +135,19 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
     {
 	//At this point we have an unnormalized lowercase unicode string.
 	const size_t bytes_to_allocate = sizeof(*s) * (MAX_WORD_SIZE + 1);
-	s = (uint8_t*) permanently_malloc(bytes_to_allocate,memmanagement_retval);
+	s = index_collection.allocate_for_string(bytes_to_allocate,memmanagement_retval);
 	size_t retval = bytes_to_allocate;
 
 	u8_normalize(norm,word, wordlength, s, &retval);
 
 	if((retval > MAX_WORD_SIZE)) //This is possible because we allow the normalizer to write up to MAX_WORD_SIZE + 1 characters
 	{
-		rewind_permanent_malloc(bytes_to_allocate);
+		index_collection.rewind_string_allocation(bytes_to_allocate);
 		retval = MAX_WORD_SIZE + 1;
 	}
 
 	if((bytes_to_allocate- retval) > 0)
-		rewind_permanent_malloc(bytes_to_allocate - retval - sizeof(*s)); //The last sizeof(*s) is for the NUL at the end of the string.
+		index_collection.rewind_string_allocation(bytes_to_allocate - retval - sizeof(*s)); //The last sizeof(*s) is for the NUL at the end of the string.
 
 	s[retval] = (uint8_t) '\0';
 
@@ -256,43 +162,26 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int *memmanagement_retval)
 //Returns 0 if there is nothing more to fetch
 //Returns -1 if we need to switch buffers.
 
-int getnextngram(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,NGram *&ngram)
+int mark_next_word(FILE* f,long long int &totalwords,uninorm_t n,word_list &my_n_words,NGram *&ngram,IndexCollection &index_collection)
 {
 	int retval;
 	uint8_t* word;
+
 	retval = 1;
-	while(true)
-	{
-		size_t wordlength = getnextword(word,f,n,&retval);
+	size_t wordlength = getnextword(word,f,n,retval,index_collection);
 		
-		if(!wordlength) //We've reached the end of the file.
-		{
-			retval =  0;
-			break;
-
-		}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
-		{
-			my_n_words.clear();
-			continue;
-		}
-
-		//We add the word to our list.
-		totalwords++;
-		myUString newUString;
-		newUString.string = word;
-		newUString.length = wordlength;
-		my_n_words.push_back(newUString);
-
-		//If we don't have enough words for an n-gram, we get the next word.
-		if(my_n_words.size < n_gram_size)
-			continue;
-	
-		//If we do however have enough words for an n-gram, we write it out.
-		ngram = my_n_words.join_as_ngram(&retval);
-
-		my_n_words.pop_front(); //So that the word-list does not grow infinitely
+	if(!wordlength) //We've reached the end of the file.
+	{
+		retval =  0;
 		break;
+	}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
+	{
+		index_collection.mark_null_word(retval);
+	}else
+	{
+		index_collection.add_word(retval);
 	}
+
 	return retval;
 }
 
@@ -327,9 +216,7 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 	NGram *currentngram;
 	while(state == 1)
 	{
-		state = getnextngram(f, totalwords, norm, my_n_words,currentngram);
-		if(state != 0)
-			indices.mark_ngram_occurance(currentngram);
+		state = mark_next_word(f, totalwords, norm, my_n_words,currentngram,indices);
 
 		count++;
 		if((count % 1000000 == 0))
@@ -337,6 +224,7 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, word_list &m
 			fprintf(stderr,"%lld\n",(long long int) count);
 		}
 	}
+	//BACKHERE
 	//When the buffer almost full, we switch buffers:
 	switch_permanent_malloc_buffers();	
 	indices.swapBuffers();

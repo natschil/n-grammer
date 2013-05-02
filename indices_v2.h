@@ -115,7 +115,7 @@ class IndexCollection
 		IndexCollection(size_t buffer_size,size_t maximum_single_allocation);
 		~IndexCollection();
 
-		void newBuffer(void);
+		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write);
 		void writeMetadata(FILE* metadata_file);
 		void IndexCollection::copyToFinalPlace(int k);
 
@@ -124,6 +124,12 @@ class IndexCollection
 		{
 			return current_buffer->add_word(word_location,memmgnt_retval);
 		};
+
+		void add_null_word(int &memmgnt_retval)
+		{
+			return current_buffer->add_word(&null_word,memmgnt_retval);
+		}
+
 		uint8_t* allocate_for_string(size_t numbytes, int &memmngt_retval)
 		{
 			return current_buffer->allocate_for_string(numbytes,memmngt_retval);
@@ -141,8 +147,9 @@ class IndexCollection
 			return current_buffer->set_ending_pointer(nmeb);
 		};
 
-	private:
+
 		Buffer* current_buffer;
+	private:
 		size_t buffer_size;
 		size_t maximum_single_allocation;
 		size_t ngramsize;

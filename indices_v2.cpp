@@ -262,10 +262,10 @@ IndexCollection::IndexCollection(size_t buffer_size,size_t maximum_single_alloca
 	current_buffer = new Buffer(first_internal_buffer,buffer_size,maximum_single_allocation,&null_word);
 }
 
-void IndexCollection::newBuffer(unsigned int old_buffer_count,unsigned int rightmost_run)
+void IndexCollection::writeBufferToDisk(unsigned int old_buffer_count,unsigned int rightmost_run,Buffer* buffer_to_write)
 {
-	word* words_begin = current_buffer->words_begin();
-	word* words_end = current_buffer->words_end();
+	word* words_begin = buffer_to_write->words_begin();
+	word* words_end = buffer_to_write->words_end();
 
 	//This step will take a long time:
 	std::sort(words_begin,words_end);
@@ -345,6 +345,9 @@ void IndexCollection::newBuffer(unsigned int old_buffer_count,unsigned int right
 	{
 		schedule_next_merge(0,buffercount,rightmost_run,mergeschedulers+i,prefixes[i]);
 	}
+	//We've written out the old buffer, and merged up as far as it was possible.
+	//That's all this functions does.
+	return;
 }
 
 IndexCollection::~IndexCollection()
