@@ -23,7 +23,7 @@
 	/* Some options related to memory management are also found in the merger options below*/
 
 	#ifndef BUFFER_SIZE
-		#define BUFFER_SIZE (40*1024*1024)
+		#define BUFFER_SIZE (100*1024*1024)
 	#endif
 	//Set this to half of the actual number of "pages" used. 
 	#ifndef MAX_CONCURRENT_BUFFERS
