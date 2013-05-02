@@ -14,7 +14,7 @@ for i in `seq 1 6`; do
 
 	for current_directory in $(ls -d ./reference_data/`basename $1`.${i}.d/*/);
 	do
-		filename=./reference_data/`basename $current_directory`.out;
+		filename=./reference_data/$(basename $1).$(basename $current_directory).out;
 		printf "" > ${filename}
 		firststring=""
 		for j in `seq 0 255`;
