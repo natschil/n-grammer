@@ -24,21 +24,13 @@ bool ngram_cmp::operator()(NGram first, NGram second)
 class Dict
 {
 	public:
-	Dict(ngram_cmp cmp,unsigned int ngramsize)
+	Dict(ngram_cmp cmp,unsigned int ngramsize,const char* prefix, unsigned int buffercount)
 	{
 		this->ngramsize = ngramsize;
+		this->prefix = prefix;
+		this->buffercount = buffercount;
 		innerMap = map<NGram, long long int, ngram_cmp>(cmp);
-	}
-	void addNGram(NGram &to_add)
-	{
-		pair<map<NGram,long long int>::iterator, bool> res = innerMap.insert(map<NGram, long long int>::value_type(to_add,1));
-		if(!res.second)
-		{
-			res.first->second++;
-		}
-	}
-	void writeToDisk( const char* prefix,unsigned int buffercount)
-	{
+
 		if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
 		{
 			fprintf(stderr, "Unable to create directory %s",prefix);
@@ -64,13 +56,25 @@ class Dict
 			fprintf(stderr,"Error, bad coding");
 			exit(-1);
 		}
-		FILE* outfile = fopen(buf,"a");
+		outfile = fopen(buf,"a");
 		if(!outfile)
 		{
 			fprintf(stderr,"Unable to open file %s", buf);
 			exit(-1);
 		}
 	
+
+	}
+	void addNGram(NGram &to_add)
+	{
+		pair<map<NGram,long long int>::iterator, bool> res = innerMap.insert(map<NGram, long long int>::value_type(to_add,1));
+		if(!res.second)
+		{
+			res.first->second++;
+		}
+	}
+	void writeToDisk()
+	{
 		long long int freq;
 		for (map<NGram, long long int>::const_iterator itr = innerMap.begin(); itr != innerMap.end(); itr++)
 		{
@@ -86,7 +90,6 @@ class Dict
 			freq = itr->second;
 			fprintf(outfile,"\t%lld\n", (long long int) freq);
 		}
-		fclose(outfile);
 		return;
 	}
 
@@ -94,9 +97,17 @@ class Dict
 	{
 		innerMap.clear();
 	}
+	void cleanUp()
+	{
+
+		fclose(outfile);
+	}
 	private:
 		map<NGram, long long int,ngram_cmp> innerMap;
 		unsigned int ngramsize;
+		unsigned int buffercount;
+		const char* prefix;
+		FILE* outfile;
 };
 Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word)
 {
@@ -318,7 +329,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	for(size_t i = 0; i < numcombos; i++)
 	{
 		ngram_cmp cur(ngramsize,combinations[i]);
-		current_ngrams.push_back(Dict(cur,ngramsize));
+		current_ngrams.push_back(Dict(cur,ngramsize,prefixes[i],buffercount));
 	}
 
 
@@ -375,7 +386,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		//We now write out any n-grams that we have:
 		for(size_t i = 0; i< numcombos; i++)
 		{
-			current_ngrams[i].writeToDisk(prefixes[i],buffercount);
+			current_ngrams[i].writeToDisk();
 			current_ngrams[i].clear();
 		}	
 	}
@@ -385,6 +396,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	//At this point do all merging
 	for(unsigned int i = 0; i< numcombos; i++)
 	{
+		current_ngrams[i].cleanUp();
 		schedule_next_merge(0,buffercount,rightmost_run,mergeschedulers+i,prefixes[i]);
 	}
 	//We've written out the old buffer, and merged up as far as it was possible.
