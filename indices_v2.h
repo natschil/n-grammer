@@ -65,6 +65,7 @@ class word
 	#endif
 	word* prev;
 	const uint8_t* contents;
+	word* reduces_to;
 	word* next;
 	bool operator<(const word &second) const
 	{
@@ -101,7 +102,7 @@ namespace std
 #endif
 struct NGram
 {
-	vector<const uint8_t*> ngram;
+	vector<const word*> ngram;
 };
 struct ngram_cmp : public std::binary_function<NGram, NGram,bool>
 {

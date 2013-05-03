@@ -12,7 +12,7 @@ bool ngram_cmp::operator()(NGram first, NGram second)
 	{
 		int prevres;
 		//Here we compare words in the order specified by word_order.
-		if(!(prevres = strcmp((const char*) first.ngram[i],(const char*) second.ngram[i])))
+		if(!(prevres = (first.ngram[i]->reduces_to - second.ngram[i]->reduces_to)))
 		{
 			continue;
 		}else
@@ -78,10 +78,10 @@ class Dict
 		long long int freq;
 		for (map<NGram, long long int>::const_iterator itr = innerMap.begin(); itr != innerMap.end(); itr++)
 		{
-			vector<const uint8_t*> n_gram = itr->first.ngram;
+			vector<const word*> n_gram = itr->first.ngram;
 			for(size_t j = 0; j< ngramsize; j++)
 			{
-				ulc_fprintf(outfile, "%U", n_gram[j]);
+				ulc_fprintf(outfile, "%U", n_gram[j]->contents);
 				if(j != ngramsize - 1)
 				{
 					fprintf(outfile," ");
@@ -318,12 +318,19 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	word* words_bottom = buffer_to_write->words_bottom();
 	word* words_top = buffer_to_write->words_top();
 
-	#ifdef cplusplus11
 	//This step will take a long time:
 	std::sort(words_bottom,words_top);
-	#else
-		my_qsort(words_bottom, words_top - words_bottom);
-	#endif
+
+	//We now see which words are equal: TODO: move this into the sorting step.
+	word* prev_ptr = words_bottom;
+	for(word* ptr = words_bottom; ptr != words_top; ptr++)
+	{
+		if(strcmp((const char*) ptr->contents,(const char*) prev_ptr->contents))
+		{
+			prev_ptr = ptr;
+		}
+		ptr->reduces_to = prev_ptr;
+	}
 
 	vector<Dict> current_ngrams;
 	current_ngrams.reserve(numcombos);
@@ -338,8 +345,8 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	NGram new_ngram;
 	for(word* current_word = words_bottom; current_word != words_top;)
 	{
-		const uint8_t *previous_word_str = current_word->contents;
-		while((current_word != words_top) && !strcmp((const char*) previous_word_str,(const char*) current_word->contents))
+		const word *previous_word_reduces_to = current_word->reduces_to;
+		while((current_word != words_top) && (!(previous_word_reduces_to - current_word->reduces_to)))
 		{
 			for(size_t i = 0; i < numcombos; i++)
 			{
@@ -356,7 +363,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 						skip = 1;
 						break;
 					}
-					new_ngram.ngram[optimized_combinations[i].lower[k]] = temporary_pointer->contents;
+					new_ngram.ngram[optimized_combinations[i].lower[k]] = temporary_pointer;
 				}
 				temporary_pointer = current_word;
 				for(size_t k = 0;!skip &&( k < optimized_combinations[i].upper_size);k++)
@@ -367,7 +374,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 						break;
 					}
 
-					new_ngram.ngram[optimized_combinations[i].upper[k]] = temporary_pointer->contents;
+					new_ngram.ngram[optimized_combinations[i].upper[k]] = temporary_pointer;
 					temporary_pointer = temporary_pointer->next;
 
 				}
