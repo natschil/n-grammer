@@ -202,7 +202,7 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, long long in
 		count++;
 		if((count % 1000000 == 0))
 		{
-			fprintf(stderr,"%lld\n",(long long int) count);
+			fprintf(stderr,"%lld\n",(long long int) count/100000);
 		}
 	}
 	indices.add_null_word();
