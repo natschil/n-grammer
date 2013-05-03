@@ -176,6 +176,7 @@ int mark_next_word(FILE* f,long long int &totalwords,uninorm_t n,IndexCollection
 	}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
 	{
 		index_collection.add_null_word();
+		totalwords++;
 	}else
 	{
 		index_collection.add_word(word,retval);
