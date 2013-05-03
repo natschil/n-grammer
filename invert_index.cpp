@@ -41,7 +41,7 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	closedir(argument_folder);
 	long long int file_starts_at[256];
 	file_starts_at[0] = 0;
-	for(size_t i = 0; i<255;i++)
+	for(size_t i = 0; i<1;i++)
 	{
 		struct stat current_file;
 		char buf[4];
@@ -61,7 +61,7 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		char buf[4];
 		char* other_buf =(char*) malloc(1024);
 		size_t other_buf_size = 1024;
-		for(size_t i = 0; i< 255; i++)
+		for(size_t i = 0; i< 1; i++)
 		{
 			snprintf(buf,4,"%u",(unsigned int)i);
 			string filename = foldername + string("/") + string(buf) + string(".out");
@@ -129,7 +129,7 @@ outofloop:
 	char* string_buf = (char*) malloc(1024); //This is more than enough.
 	size_t string_buf_size = 1024;
 	size_t output_file_size = 0;
-	for(size_t i = 0; i< 0; i++)
+	for(size_t i = 0; i< 1; i++)
 	{
 		//We use C here instead of C++ for maximum efficiency
 		sprintf(ptr,"%lu.out",i);
@@ -188,11 +188,11 @@ outofloop:
 		free(string_buf);
 		free(filename_buf);
 		free(table);
-		cerr<<"invert_index: Unable to mmap file"<<endl;
+		cerr<<"invert_index: Unable to mmap file "<<out_filename.c_str()<<endl;
 		exit(-1);
 	}
 
-	for(size_t i = 0; i< 0; i++)
+	for(size_t i = 0; i< 1; i++)
 	{
 		long long current_offset = file_starts_at[i];
 		//We use C here instead of C++ for maximum efficientcy
