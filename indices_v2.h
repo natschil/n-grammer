@@ -81,11 +81,12 @@ struct NGram
 struct ngram_cmp : public std::binary_function<const NGram&, const NGram&,bool>
 {
 	ngram_cmp(){};//To make stl map happy
-	ngram_cmp(unsigned int ngramsize);
+	ngram_cmp(unsigned int ngramsize,unsigned int*,word*);
 	bool operator()(const NGram &first,const NGram &second);
 	private:
 	unsigned int n_gram_size;
 	const unsigned int *word_order;
+	const word* null_word;
 };
 
 class Buffer

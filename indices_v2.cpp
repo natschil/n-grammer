@@ -1,22 +1,64 @@
 #include "indices_v2.h"
 
-ngram_cmp::ngram_cmp(unsigned int ngramsize)
+ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int* word_order,const word* null_word)
 {
 	n_gram_size = ngramsize;
+	this->word_order = word_order;
+	this->null_word = null_word;
 }
 
-bool ngram_cmp::operator()(const NGram &first,const NGram &second)
+bool ngram_cmp::operator()(const word &first,const word &second)
 {
-	for(size_t i = 1; i<this->n_gram_size; i++)
+	//TODO: heavily optimize this:
+	bool prevres = 0;
+	for(size_t i = 0; i<n_gram_size;i++)
 	{
-		int prevres;
-		//Here we compare words in the order specified by word_order.
-		if(!(prevres = (first.ngram[i]->reduces_to - second.ngram[i]->reduces_to)))
+		int k = word_order[i] - word_order[0];
+		word *cur = &first;
+		word *cur2 = &second;
+		if(k >= 0)
+		{
+			for(;k;k--)
+			{
+				if(cur->next != null_word)
+				{
+					cur = cur->next;
+				}else//Put null words at the end:
+				{
+					return true;
+				}
+				if(cur2->next !=  null_word)
+				{
+					cur2 = cur2->next;
+				}else
+					return false;
+			
+			}
+		}else
+		{
+			for(;k;k++)
+			{
+				if(cur->next != null_word)
+				{
+					cur = cur->next;
+				}else
+				{
+					return true;
+				}
+				if(cur2->next != null_word)
+				{
+					cur2 = cur2->next;
+				}else
+					return false;
+			}
+		}
+		if(!(prevres = (cur->reduces_to - cur2->reduces_to)))
 		{
 			continue;
 		}else
-		       return prevres < 0;
+			return prevres < 0;
 	}
+
 	return false;
 }
 
@@ -28,7 +70,7 @@ class Dict
 		this->ngramsize = ngramsize;
 		this->prefix = prefix;
 		this->buffercount = buffercount;
-		innerMap = map<NGram, long long int,ngram_cmp>(cmp);
+		this->cmp = cmp;
 
 		if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
 		{
@@ -64,50 +106,22 @@ class Dict
 	
 
 	}
-	void addNGram(NGram &to_add)
+	void writeToDisk(word* start)
 	{
-		pair<map<NGram,long long int>::iterator, bool> res = innerMap.insert(map<NGram, long long int>::value_type(to_add,1));
-		if(!res.second)
-		{
-			res.first->second++;
-		}
-	}
-	void writeToDisk()
-	{
-		long long int freq;
-		for (map<NGram, long long int>::const_iterator itr = innerMap.begin(); itr != innerMap.end(); itr++)
-		{
-			vector<const word*> n_gram = itr->first.ngram;
-			for(size_t j = 0; j< ngramsize; j++)
-			{
-				ulc_fprintf(outfile, "%U", n_gram[j]->contents);
-				if(j != ngramsize - 1)
-				{
-					fprintf(outfile," ");
-				}
-			}
-			freq = itr->second;
-			fprintf(outfile,"\t%lld\n", (long long int) freq);
-		}
-		return;
+		word* end = start->reduces_to + 1;
+		std::sort(start, end, cmp);
+		//TODO: finish this, so that it basically writes out all of the strings.
+		//TODO: also finish everything else that is relevant
 	}
 
-	void clear()
-	{
-		innerMap.clear();
-	}
-	void cleanUp()
-	{
-
-		fclose(outfile);
-	}
 	private:
-		map<NGram, long long int,ngram_cmp> innerMap;
+		ngram_cmp cmp;
 		unsigned int ngramsize;
 		unsigned int buffercount;
 		const char* prefix;
 		FILE* outfile;
 };
+
 Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word)
 {
 	this->internal_buffer = internal_buffer;
@@ -336,7 +350,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 
 	for(size_t i = 0; i < numcombos; i++)
 	{
-		ngram_cmp cur(ngramsize);
+		ngram_cmp cur(ngramsize,combinations[i]);
 		current_ngrams.push_back(Dict(cur,ngramsize,prefixes[i],buffercount));
 	}
 
