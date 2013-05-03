@@ -158,51 +158,35 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int &memmanagement_retval,
   }
 }
 
-//Returns 1 for simply having fetched the next n-gram
-//Returns 0 if there is nothing more to fetch
-//Returns -1 if we need to switch buffers.
-
-int mark_next_word(FILE* f,long long int &totalwords,uninorm_t n,IndexCollection &index_collection)
-{
-	int retval;
-	uint8_t* word;
-
-	retval = 1;
-	size_t wordlength = getnextword(word,f,n,retval,index_collection);
-		
-	if(!wordlength) //We've reached the end of the file.
-	{
-		retval =  0;
-	}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
-	{
-		index_collection.add_null_word();
-		totalwords++;
-	}else
-	{
-		index_collection.add_word(word,retval);
-		totalwords++;
-	}
-
-	return retval;
-}
-
-
-
 
 
 //Fills a buffer with words and n-grams.
-int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, long long int &count,IndexCollection &indices)
+int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, IndexCollection &indices)
 {
-
 	int state = 1;
+	uint8_t* word;
 	while(state == 1)
 	{
-		state = mark_next_word(f, totalwords, norm, indices);
 
-		count++;
-		if((count % 1000000 == 0))
+		size_t wordlength = getnextword(word,f,norm,state,indices);
+		
+		if(!wordlength) //We've reached the end of the file.
 		{
-			fprintf(stderr,"%lld\n",(long long int) count/1000000);
+			state =  0;
+			break;
+		}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
+		{
+			indices.add_null_word();
+		}else
+		{
+			indices.add_word(word,state);
+		}
+
+		totalwords++;//TODO: Figure out what exactly should be counted as a word...
+
+		if((totalwords % 1000000 == 0))
+		{
+			fprintf(stdout,"%lld\n",(long long int) totalwords/1000000);
 		}
 	}
 	indices.add_null_word();
@@ -227,7 +211,6 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 	chdir(outdir);
 
 	long long int totalwords = 0;
-	long long int count = 0;	
 
 	IndexCollection *final_indices = new IndexCollection(BUFFER_SIZE, (MAX_WORD_SIZE +1) + sizeof(word),ngramsize,wordsearch_index_depth);
 
@@ -247,7 +230,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 		final_indices->current_buffer->set_top_pointer(0);
 		while(state)
 		{
-			state = fillABuffer(infile,totalwords,norm,count,*final_indices);
+			state = fillABuffer(infile,totalwords,norm,*final_indices);
 			buffercount++;
 			int numbuffers_in_use = final_indices->get_numbuffers_in_use();
 			Buffer* old_buffer = final_indices->current_buffer;

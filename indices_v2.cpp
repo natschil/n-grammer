@@ -1,12 +1,11 @@
 #include "indices_v2.h"
 
-ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int *combination)
+ngram_cmp::ngram_cmp(unsigned int ngramsize)
 {
-	this->word_order = combination;
 	n_gram_size = ngramsize;
 }
 
-bool ngram_cmp::operator()(NGram first, NGram second)
+bool ngram_cmp::operator()(const NGram &first,const NGram &second)
 {
 	for(size_t i = 1; i<this->n_gram_size; i++)
 	{
@@ -337,7 +336,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 
 	for(size_t i = 0; i < numcombos; i++)
 	{
-		ngram_cmp cur(ngramsize,combinations[i]);
+		ngram_cmp cur(ngramsize);
 		current_ngrams.push_back(Dict(cur,ngramsize,prefixes[i],buffercount));
 	}
 

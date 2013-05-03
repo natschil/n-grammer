@@ -28,17 +28,24 @@ using namespace std;
 #include "searchindexcombinations.h"
 #include "mergefiles.h"
 #include "util.h"
-//#include "qsort.h"
 
-//TODO: turn this into something meaningful
-#define cplusplus11
-
+/*
+ * The word class is an element of a doubly linked list, with next and prev pointing to the next word and previous words in the text respectively.
+ * contents points to a null-terminated uint8_t* string with the actual contents of the word.
+ * reduces_to is an additional link that is useful in contexts where we have a sorted array of words and want to compare two of them. By
+ * setting reduces_to the lowest element of the list that the word is equal to, to compare words it is sufficient to compare their
+ * reduces_to class members. This optimization saves time in exchange for additional memory usage.
+ */
 class word
 {
-
 	public:
-	word(){};
-	#ifdef cplusplus11
+
+
+	word* prev;
+	const uint8_t* contents;
+	word* reduces_to;
+	word* next;
+	word(){}; //required by std::sort
 	word(word&& old) //move constructor
 	{
 		prev = old.prev;
@@ -50,7 +57,7 @@ class word
 		this->prev = old.prev;
 	};
 
-	word& operator=(word&& old)
+	word& operator=(word&& old)//move operator=
 	{			
 		prev = old.prev;
 		next = old.next;
@@ -60,55 +67,22 @@ class word
 		this->next = old.next;
 		this->prev = old.prev;
 		return *this;
-	}
-
-	#endif
-	word* prev;
-	const uint8_t* contents;
-	word* reduces_to;
-	word* next;
+	};
 	bool operator<(const word &second) const
 	{
 		return strcmp((const char*) this->contents,(const char*) second.contents) < 0;	
-	}
+	};
 };
-#ifndef cplusplus11
-//TODO: Reenable this once everything else works..
-namespace std
-{
-	template<>
-	void swap(word& left, word& right)
-	{
-		left.prev->next = &right;
-		left.next->prev = &right;
 
-		right.prev->next = &left;
-		right.next->prev = &left;
-
-		const uint8_t* tmp = left.contents;
-		left.contents = right.contents;
-		right.contents = tmp;
-
-		word* tmp_word_ptr = left.prev;
-		left.prev = right.prev;
-		right.prev = tmp_word_ptr;
-
-		tmp_word_ptr = left.next;
-		left.next = right.next;
-		right.next = tmp_word_ptr;
-	}
-
-}
-#endif
 struct NGram
 {
 	vector<const word*> ngram;
 };
-struct ngram_cmp : public std::binary_function<NGram, NGram,bool>
+struct ngram_cmp : public std::binary_function<const NGram&, const NGram&,bool>
 {
 	ngram_cmp(){};//To make stl map happy
-	ngram_cmp(unsigned int,const unsigned int*);
-	bool operator()(NGram first, NGram second);
+	ngram_cmp(unsigned int ngramsize);
+	bool operator()(const NGram &first,const NGram &second);
 	private:
 	unsigned int n_gram_size;
 	const unsigned int *word_order;
@@ -170,7 +144,7 @@ class IndexCollection
 		}
 		int get_numbuffers_in_use()
 		{
-			#pragma omp fluh
+			#pragma omp flush
 			return numbuffers_in_use;
 		}
 
