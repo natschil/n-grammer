@@ -170,6 +170,7 @@ class IndexCollection
 		}
 		int get_numbuffers_in_use()
 		{
+			#pragma omp fluh
 			return numbuffers_in_use;
 		}
 

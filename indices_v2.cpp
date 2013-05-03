@@ -418,7 +418,7 @@ void IndexCollection::makeNewBuffer(void)
 		exit(-1);
 	}
 	current_buffer = new Buffer(new_internal_buffer, buffer_size,maximum_single_allocation,&null_word);
-	IndexCollection::increment_numbuffers_in_use();
+	this->increment_numbuffers_in_use();
 	return;
 
 }
