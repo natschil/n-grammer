@@ -26,6 +26,8 @@
 #include <vector>
 #include <algorithm>
 
+#include <string.h>
+
 using namespace std;
 
 class CombinationIterator
@@ -41,5 +43,18 @@ public:
 private:
 	vector<int> currentbitstring;
 	int n;
+};
+
+class optimized_combination
+{
+	public:
+		optimized_combination(unsigned int* unoptimized_combination, unsigned int ngramsize);
+		optimized_combination(const optimized_combination &old);
+		~optimized_combination();
+		optimized_combination operator=(const optimized_combination &old);
+		unsigned int* lower;
+		size_t lower_size;
+		unsigned int* upper;
+		size_t upper_size;
 };
 

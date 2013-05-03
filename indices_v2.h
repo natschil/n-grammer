@@ -213,6 +213,7 @@ class IndexCollection
 
 		size_t numcombos;
 		vector<unsigned int* >combinations;
+		vector<optimized_combination> optimized_combinations;
 		vector<char*> prefixes;
 		uint8_t (*mergeschedulers)[MAX_K][MAX_BUFFERS]; //For merging 
 

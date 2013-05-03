@@ -99,3 +99,65 @@ bool CombinationIterator::operator++()
 	}
 	return true;
 }
+
+optimized_combination::optimized_combination(unsigned int* unoptimized_combination, unsigned int ngramsize)
+{
+	int* tmp = (int*) malloc(sizeof(*tmp) * ngramsize);
+	for(unsigned int i = 0; i< ngramsize; i++)
+	{
+		tmp[i] = unoptimized_combination[i] - unoptimized_combination[0];
+	}
+	lower_size = unoptimized_combination[0];
+	upper_size = ngramsize - unoptimized_combination[0];
+
+	lower = (unsigned int*) malloc(sizeof(*lower) * lower_size +1);//Because malloc(0) could theoretically return NULL
+	upper =(unsigned int*) malloc(sizeof(*upper) * upper_size);
+
+	for(unsigned int i = 0; i < ngramsize; i++)
+	{
+		for(unsigned int j = 0; j < ngramsize; j++)
+		{
+			if(unoptimized_combination[j] == i)
+				tmp[i] = j;
+		}
+	}
+
+	for(unsigned int i= 0; i < lower_size; i++)
+	{
+		lower[i] = tmp[lower_size -1 -i];
+	}
+
+	for(unsigned int j = 0; j < upper_size;j++)
+	{
+		upper[j] = tmp[ngramsize - upper_size + j];
+	}
+	free(tmp);
+	return;
+}
+optimized_combination::optimized_combination(const optimized_combination &old)
+{
+	this->lower_size = old.lower_size;
+	this->upper_size = old.upper_size;
+	this->lower = (unsigned int*) malloc(sizeof(*this->lower) * lower_size + 1);
+	memcpy(this->lower,old.lower,lower_size*sizeof(*this->lower));
+	this->upper = (unsigned int*) malloc(sizeof(*this->upper) * upper_size);
+	memcpy(this->upper,old.upper,upper_size*sizeof(*this->upper));
+	return;
+}
+optimized_combination::~optimized_combination()
+{
+	free(lower);
+	free(upper);
+}
+
+optimized_combination optimized_combination::operator=(const optimized_combination &old)
+{
+	this->lower_size = old.lower_size;
+	this->upper_size = old.upper_size;
+	this->lower = (unsigned int*) malloc(sizeof(*this->lower) * lower_size + 1);
+	memcpy(this->lower,old.lower,lower_size*sizeof(*this->lower));
+	this->upper = (unsigned int*) malloc(sizeof(*this->upper) * upper_size);
+	memcpy(this->upper,old.upper,upper_size*sizeof(*this->upper));
+	return *this;
+};
+

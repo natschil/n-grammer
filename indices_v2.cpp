@@ -50,7 +50,7 @@ class Dict
 			exit(-1);
 		}
 	
-		if(snprintf(buf,512,"./%s/0_%u/%u.out",prefix,buffercount,(unsigned int) 0) >= 512) //TODO: clean this up
+		if(snprintf(buf,512,"./%s/0_%u/0.out",prefix,buffercount) >= 512) 
 		{
 			//This should never happen either.
 			fprintf(stderr,"Error, bad coding");
@@ -236,6 +236,7 @@ IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_
 	this->ngramsize = ngramsize;
 	this->numcombos = number_of_special_combinations(wordsearch_index_upto);
 	this->combinations.reserve(numcombos);
+	this->optimized_combinations.reserve(numcombos);
 	this->prefixes.reserve(numcombos);
 	this->mergeschedulers = (uint8_t (*)[MAX_K][MAX_BUFFERS]) calloc(sizeof(*this->mergeschedulers), numcombos);
 	if(!this->mergeschedulers)
@@ -288,6 +289,7 @@ IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_
 		recursively_remove_directory(new_prefix);
 
 		combinations.push_back(new_word_combo);
+		optimized_combinations.push_back(optimized_combination(new_word_combo,ngramsize));
 		prefixes.push_back(new_prefix);
 		free(current_combo);
 		combo_number++;
@@ -342,38 +344,34 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 			for(size_t i = 0; i < numcombos; i++)
 			{
 				new_ngram.ngram.clear();
-				new_ngram.ngram.reserve(ngramsize); 
+				new_ngram.ngram.resize(ngramsize); 
 				int skip = 0;
-				for(size_t j = 0; j < ngramsize; j++)
+				word* temporary_pointer = current_word;
+				for(size_t k = 0; k < optimized_combinations[i].lower_size; k++)
 				{
-					word* the_added_word;
-					int offset = combinations[i][j] - combinations[i][0]; //TODO: optimize so that this only happens once.
-					if(offset > 0)
-					{
-						the_added_word = current_word;
-						for(;(the_added_word != &null_word) && offset;offset--)
-						{
-							the_added_word = the_added_word->next;
-						}
-					}else if(offset < 0)
-					{
-						the_added_word = current_word;
-						for(;(the_added_word != &null_word) && offset;offset++)
-						{
-							the_added_word = the_added_word->prev;	
-						}
-					}else 
-					{
-						the_added_word = current_word;
-					}
 
-					if(the_added_word == &null_word)
+					temporary_pointer = temporary_pointer->prev;
+					if(temporary_pointer == &null_word)
 					{
 						skip = 1;
 						break;
 					}
-					new_ngram.ngram.push_back(the_added_word->contents);
+					new_ngram.ngram[optimized_combinations[i].lower[k]] = temporary_pointer->contents;
 				}
+				temporary_pointer = current_word;
+				for(size_t k = 0;!skip &&( k < optimized_combinations[i].upper_size);k++)
+				{
+					if(temporary_pointer == &null_word)
+					{
+						skip = 1;
+						break;
+					}
+
+					new_ngram.ngram[optimized_combinations[i].upper[k]] = temporary_pointer->contents;
+					temporary_pointer = temporary_pointer->next;
+
+				}
+
 				if(!skip)
 				{
 					current_ngrams[i].addNGram(new_ngram);
