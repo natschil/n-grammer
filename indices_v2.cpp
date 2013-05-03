@@ -28,7 +28,7 @@ class Dict
 		this->ngramsize = ngramsize;
 		this->prefix = prefix;
 		this->buffercount = buffercount;
-		innerMap = map<NGram, long long int, ngram_cmp>(cmp);
+		innerMap = map<NGram, long long int,ngram_cmp>(cmp);
 
 		if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
 		{
@@ -321,8 +321,8 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	std::sort(words_bottom,words_top);
 
 	//We now see which words are equal: TODO: move this into the sorting step.
-	word* prev_ptr = words_bottom;
-	for(word* ptr = words_bottom; ptr != words_top; ptr++)
+	word* prev_ptr = words_top -1;
+	for(word* ptr = words_top-1; ptr >= words_bottom; ptr--)
 	{
 		if(strcmp((const char*) ptr->contents,(const char*) prev_ptr->contents))
 		{
