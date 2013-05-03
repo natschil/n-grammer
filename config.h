@@ -25,7 +25,7 @@
 	#ifndef BUFFER_SIZE
 		#define BUFFER_SIZE (100*1024*1024)
 	#endif
-	//Maximum number of Buffers that should be concurrently processed. Set this to the number of threads on your system.
+	//Maximum number of Buffers that should concurrently exist at any one time. Set this to the number of threads on your system + 1;
 	#ifndef MAX_CONCURRENT_BUFFERS
 		#define MAX_CONCURRENT_BUFFERS 7
 	#endif
