@@ -25,7 +25,7 @@
 	#ifndef BUFFER_SIZE
 		#define BUFFER_SIZE (100*1024*1024)
 	#endif
-	//Set this to half of the actual number of "pages" used. 
+	//Maximum number of Buffers that should be concurrently processed. Set this to the number of threads on your system.
 	#ifndef MAX_CONCURRENT_BUFFERS
 		#define MAX_CONCURRENT_BUFFERS 7
 	#endif
