@@ -310,7 +310,7 @@ IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_
 		exit(-1);
 	}
 	current_buffer = new Buffer(first_internal_buffer,buffer_size,maximum_single_allocation,&null_word);
-	IndexCollection::increment_numbuffers_in_use();
+	this->increment_numbuffers_in_use();
 }
 
 void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write)
@@ -396,7 +396,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		}	
 	}
 
-	IndexCollection::decrement_numbuffers_in_use();
+	this->decrement_numbuffers_in_use();
 	delete buffer_to_write;
 	//At this point do all merging
 	for(unsigned int i = 0; i< numcombos; i++)
