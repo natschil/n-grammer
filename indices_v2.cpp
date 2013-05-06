@@ -148,7 +148,8 @@ class Dict
 	void writeToDisk(word* start)
 	{
 		word* end = start->reduces_to + 1;
-		std::sort(start, end, cmp);
+		if(ngramsize > 1)
+			std::sort(start, end, cmp);
 		word* prev = start;
 		long long int count = 1;
 		for(word* i = start + 1; i < end; i++)
