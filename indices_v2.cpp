@@ -1,76 +1,111 @@
 #include "indices_v2.h"
 
-ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int* word_order,const word* null_word)
+ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int* word_order,const optimized_combination *optimized_combo,const word* null_word)
 {
 	n_gram_size = ngramsize;
 	this->word_order = word_order;
+	this->optimized_combo = optimized_combo;
 	this->null_word = null_word;
+}
+
+/*
+ *This function compares two n-grams where the first word of the n-gram is the same.
+ */
+static inline int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,const optimized_combination* optimized_combo, const unsigned int* word_order,const word* null_word)
+{
+	int min_found = 0;
+	int max_found = 0;
+
+	const word* max_found_w1 = first;
+	const word* max_found_w2 = second;
+	const word* min_found_w1 = first;
+	const word* min_found_w2 = second;
+
+	//MARKER5
+	int cache[64];
+	cache[0] = 0;
+
+	for(size_t i = 1; i<n_gram_size;i++)
+	{
+		int k = word_order[i] - word_order[0];
+		if(k >= 0)
+		{
+			if(k > max_found)
+			{
+				for(int l = max_found; l < k ;l++)
+				{
+					if(max_found_w1->next != null_word)
+					{
+						max_found_w1 = max_found_w1->next;
+					}else//Put null words at the end:
+					{
+						return 1;
+					}
+
+					if(max_found_w2->next !=  null_word)
+					{
+						max_found_w2 = max_found_w2->next;
+					}else
+						return -1;
+
+					cache[optimized_combo->upper[l + 1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
+				}
+				max_found = k;
+			}
+			if(cache[i] == 0)
+				continue;
+			else 
+				return cache[i];
+			
+		}else
+		{
+			if(-k > min_found)
+			{
+				for(int l = min_found;l < -k ;l++)
+				{
+					if(min_found_w1->prev != null_word)
+					{
+						min_found_w1 = min_found_w1->prev;
+					}else
+					{
+						return 1;
+					}
+					if(min_found_w2->prev != null_word)
+					{
+						min_found_w2 = min_found_w2->prev;
+					}else
+						return -1;
+					cache[optimized_combo->lower[l]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
+				}
+				min_found = -k ;
+			}
+			if(cache[i] == 0)
+				continue;
+			else
+				return cache[i];
+		}	
+	}
+
+	return 0;
 }
 
 bool ngram_cmp::operator()(const word &first,const word &second)
 {
-	//TODO: heavily optimize this:
-	bool prevres = 0;
-	for(size_t i = 0; i<n_gram_size;i++)
-	{
-		int k = word_order[i] - word_order[0];
-		word *cur = &first;
-		word *cur2 = &second;
-		if(k >= 0)
-		{
-			for(;k;k--)
-			{
-				if(cur->next != null_word)
-				{
-					cur = cur->next;
-				}else//Put null words at the end:
-				{
-					return true;
-				}
-				if(cur2->next !=  null_word)
-				{
-					cur2 = cur2->next;
-				}else
-					return false;
-			
-			}
-		}else
-		{
-			for(;k;k++)
-			{
-				if(cur->next != null_word)
-				{
-					cur = cur->next;
-				}else
-				{
-					return true;
-				}
-				if(cur2->next != null_word)
-				{
-					cur2 = cur2->next;
-				}else
-					return false;
-			}
-		}
-		if(!(prevres = (cur->reduces_to - cur2->reduces_to)))
-		{
-			continue;
-		}else
-			return prevres < 0;
-	}
-
-	return false;
+	return ngramcmp(n_gram_size,&first,&second,optimized_combo, word_order,null_word) < 0;
 }
 
 class Dict
 {
 	public:
-	Dict(ngram_cmp &cmp,unsigned int ngramsize,const char* prefix, unsigned int buffercount)
+	Dict(unsigned int ngramsize,const char* prefix, unsigned int buffercount,const optimized_combination *optimized_combo,const unsigned int* word_order,word* null_word)
 	{
 		this->ngramsize = ngramsize;
 		this->prefix = prefix;
 		this->buffercount = buffercount;
-		this->cmp = cmp;
+		this->null_word = null_word;
+		this->cmp = ngram_cmp(ngramsize,word_order,optimized_combo,null_word);
+		this->optimized_combo = optimized_combo;
+		this->word_order = word_order;
 
 		if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
 		{
@@ -106,19 +141,82 @@ class Dict
 	
 
 	}
+	void cleanUp(void)
+	{
+		fclose(outfile);
+	};
 	void writeToDisk(word* start)
 	{
 		word* end = start->reduces_to + 1;
 		std::sort(start, end, cmp);
-		//TODO: finish this, so that it basically writes out all of the strings.
-		//TODO: also finish everything else that is relevant
+		word* prev = start;
+		long long int count = 1;
+		for(word* i = start + 1; i < end; i++)
+		{
+
+			if(!ngramcmp(ngramsize,i,prev,optimized_combo,word_order,null_word))
+			{
+				count++;
+			}else
+			{
+				this->writeOutNGram(prev,count);
+				count = 1;
+				prev= i;
+			}
+		}
+		if(count)
+		{
+			this->writeOutNGram(end - 1, count);
+		}
+	};
+	void writeOutNGram(word* ngram_start,long long int count)
+	{
+		//MARKER5
+		const uint8_t *words_in_ngram[64];
+		word* tmp = ngram_start;
+		int skip = 0;
+		for(size_t j = 0; j < optimized_combo->lower_size; j++)
+		{
+			if(tmp->prev == null_word)
+			{
+				skip = 1;
+				break;
+			}else
+				tmp = tmp->prev;
+			words_in_ngram[optimized_combo->lower[j]] = tmp->contents;
+		}
+
+		tmp = ngram_start;
+		words_in_ngram[0] = tmp->contents;
+		for(size_t j = 1; j < optimized_combo->upper_size;j++)
+		{
+			if(tmp->next == null_word)
+			{
+				skip = 1;
+				break;
+			}else
+				tmp = tmp->next;
+			words_in_ngram[optimized_combo->upper[j]] = tmp->contents;
+		}
+		for(size_t j = 0;!skip && ( j <ngramsize); j++)
+		{
+			ulc_fprintf(outfile,"%U",words_in_ngram[j]);
+			if(j != (ngramsize - 1))
+				fprintf(outfile," ");
+		}
+		if(!skip)
+			fprintf(outfile,"\t%lld\n",count);
 	}
 
 	private:
+		const optimized_combination *optimized_combo;
+		const unsigned int* word_order;
+
 		ngram_cmp cmp;
 		unsigned int ngramsize;
 		unsigned int buffercount;
 		const char* prefix;
+		const word* null_word;
 		FILE* outfile;
 };
 
@@ -350,63 +448,17 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 
 	for(size_t i = 0; i < numcombos; i++)
 	{
-		ngram_cmp cur(ngramsize,combinations[i]);
-		current_ngrams.push_back(Dict(cur,ngramsize,prefixes[i],buffercount));
+		current_ngrams.push_back(Dict(ngramsize,prefixes[i],buffercount,&optimized_combinations[i],combinations[i],&null_word));
 	}
 
 
-	NGram new_ngram;
 	for(word* current_word = words_bottom; current_word != words_top;)
 	{
-		const word *previous_word_reduces_to = current_word->reduces_to;
-		while((current_word != words_top) && (!(previous_word_reduces_to - current_word->reduces_to)))
-		{
-			for(size_t i = 0; i < numcombos; i++)
-			{
-				new_ngram.ngram.clear();
-				new_ngram.ngram.resize(ngramsize); 
-				int skip = 0;
-				word* temporary_pointer = current_word;
-				for(size_t k = 0; k < optimized_combinations[i].lower_size; k++)
-				{
-
-					temporary_pointer = temporary_pointer->prev;
-					if(temporary_pointer == &null_word)
-					{
-						skip = 1;
-						break;
-					}
-					new_ngram.ngram[optimized_combinations[i].lower[k]] = temporary_pointer;
-				}
-				temporary_pointer = current_word;
-				for(size_t k = 0;!skip &&( k < optimized_combinations[i].upper_size);k++)
-				{
-					if(temporary_pointer == &null_word)
-					{
-						skip = 1;
-						break;
-					}
-
-					new_ngram.ngram[optimized_combinations[i].upper[k]] = temporary_pointer;
-					temporary_pointer = temporary_pointer->next;
-
-				}
-
-				if(!skip)
-				{
-					current_ngrams[i].addNGram(new_ngram);
-				}
-				else
-					skip = 0;
-			}
-			current_word++;
-		}
-		//We now write out any n-grams that we have:
 		for(size_t i = 0; i< numcombos; i++)
 		{
-			current_ngrams[i].writeToDisk();
-			current_ngrams[i].clear();
-		}	
+			current_ngrams[i].writeToDisk(current_word);
+		}
+		current_word = current_word->reduces_to + 1;
 	}
 
 	this->decrement_numbuffers_in_use();

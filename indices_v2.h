@@ -20,7 +20,6 @@ using namespace std;
 
 
 #include <iostream>
-#include <map>
 #include <vector>
 #include <algorithm>
 
@@ -50,11 +49,13 @@ class word
 	{
 		prev = old.prev;
 		next = old.next;
+		contents = old.contents;
+		reduces_to = old.reduces_to;
 		prev->next = this;
 		next->prev = this;	
-		this->contents = old.contents;
 		this->next = old.next;
 		this->prev = old.prev;
+
 	};
 
 	word& operator=(word&& old)//move operator=
@@ -64,6 +65,8 @@ class word
 		prev->next = this;
 		next->prev = this;	
 		this->contents = old.contents;
+		this->reduces_to = old.reduces_to;
+
 		this->next = old.next;
 		this->prev = old.prev;
 		return *this;
@@ -74,18 +77,15 @@ class word
 	};
 };
 
-struct NGram
+struct ngram_cmp 
 {
-	vector<const word*> ngram;
-};
-struct ngram_cmp : public std::binary_function<const NGram&, const NGram&,bool>
-{
-	ngram_cmp(){};//To make stl map happy
-	ngram_cmp(unsigned int ngramsize,unsigned int*,word*);
-	bool operator()(const NGram &first,const NGram &second);
+	ngram_cmp(){};//Don't use this
+	ngram_cmp(unsigned int ngramsize,const unsigned int*,const optimized_combination* optimized_combo,const word* null_word);
+	bool operator()(const word &first,const word &second);
 	private:
 	unsigned int n_gram_size;
 	const unsigned int *word_order;
+	const optimized_combination* optimized_combo;
 	const word* null_word;
 };
 
