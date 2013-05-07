@@ -44,9 +44,9 @@ class word
 
 
 	word* prev;
-	const uint8_t* contents;
-	word* reduces_to;
-	int flags;
+	uint32_t contents;
+	uint32_t reduces_to;
+	uint32_t flags;
 	word* next;
 	word(){}; //required by std::sort
 	word(word&& old) //move constructor
@@ -78,10 +78,21 @@ class word
 		this->prev = old.prev;
 		return *this;
 	};
-	bool operator<(const word &second) const
+};
+
+struct word_cmp
+{
+	word_cmp();
+	word_cmp(char* strings_start)
 	{
-		return strcmp((const char*) this->contents,(const char*) second.contents) < 0;	
-	};
+		this->strings_start = strings_start;
+	}
+	bool operator()(const word &first, const word &second)
+	{
+		return strcmp(strings_start + first.contents, strings_start + second.contents) < 0;
+	}
+	private:
+	char* strings_start;
 };
 
 struct ngram_cmp 
@@ -104,6 +115,7 @@ class Buffer
 		void add_word(uint8_t* word_location,int &memmgnt_retval );
 		void add_null_word(word* null_word);
 		uint8_t* allocate_for_string(size_t numbytes, int &memmngnt_retval);
+		uint8_t* strings_start(void);
 		void rewind_string_allocation(size_t numbytes);
 		void set_top_pointer( size_t nmeb);
 		void set_bottom_pointer( size_t nmeb);

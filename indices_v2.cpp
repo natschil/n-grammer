@@ -95,12 +95,14 @@ bool ngram_cmp::operator()(const word &first,const word &second)
 class Dict
 {
 	public:
-	Dict(unsigned int ngramsize,const char* prefix, unsigned int buffercount,const optimized_combination *optimized_combo,const unsigned int* word_order,word* null_word)
+	Dict(unsigned int ngramsize,const char* prefix, unsigned int buffercount,const optimized_combination *optimized_combo,const unsigned int* word_order,const word* null_word,word* buffer_bottom,uint8_t* strings_start)
 	{
 		this->ngramsize = ngramsize;
 		this->prefix = prefix;
 		this->buffercount = buffercount;
 		this->null_word = null_word;
+		this->buffer_bottom = buffer_bottom;
+		this->strings_start = strings_start;
 		this->cmp = ngram_cmp(ngramsize,word_order,optimized_combo,null_word);
 		this->optimized_combo = optimized_combo;
 		this->word_order = word_order;
@@ -145,7 +147,7 @@ class Dict
 	};
 	void writeToDisk(word* start)
 	{
-		word* end = start->reduces_to + 1;
+		word* end = (start->reduces_to + buffer_bottom) + 1;
 		if(ngramsize > 1)
 			std::sort(start, end, cmp);
 
@@ -183,11 +185,11 @@ class Dict
 				break;
 			}else
 				tmp = tmp->prev;
-			words_in_ngram[optimized_combo->lower[j]] = tmp->contents;
+			words_in_ngram[optimized_combo->lower[j]] = strings_start + tmp->contents;
 		}
 
 		tmp = ngram_start;
-		words_in_ngram[0] = tmp->contents;
+		words_in_ngram[0] = strings_start + tmp->contents;
 		for(size_t j = 1; j < optimized_combo->upper_size;j++)
 		{
 			if(tmp->next == null_word)
@@ -196,7 +198,7 @@ class Dict
 				break;
 			}else
 				tmp = tmp->next;
-			words_in_ngram[optimized_combo->upper[j]] = tmp->contents;
+			words_in_ngram[optimized_combo->upper[j]] = strings_start + tmp->contents;
 		}
 		for(size_t j = 0;!skip && ( j <ngramsize); j++)
 		{
@@ -217,6 +219,8 @@ class Dict
 		unsigned int buffercount;
 		const char* prefix;
 		const word* null_word;
+		word* buffer_bottom;
+		uint8_t* strings_start;
 		FILE* outfile;
 };
 
@@ -244,7 +248,7 @@ void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
 	words_bottom_internal -= sizeof(*new_word);
 	new_word = (word*) (internal_buffer +  words_bottom_internal);
 
-	new_word->contents = word_location;
+	new_word->contents =  (char*)word_location - (char*)internal_buffer;
 	new_word->flags = 0;
 
 	if((words_bottom_internal - strings_top) < maximum_single_allocation)
@@ -273,6 +277,11 @@ uint8_t* Buffer::allocate_for_string(size_t numbytes, int &mmgnt_retval)
 		mmgnt_retval = -1;
 	}
 	return result;
+}
+
+uint8_t* Buffer::strings_start()
+{
+	return (uint8_t*) internal_buffer;
 }
 
 
@@ -352,7 +361,7 @@ IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_
 	this->prefixes.reserve(numcombos);
 	this->mergeschedulers = (uint8_t (*)[MAX_K][MAX_BUFFERS]) calloc(sizeof(*this->mergeschedulers), numcombos);
 
-	this->null_word.reduces_to = NULL;
+	this->null_word.reduces_to =0 ;
 	this->null_word.flags = 0;
 
 	if(!this->mergeschedulers)
@@ -433,6 +442,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 {
 	word* buffer_bottom = buffer_to_write->words_buffer_bottom();
 	word* buffer_top = buffer_to_write->words_buffer_top();
+	uint8_t* strings_start = buffer_to_write->strings_start();
 
 
 
@@ -447,18 +457,19 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	}
 
 	//This step will take a long time:
-	std::sort(buffer_bottom,buffer_top);
+	word_cmp compare((char*) strings_start);
+	std::sort(buffer_bottom,buffer_top,compare);
 
 	//We now see which words are equal: TODO: move this into the sorting step.
 	word* prev_ptr = buffer_top-1;
 
 	for(word* ptr = buffer_top-1; ptr >= buffer_bottom; ptr--)
 	{
-		if(strcmp((const char*) ptr->contents,(const char*) prev_ptr->contents))
+		if(strcmp((const char*)strings_start + ptr->contents,(const char*) strings_start + prev_ptr->contents))
 		{
 			prev_ptr = ptr;
 		}
-		ptr->reduces_to = prev_ptr;
+		ptr->reduces_to = prev_ptr-buffer_bottom;
 	}
 
 	vector<Dict> current_ngrams;
@@ -466,7 +477,9 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 
 	for(size_t i = 0; i < numcombos; i++)
 	{
-		current_ngrams.push_back(Dict(ngramsize,prefixes[i],buffercount,&optimized_combinations[i],combinations[i],&null_word));
+		current_ngrams.push_back(
+				Dict(ngramsize,prefixes[i],buffercount,&optimized_combinations[i],combinations[i],&null_word,buffer_bottom,strings_start)
+				);
 	}
 
 
@@ -476,7 +489,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		{
 			current_ngrams[i].writeToDisk(current_word);
 		}
-		current_word = current_word->reduces_to + 1;
+		current_word = (buffer_bottom + current_word->reduces_to) + 1;
 	}
 
 	this->decrement_numbuffers_in_use();

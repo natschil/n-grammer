@@ -22,8 +22,9 @@
 	/* Note that the actual memory used is higher than what is in these buffers */
 	/* Some options related to memory management are also found in the merger options below*/
 
+	//keep this value below 4Gb, or strange things might happen.
 	#ifndef BUFFER_SIZE
-		#define BUFFER_SIZE (100*1024*1024)
+		#define BUFFER_SIZE (50*1024*1024)
 	#endif
 	//Maximum number of Buffers that should concurrently exist at any one time. Set this to the number of threads on your system + 1;
 	#ifndef MAX_CONCURRENT_BUFFERS

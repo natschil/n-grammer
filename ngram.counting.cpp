@@ -248,8 +248,8 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 				for(;ptr >= old_buffer->words_buffer_bottom(); ptr--)
 				{
 					int tmp_retval = 1;
-					uint8_t* new_string = final_indices->allocate_for_string(strlen((const char*) ptr->contents) + 1,tmp_retval);
-					memcpy(new_string, ptr->contents, (strlen((const char*) ptr->contents) + 1) * sizeof(*new_string));
+					uint8_t* new_string = final_indices->allocate_for_string(strlen((const char*)old_buffer->strings_start() + ptr->contents) + 1,tmp_retval);
+					memcpy(new_string,((const char*) old_buffer->strings_start() + ptr->contents), (strlen((const char*)old_buffer->strings_start() + ptr->contents) + 1) * sizeof(*new_string));
 
 					if(ptr->prev == final_indices->get_null_word())
 					{
