@@ -24,7 +24,7 @@ for i in `seq 1 6`; do
 					cat   ${current_directory}/${j}.out >> $filename;
 				fi;
 		done;
-		if diff -u ./tests_output/$(basename $1).`basename $current_directory`.out ./reference_data/$(basename $1).`basename $current_directory`.out;
+		if diff  ./tests_output/$(basename $1).`basename $current_directory`.out ./reference_data/$(basename $1).`basename $current_directory`.out;
 		then
 			echo "Succeeded on try $filename";
 		else
