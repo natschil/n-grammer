@@ -112,8 +112,11 @@ class Buffer
 	public:
 		Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word);
 		~Buffer();
+
+		void migrate_from(Buffer* prev,int is_last_buffer);
+
 		void add_word(uint8_t* word_location,int &memmgnt_retval );
-		void add_null_word(word* null_word);
+		void add_null_word();
 		uint8_t* allocate_for_string(size_t numbytes, int &memmngnt_retval);
 		uint8_t* strings_start(void);
 		void rewind_string_allocation(size_t numbytes);
@@ -175,7 +178,7 @@ class IndexCollection
 
 		void add_null_word()
 		{
-			return current_buffer->add_null_word(&null_word);
+			return current_buffer->add_null_word();
 		}
 
 		const word* get_null_word()
