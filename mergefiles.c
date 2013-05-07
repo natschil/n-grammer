@@ -144,8 +144,6 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 			fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
 			exit(-1);
 		}
-		remove(buf);
-		remove(buf2);
 	}
 
 	snprintf(dirbuf,512,"%s/%d_%d",prefix,k,n);

@@ -37,16 +37,14 @@ static inline int ngramcmp(unsigned int n_gram_size,const word *first, const wor
 					if(max_found_w1->next != null_word)
 					{
 						max_found_w1 = max_found_w1->next;
-					}else//Put null words at the end:
-					{
-						return 1;
-					}
+					}else
+						return (max_found_w2->next == null_word) ? 0 : 1;
 
 					if(max_found_w2->next !=  null_word)
 					{
 						max_found_w2 = max_found_w2->next;
 					}else
-						return -1;
+						return  -1;
 
 					cache[optimized_combo->upper[l + 1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
 				}
@@ -67,14 +65,14 @@ static inline int ngramcmp(unsigned int n_gram_size,const word *first, const wor
 					{
 						min_found_w1 = min_found_w1->prev;
 					}else
-					{
-						return 1;
-					}
+						return (min_found_w2->prev == null_word) ? 0 : 1;
+
 					if(min_found_w2->prev != null_word)
 					{
 						min_found_w2 = min_found_w2->prev;
 					}else
-						return -1;
+						return  -1;
+
 					cache[optimized_combo->lower[l]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
 				}
 				min_found = -k ;
@@ -150,10 +148,13 @@ class Dict
 		word* end = start->reduces_to + 1;
 		if(ngramsize > 1)
 			std::sort(start, end, cmp);
+
 		word* prev = start;
-		long long int count = 1;
-		for(word* i = start + 1; i < end; i++)
+		long long int count = 0;
+		for(word* i = start; i < end; i++)
 		{
+			if(i->flags & NON_STARTING_WORD)
+				continue;
 
 			if(!ngramcmp(ngramsize,i,prev,optimized_combo,word_order,null_word))
 			{
@@ -165,10 +166,8 @@ class Dict
 				prev= i;
 			}
 		}
-		if(count)
-		{
-			this->writeOutNGram(end - 1, count);
-		}
+
+		this->writeOutNGram(prev, count);
 	};
 	void writeOutNGram(word* ngram_start,long long int count)
 	{
@@ -246,6 +245,7 @@ void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
 	new_word = (word*) (internal_buffer +  words_bottom_internal);
 
 	new_word->contents = word_location;
+	new_word->flags = 0;
 
 	if((words_bottom_internal - strings_top) < maximum_single_allocation)
 	{
@@ -351,6 +351,10 @@ IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_
 	this->optimized_combinations.reserve(numcombos);
 	this->prefixes.reserve(numcombos);
 	this->mergeschedulers = (uint8_t (*)[MAX_K][MAX_BUFFERS]) calloc(sizeof(*this->mergeschedulers), numcombos);
+
+	this->null_word.reduces_to = NULL;
+	this->null_word.flags = 0;
+
 	if(!this->mergeschedulers)
 	{
 		cerr<<"Not enough memory, exiting"<<endl;
@@ -427,15 +431,28 @@ IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_
 
 void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write)
 {
-	word* words_bottom = buffer_to_write->words_bottom();
-	word* words_top = buffer_to_write->words_top();
+	word* buffer_bottom = buffer_to_write->words_buffer_bottom();
+	word* buffer_top = buffer_to_write->words_buffer_top();
+
+
+
+	for(word* ptr = buffer_bottom; ptr < buffer_to_write->words_bottom(); ptr++)
+	{
+		ptr->flags |= NON_STARTING_WORD;
+	}
+
+	for(word* ptr = buffer_to_write->words_top(); ptr < buffer_to_write->words_buffer_top(); ptr++)
+	{
+		ptr->flags |= NON_STARTING_WORD;
+	}
 
 	//This step will take a long time:
-	std::sort(words_bottom,words_top);
+	std::sort(buffer_bottom,buffer_top);
 
 	//We now see which words are equal: TODO: move this into the sorting step.
-	word* prev_ptr = words_top -1;
-	for(word* ptr = words_top-1; ptr >= words_bottom; ptr--)
+	word* prev_ptr = buffer_top-1;
+
+	for(word* ptr = buffer_top-1; ptr >= buffer_bottom; ptr--)
 	{
 		if(strcmp((const char*) ptr->contents,(const char*) prev_ptr->contents))
 		{
@@ -453,7 +470,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	}
 
 
-	for(word* current_word = words_bottom; current_word != words_top;)
+	for(word* current_word = buffer_bottom; current_word != buffer_top;)
 	{
 		for(size_t i = 0; i< numcombos; i++)
 		{

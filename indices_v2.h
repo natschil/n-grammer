@@ -35,6 +35,9 @@ using namespace std;
  * setting reduces_to the lowest element of the list that the word is equal to, to compare words it is sufficient to compare their
  * reduces_to class members. This optimization saves time in exchange for additional memory usage.
  */
+
+#define NON_STARTING_WORD 1
+
 class word
 {
 	public:
@@ -43,6 +46,7 @@ class word
 	word* prev;
 	const uint8_t* contents;
 	word* reduces_to;
+	int flags;
 	word* next;
 	word(){}; //required by std::sort
 	word(word&& old) //move constructor
@@ -51,6 +55,7 @@ class word
 		next = old.next;
 		contents = old.contents;
 		reduces_to = old.reduces_to;
+		flags = old.flags;
 		prev->next = this;
 		next->prev = this;	
 		this->next = old.next;
@@ -62,10 +67,12 @@ class word
 	{			
 		prev = old.prev;
 		next = old.next;
+		flags = old.flags;
+		contents = old.contents;
+		reduces_to = old.reduces_to;
+
 		prev->next = this;
 		next->prev = this;	
-		this->contents = old.contents;
-		this->reduces_to = old.reduces_to;
 
 		this->next = old.next;
 		this->prev = old.prev;
