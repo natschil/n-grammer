@@ -110,6 +110,30 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 		snprintf(buf2, 512,"%s/%d_%d/%d.out",prefix,k,other_n,i);
 		snprintf(output, 512,"%s/%d_%d/%d.out",prefix,final_k,final_n,i);
 
+		struct stat firstfile_st;
+		struct stat secondfile_st;
+		if(stat(buf, &firstfile_st))
+		{
+			fprintf(stderr,"Unable to stat %s\n",buf);
+			exit(-1);
+		}
+		if(!firstfile_st.st_size)//Simply move the other file to the final location.
+		{
+			rename(buf2,output);
+			continue;
+		}
+		if(stat(buf2,&secondfile_st))
+		{
+			fprintf(stderr,"Unable to stat %s\n",buf);
+			exit(-1);
+		}
+		if(!secondfile_st.st_size)
+		{
+			rename(buf,output);
+			continue;
+		}
+
+
 		FILE* firstfile = fopen(buf, "r");
 		FILE* secondfile = fopen(buf2, "r");
 		FILE* outputfile = fopen(output, "w+");

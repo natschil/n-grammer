@@ -292,8 +292,8 @@ void Buffer::add_word_at_start(const uint8_t* string)
 	new_word->contents = (const char*) string - (const char*)internal_buffer;
 	new_word->flags = 0;
 
-	new_word->next =  last_word;
 	last_word->prev = new_word;
+	new_word->next =  last_word;
 
 	last_word = new_word;
 
