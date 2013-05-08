@@ -1,5 +1,6 @@
 //The following is slightly unprofessional, and should at some point be changed.
 #include <iostream>
+#include <omp.h>
 #include "ngram.counting.h"
 
 using namespace std;
@@ -44,9 +45,10 @@ int main (int argc, char* argv[])
 	  cerr<<"Could not open "<<filename<<" for reading"<<endl;
 	  exit(1);
   }
+  fclose(f);
 
   const char* outdir =NULL;
-  int options_start = 2;
+  int options_start = 3;
 
   if(argc >= 4 && strncmp(argv[3],"--",2))
   {
@@ -57,7 +59,12 @@ int main (int argc, char* argv[])
 
  //Some default options:
  unsigned int wordsearch_index_depth = 1;
-
+ unsigned int numbuffers;
+#ifdef _OPENMP
+ numbuffers = omp_get_num_procs();
+#else
+ numbuffers = 1;
+#endif
 
   if(argc > options_start)
   {
@@ -78,8 +85,18 @@ int main (int argc, char* argv[])
 				print_usage(argv);
 				exit(1);
 			}
-		}else
+		}else if(!strncmp(argv[i],"--numbuffers=",strlen("--numbuffers=")))
 		{
+			char* ptr = argv[i] + strlen("--numbuffers=");
+			numbuffers = atoi(ptr);
+			if(!numbuffers)
+			{
+				cerr<<"\nInvalid parameter for --numbuffers\n\n";
+				print_usage(argv);
+				exit(1);
+			}
+
+		}else {
 			cerr<<"\nInvalid option"<<argv[i]<<"\n\n";
 			print_usage(argv);
 			exit(1);
@@ -88,6 +105,6 @@ int main (int argc, char* argv[])
   }
 
   
-  count_ngrams(ngramsize,f,outdir,(unsigned int) wordsearch_index_depth);
+  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers);
   return 0; 
 }

@@ -2,7 +2,6 @@
 //File for easy configuration of various options
 #ifndef NGRAMCOUNTER_CONFIG_H
 #define NGRAMCOUNTER_CONFIG_H
-#include "indices_v2.h" //For sizeof(word)
 
 /* Options for core n-gram counter*/
 
@@ -25,14 +24,9 @@
 
 	//keep this value below THEORETICAL_MAX_BUFFER_SIZE, or strange things might happen.
 	
-	#define THEORETICAL_MAX_BUFFER_SIZE 1<<32 + (1 << 32)/(MAX_WORD_SIZE +  1) * sizeof(word)
 
 	#ifndef MEMORY_TO_USE_FOR_BUFFERS
-		#define MEMORY_TO_USE_FOR_BUFFERS (100*1024*1024)
-	#endif
-	//Maximum number of Buffers that should concurrently exist at any one time. Set this to the number of threads on your system + 1;
-	#ifndef MAX_CONCURRENT_BUFFERS
-		#define MAX_CONCURRENT_BUFFERS 7
+		#define MEMORY_TO_USE_FOR_BUFFERS (800*1024*1024)
 	#endif
 
 /*Options for Indices*/

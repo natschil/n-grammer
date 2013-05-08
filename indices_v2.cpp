@@ -169,7 +169,8 @@ class Dict
 			}
 		}
 
-		this->writeOutNGram(prev, count);
+		if(count)
+			this->writeOutNGram(prev, count);
 	};
 	void writeOutNGram(word* ngram_start,long long int count)
 	{
@@ -232,6 +233,7 @@ Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_a
 	this->strings_top = 0;
 	this->maximum_single_allocation = maximum_single_allocation;
 	this->last_word = null_word;
+	this->null_word = null_word;
 	//These two had better be set by hand, else garbage will come out.
 	this->top_pointer = 0;
 	this->bottom_pointer = 0;
@@ -239,13 +241,6 @@ Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_a
 
 Buffer::~Buffer()
 {
-	free(internal_buffer);
-}
-
-void Buffer::reserve_for_migration()
-{
-	allocate_for_string((MAX_WORD_SIZE + 1) * (2 * (ngramsize - 1) ));
-	words_bottom_internal -= (2 * (ngramsize - 1)) * sizeof(word);
 }
 
 void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
@@ -254,7 +249,7 @@ void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
 	words_bottom_internal -= sizeof(*new_word);
 	new_word = (word*) (internal_buffer +  words_bottom_internal);
 
-	new_word->contents =  (char*)word_location - (char*)internal_buffer;
+	new_word->contents =  (const char*)word_location - (const char*)internal_buffer;
 	new_word->flags = 0;
 
 	if((words_bottom_internal - strings_top) < maximum_single_allocation)
@@ -273,6 +268,42 @@ void Buffer::add_null_word()
 	last_word->next = null_word;
 	last_word = null_word;
 }
+
+void Buffer::advance_to(size_t nmeb)
+{
+	words_bottom_internal = buffer_size -  nmeb * sizeof(word);
+}
+
+void Buffer::set_current_word_as_last_word()
+{
+	last_word = (word*) (internal_buffer + words_bottom_internal);
+}
+
+void Buffer::add_word_at_start(const uint8_t* string)
+{
+	if(words_bottom_internal == buffer_size)
+	{
+		fprintf(stderr, "Too little space in buffer reserved\n");
+		exit(-1);
+	}
+	word* new_word = (word*) (internal_buffer + words_bottom_internal);
+	words_bottom_internal += sizeof(word);
+
+	new_word->contents = (const char*) string - (const char*)internal_buffer;
+	new_word->flags = 0;
+
+	new_word->next =  last_word;
+	last_word->prev = new_word;
+
+	last_word = new_word;
+
+}
+void Buffer::add_null_word_at_start()
+{
+	last_word->prev = null_word;
+	last_word = null_word;
+}
+
 
 uint8_t* Buffer::allocate_for_string(size_t numbytes, int &mmgnt_retval)
 {
@@ -364,9 +395,8 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 	this->optimized_combinations.reserve(numcombos);
 	this->prefixes.reserve(numcombos);
 	this->mergeschedulers = (uint8_t (*)[MAX_K][MAX_BUFFERS]) calloc(sizeof(*this->mergeschedulers), numcombos);
-
-	this->null_word.reduces_to =0 ;
-	this->null_word.flags = 0;
+	this->buffercounter = 0;
+	this->num_being_read = 0;
 
 	if(!this->mergeschedulers)
 	{
@@ -432,7 +462,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 	 }
 }
 
-void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write)
+void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write,word* null_word)
 {
 	word* buffer_bottom = buffer_to_write->words_buffer_bottom();
 	word* buffer_top = buffer_to_write->words_buffer_top();
@@ -472,7 +502,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	for(size_t i = 0; i < numcombos; i++)
 	{
 		current_ngrams.push_back(
-				Dict(ngramsize,prefixes[i],buffercount,&optimized_combinations[i],combinations[i],&null_word,buffer_bottom,strings_start)
+				Dict(ngramsize,prefixes[i],buffercount,&optimized_combinations[i],combinations[i],null_word,buffer_bottom,strings_start)
 				);
 	}
 
@@ -486,8 +516,6 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		current_word = (buffer_bottom + current_word->reduces_to) + 1;
 	}
 
-	this->decrement_numbuffers_in_use();
-	delete buffer_to_write;
 	//At this point do all merging
 	for(unsigned int i = 0; i< numcombos; i++)
 	{
@@ -499,19 +527,6 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	return;
 }
 
-void IndexCollection::makeNewBuffer(void)
-{
-	void* new_internal_buffer = malloc(buffer_size);
-	if(!new_internal_buffer)
-	{
-		cerr<<"Not enough memory, exiting"<<endl;
-		exit(-1);
-	}
-	current_buffer = new Buffer(new_internal_buffer, buffer_size,maximum_single_allocation,&null_word);
-	this->increment_numbuffers_in_use();
-	return;
-
-}
 
 IndexCollection::~IndexCollection()
 {
@@ -548,5 +563,71 @@ void IndexCollection::copyToFinalPlace(int k)
 		free(original_path);
 	}
 	return;
+}
+
+void IndexCollection::add_range_to_schedule(off_t start, off_t end)
+{
+	schedule_entry new_entry;
+	new_entry.start = start;
+	new_entry.end = end;
+
+	#pragma omp critical(buffer_scheduling)
+	{
+		#pragma omp flush
+		unread_ranges.push(new_entry);
+		#pragma omp flush
+	}
+}
+void IndexCollection::mark_the_fact_that_a_range_has_been_read_in(void)
+{
+	int was_last = 0;
+	int local_buffercount;
+	#pragma omp critical(buffer_scheduling)
+	{
+		#pragma omp flush
+		num_being_read--;
+		if(!num_being_read && unread_ranges.empty())
+		{
+			was_last = 1;
+			local_buffercount = buffercounter++;
+			
+		}
+		#pragma omp flush
+	}
+	if(was_last)
+	{
+		void* tmp_internal_buffer = malloc((MAX_WORD_SIZE + 1) + sizeof(word));
+		word null_word;
+		Buffer* empty = new Buffer(tmp_internal_buffer,MAX_WORD_SIZE + 1 + sizeof(word),(MAX_WORD_SIZE + 1) + sizeof(word),&null_word);
+		empty->set_top_pointer(0);
+		empty->set_bottom_pointer(0);
+		this->writeBufferToDisk(local_buffercount,1,empty,&null_word);
+		delete empty;
+		free(tmp_internal_buffer);
+	}
+}
+pair<schedule_entry,int> IndexCollection::get_next_schedule_entry()
+{
+	pair<schedule_entry,int> result;
+
+	#pragma omp critical(buffer_scheduling)
+	{
+		#pragma omp flush
+		if(!unread_ranges.empty())
+		{
+			schedule_entry top = unread_ranges.top();
+			unread_ranges.pop();
+			result.first = top;
+			result.first.buffercount = buffercounter++;
+			result.second = 1;
+			num_being_read++;
+		}else
+		{
+			result.second = 0;
+		}
+		#pragma omp flush
+	}
+
+	return result;
 }
 

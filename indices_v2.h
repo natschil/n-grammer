@@ -21,6 +21,7 @@ using namespace std;
 
 #include <iostream>
 #include <vector>
+#include <stack>
 #include <algorithm>
 
 #include "config.h"
@@ -44,9 +45,9 @@ class word
 
 
 	word* prev;
-	uint32_t contents;
-	uint32_t reduces_to;
-	uint32_t flags;
+	uint64_t contents;
+	uint64_t reduces_to;
+	uint8_t flags;
 	word* next;
 	word(){}; //required by std::sort
 	word(word&& old) //move constructor
@@ -116,6 +117,13 @@ class Buffer
 
 		void add_word(uint8_t* word_location,int &memmgnt_retval );
 		void add_null_word();
+
+		void advance_to(size_t nmeb);
+		void set_current_word_as_last_word();
+
+		void add_word_at_start(const uint8_t* word_location);
+		void add_null_word_at_start();
+
 		uint8_t* allocate_for_string(size_t numbytes, int &memmngnt_retval);
 		uint8_t* strings_start(void);
 		void rewind_string_allocation(size_t numbytes);
@@ -133,6 +141,7 @@ class Buffer
 		size_t strings_top;
 		size_t maximum_single_allocation;
 		word* last_word;
+		word* null_word;
 
 		//Points to the first word that should be counted.
 		size_t top_pointer;
@@ -141,29 +150,39 @@ class Buffer
 
 };
 
+struct schedule_entry
+{
+	off_t start;
+	off_t end;
+	unsigned int buffercount;
+};
 
 class IndexCollection
 {
 	public:
 		IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto);
 		~IndexCollection();
-		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write);
+		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write,word* null_word);
 		void writeMetadata(FILE* metadata_file);
 		void copyToFinalPlace(int k);
-		const word* get_null_word()
-		{
-			return &null_word;
-		}
+
+		void add_range_to_schedule(off_t start, off_t end);
+		void mark_the_fact_that_a_range_has_been_read_in(void);
+		pair<schedule_entry,int> get_next_schedule_entry();
+
 
 	private:
 		size_t ngramsize;
-		word null_word;
 
 		size_t numcombos;
 		vector<unsigned int* >combinations;
 		vector<optimized_combination> optimized_combinations;
 		vector<char*> prefixes;
+
 		uint8_t (*mergeschedulers)[MAX_K][MAX_BUFFERS]; //For merging 
+		stack<schedule_entry> unread_ranges;
+		int num_being_read;
+		int buffercounter;
 
 };
 
