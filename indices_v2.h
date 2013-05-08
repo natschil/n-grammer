@@ -113,7 +113,6 @@ class Buffer
 		Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word);
 		~Buffer();
 
-		void migrate_from(Buffer* prev,int is_last_buffer);
 
 		void add_word(uint8_t* word_location,int &memmgnt_retval );
 		void add_null_word();
@@ -146,67 +145,17 @@ class Buffer
 class IndexCollection
 {
 	public:
-		IndexCollection(unsigned int buffer_size,size_t maximum_single_allocation,unsigned int ngramsize,unsigned int wordsearch_index_upto);
+		IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto);
 		~IndexCollection();
-
 		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write);
-		void makeNewBuffer();
 		void writeMetadata(FILE* metadata_file);
 		void copyToFinalPlace(int k);
-
-		void increment_numbuffers_in_use()
-		{
-			#pragma omp atomic
-			numbuffers_in_use++;
-
-		}
-		void decrement_numbuffers_in_use()
-		{
-			#pragma omp atomic
-			numbuffers_in_use--;
-		}
-		int get_numbuffers_in_use()
-		{
-			#pragma omp flush
-			return numbuffers_in_use;
-		}
-
-		void add_word(uint8_t* word_location, int &memmgnt_retval)
-		{
-			return current_buffer->add_word(word_location,memmgnt_retval);
-		};
-
-		void add_null_word()
-		{
-			return current_buffer->add_null_word();
-		}
-
 		const word* get_null_word()
 		{
 			return &null_word;
 		}
 
-		uint8_t* allocate_for_string(size_t numbytes, int &memmngt_retval)
-		{
-			return current_buffer->allocate_for_string(numbytes,memmngt_retval);
-		};
-		void rewind_string_allocation(size_t numbytes)
-		{
-			return current_buffer->rewind_string_allocation(numbytes);
-		};
-		void set_top_pointer(size_t nmeb)
-		{
-			return current_buffer->set_top_pointer(nmeb);
-		};
-		void set_bottom_pointer(size_t nmeb)
-		{
-			return current_buffer->set_bottom_pointer(nmeb);
-		};
-
-		Buffer* current_buffer;
 	private:
-		size_t buffer_size;
-		size_t maximum_single_allocation;
 		size_t ngramsize;
 		word null_word;
 
@@ -215,8 +164,6 @@ class IndexCollection
 		vector<optimized_combination> optimized_combinations;
 		vector<char*> prefixes;
 		uint8_t (*mergeschedulers)[MAX_K][MAX_BUFFERS]; //For merging 
-
-		int numbuffers_in_use;
 
 };
 

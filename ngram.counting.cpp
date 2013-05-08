@@ -12,46 +12,20 @@ int max_ngram_string_length = 0;
 
 
 //Returns 0 if there is no next character.
- int get_next_ucs4t_from_file(FILE* f,ucs4_t *character)
+static int get_next_ucs4t_from_file( const char (**ptr),const char* eof,ucs4_t *character)
 {
-	static uint8_t buf[4];
-	static int numwords = 0;
-	for(; numwords<4;numwords++)
+	int read = u8_mbtouc(character,buf,eof - ptr);
+	while(endtpr > ptr &&  read <= 0)
 	{
-		int c = fgetc(f);
-		if(c == EOF)
-			break;
-		buf[numwords] = c;
+		(*ptr)++;
+		read = u8_mbtouc(character,buf,numwords,eof - ptr);
 	}
-	int read = u8_mbtouc(character, buf, numwords);
-	while(numwords && (read <= 0))
-	{
-		//We shift right;
-		for(int i = 1; i < numwords; i++)
-		{
-			buf[i -1] = buf[i];
-		}
-		int c = fgetc(f);
-		if(c == EOF)
-			numwords--;
-		else
-			buf[numwords - 1] = c;
 
-		read = u8_mbtouc(character,buf,numwords);
-	}
-	if(numwords)
-	{
-		for(int i = read; i < numwords; i++)
-		{
-			buf[i - read] = buf[i];
-		}	
-		numwords -= read;
-		return 1;
-	}else
-	{
+	if(ptr == endptr)
 		return 0;
-	}
 
+	(*ptr) += read;
+	return 1;
 }
 
 /*Sets s to be a pointer to a (uint8_t, NUL terminated) string of the next word from f.
@@ -75,14 +49,15 @@ int max_ngram_string_length = 0;
  */
 
 
-size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int &memmanagement_retval,IndexCollection &index_collection)
+size_t getnextword(const char (**f), const char *eof, uninorm_t norm,int &memmanagement_retval,Buffer* buf)
 {
 
+    uint8_t* s;
     size_t wordlength = 0; 
     uint8_t word[MAX_WORD_SIZE+1]; 
 
     ucs4_t character;
-    for(; get_next_ucs4t_from_file(f,&character);)
+    for(; get_next_ucs4t_from_file(f,eof,&character);)
     { 
 	if(uc_is_property_white_space(character))
 	{
@@ -135,19 +110,19 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int &memmanagement_retval,
     {
 	//At this point we have an unnormalized lowercase unicode string.
 	const size_t bytes_to_allocate = sizeof(*s) * (MAX_WORD_SIZE + 1);
-	s = index_collection.allocate_for_string(bytes_to_allocate,memmanagement_retval);
+	s = buf->allocate_for_string(bytes_to_allocate,memmanagement_retval);
 	size_t retval = bytes_to_allocate;
 
 	u8_normalize(norm,word, wordlength, s, &retval);
 
 	if((retval > MAX_WORD_SIZE)) //This is possible because we allow the normalizer to write up to MAX_WORD_SIZE + 1 characters
 	{
-		index_collection.rewind_string_allocation(bytes_to_allocate);
+		buf->rewind_string_allocation(bytes_to_allocate);
 		retval = MAX_WORD_SIZE + 1;
 	}
 
 	if((bytes_to_allocate- retval) > 0)
-		index_collection.rewind_string_allocation(bytes_to_allocate - retval - sizeof(*s)); //The last sizeof(*s) is for the NUL at the end of the string.
+		buf->rewind_string_allocation(bytes_to_allocate - retval - sizeof(*s)); //The last sizeof(*s) is for the NUL at the end of the string.
 
 	s[retval] = (uint8_t) '\0';
 
@@ -161,14 +136,13 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int &memmanagement_retval,
 
 
 //Fills a buffer with words and n-grams.
-int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, IndexCollection &indices)
+int fillABuffer(const char (**f),const char* eof, long long int &totalwords, uninorm_t norm, Buffer *buffer)
 {
 	int state = 1;
-	uint8_t* word;
 	while(state == 1)
 	{
 
-		size_t wordlength = getnextword(word,f,norm,state,indices);
+		size_t wordlength = getnextword(f,eof,norm,state,buffer);
 		
 		if(!wordlength) //We've reached the end of the file.
 		{
@@ -189,14 +163,13 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, IndexCollect
 			fprintf(stdout,"%lld\n",(long long int) totalwords/1000000);
 		}
 	}
-	indices.add_null_word();
+	indices->add_null_word();
 	return state;
 }
 
-long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const char* outdir,unsigned int wordsearch_index_depth)
+long long int count_ngrams(unsigned int ngramsize,FILE* infile ,const char* outdir,unsigned int wordsearch_index_depth)
 {
     //Initialization:
-    	FILE* infile = input_file ? fopen(input_file,"r") : stdin;
     	struct timeval start_time,end_time;
   	gettimeofday(&start_time,NULL);
 
@@ -211,49 +184,29 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 	chdir(outdir);
 
 	long long int totalwords = 0;
-
-	IndexCollection *final_indices = new IndexCollection(BUFFER_SIZE, (MAX_WORD_SIZE +1) + sizeof(word),ngramsize,wordsearch_index_depth);
+	IndexCollection *indexes = new IndexCollection(ngramsize,wordsearch_index_depth);
 
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details on normalization forms.
 	uninorm_t norm = UNINORM_NFKD; 
 
-    //Here we fill the buffers, write them to disk and merge them.
-	volatile int buffercount = -1;
+	fseek(infile,0,SEEK_END);
+	off_t filesize = ftell(infile);
 
-	#pragma omp parallel
+	char* num_available_threads_c = getenv("OMP_NUM_THREADS");
+	int num_available_threads = 1;
+	if(num_available_threads_c)
 	{
-	#pragma omp master
-	{
-		int state = 1;
-		//Because of the way buffers work, it should be noted that set_top_pointer
-		//refers to the number of words ignored at the *start* of the input.
-		final_indices->current_buffer->set_top_pointer(0);
-		while(state)
-		{
-			state = fillABuffer(infile,totalwords,norm,*final_indices);
-			buffercount++;
-			int numbuffers_in_use = final_indices->get_numbuffers_in_use();
-			Buffer* old_buffer = final_indices->current_buffer;
-
-	
-			if(!state || (numbuffers_in_use >= (MAX_CONCURRENT_BUFFERS - 1)))
-			{
-				final_indices->writeBufferToDisk(buffercount,state == -1 ? 0 : 1,old_buffer);
-			}else
-			{
-				#pragma omp task firstprivate(old_buffer, buffercount,state)
-				{
-					final_indices->writeBufferToDisk(buffercount,state == -1? 0:1,old_buffer);
-				}
-			}
-
-		}
-	}
+		num_avilable_threads = atoi(num_available_threads_c);
 	}
 
-	//We've done all our reading from the input file.
-	//We know that all merging is finished due to the implicit barrier at the end of the paralell section.
-	
+	size_t buffer_size = (MEMORY_TO_USE_FOR_BUFFERS/THEORETICAL_MAX_BUFFER_SIZE) > num_available_threads ? 
+
+
+	size_t num_concurrent_buffers = min(MEMORY_TO_USE_FOR_BUFFERS/THEORETICAL_MAX_BUFFER_SIZE,num_available_threads);
+
+   //Here we do various postprocessing operations, such as moving the files to their final positions, etc...
+   //We also cleanup everything and free memory etc...
+   
 	int k = get_final_k();
 	final_indices->copyToFinalPlace(k);
 

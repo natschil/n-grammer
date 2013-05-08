@@ -248,61 +248,6 @@ void Buffer::reserve_for_migration()
 	words_bottom_internal -= (2 * (ngramsize - 1)) * sizeof(word);
 }
 
-void Buffer::migrate_from(Buffer* old_buffer,int is_last_buffer)
-{
-
-	word* ptr = old_buffer->words_buffer_bottom() + 2*(ngramsize-1) - 1; 
-	if(ptr > old_buffer->words_buffer_top())
-	{
-		cerr<<"Please use larger buffers"<<endl;
-		exit(-1);
-	}
-
-	size_t words_bottom_internal_bak = words_bottom_internal;
-	size_t strings_top_bak = strings_top;
-	//There had better be some space reserved...
-	words_bottom_internal_bak = buffer_size;
-	strings_top_bak = 0;
-
-
-	for(;ptr >= old_buffer->words_buffer_bottom(); ptr--)
-	{
-		int tmp_retval = 1;
-		const uint8_t* current_string = (const uint8_t*) old->buffer->strings_start() + ptr->contents;
-		size_t current_string_length = strlen((const char*)current_string) + 1;
-		uint8_t* new_string = allocate_for_string(current_string_length,tmp_retval);
-
-		memcpy(new_string,current_string,current_string_length);
-
-		if(ptr->prev == final_indices->get_null_word())
-		{
-			final_indices->add_null_word();
-		}
-
-		final_indices->add_word(new_string,tmp_retval);
-
-		if(tmp_retval == -1)
-		{
-			cerr<<"Buffer sizes are too small,exiting..."<<endl;
-			exit(-1);
-		}
-	}
-	//we now do some joining at the edges...
-	//Note that ptr points to one further than the word we copied...
-	ptr->prev = ptr + 1;
-	(ptr + 1)->next = ptr;
-		
-
-	old_buffer->set_bottom_pointer(ngramsize - 1);
-	this->set_top_pointer(ngramsize - 1);
-
-	if(is_last_buffer)
-	{
-		this->set_bottom_pointer(0);
-	}
-	return;
-}
-
 void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
 {
 	word* new_word;
@@ -411,10 +356,8 @@ static unsigned long long int number_of_special_combinations(unsigned int number
 	return result;	
 }
 
-IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_allocation,unsigned int ngramsize,unsigned int wordsearch_index_upto)
+IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto)
 {
-	this->buffer_size = buffer_size;
-	this->maximum_single_allocation = maximum_single_allocation;
 	this->ngramsize = ngramsize;
 	this->numcombos = number_of_special_combinations(wordsearch_index_upto);
 	this->combinations.reserve(numcombos);
@@ -487,16 +430,6 @@ IndexCollection::IndexCollection(unsigned int buffer_size,size_t maximum_single_
 		fprintf(stderr,"There is an bug in index calculating\n");
 		exit(-1);
 	 }
-
-	 void* first_internal_buffer = malloc(buffer_size);
-
-	if(!first_internal_buffer)
-	{
-		cerr<<"Not enough memory"<<endl;
-		exit(-1);
-	}
-	current_buffer = new Buffer(first_internal_buffer,buffer_size,maximum_single_allocation,&null_word);
-	this->increment_numbuffers_in_use();
 }
 
 void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write)

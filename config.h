@@ -27,8 +27,8 @@
 	
 	#define THEORETICAL_MAX_BUFFER_SIZE 1<<32 + (1 << 32)/(MAX_WORD_SIZE +  1) * sizeof(word)
 
-	#ifndef BUFFER_SIZE
-		#define MAX_BUFFER_SIZE (100*1024*1024)
+	#ifndef MEMORY_TO_USE_FOR_BUFFERS
+		#define MEMORY_TO_USE_FOR_BUFFERS (100*1024*1024)
 	#endif
 	//Maximum number of Buffers that should concurrently exist at any one time. Set this to the number of threads on your system + 1;
 	#ifndef MAX_CONCURRENT_BUFFERS
