@@ -336,7 +336,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
 
 	//We actually need to store at least 2*ngramsize - 1 wordds.
-	if((MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers) < (2*(MAX_WORD_SIZE + 1 + sizeof(word))))
+	if((MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers) < (2*ngramsize*(MAX_WORD_SIZE + 1 + sizeof(word))))
 	{
 		fprintf(stderr, "Buffers are too small\n");
 		munmap(infile,filesize);

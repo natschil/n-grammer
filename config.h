@@ -26,7 +26,7 @@
 	
 
 	#ifndef MEMORY_TO_USE_FOR_BUFFERS
-		#define MEMORY_TO_USE_FOR_BUFFERS (1024)
+		#define MEMORY_TO_USE_FOR_BUFFERS (800*1024*1024)
 	#endif
 
 /*Options for Indices*/
