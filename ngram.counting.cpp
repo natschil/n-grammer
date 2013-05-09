@@ -184,12 +184,13 @@ int fillABuffer(const char* mmaped_file,const char (**f),const char* eof, long l
 		int counter = 0;
 		while(counter < (2*(n_gram_size - 1)))
 		{
+			adjustBoundaryToSpace(mmaped_file,tmp_offset,eof-mmaped_file, 1);
 			if(!tmp_offset)
 			{
 				fprintf(stderr,"The buffers being used are too small");
 				exit(-1);
 			}
-			adjustBoundaryToSpace(mmaped_file,tmp_offset,eof-mmaped_file, 1);
+
 	
 			const char* tmp_filePtr = mmaped_file + tmp_offset;
 	
