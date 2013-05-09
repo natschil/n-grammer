@@ -1,7 +1,7 @@
 #include "util.h"
 static int callback_function(const char* filepath,const struct stat *ignore_one, int ignore_two,struct FTW* ignore_three)
 {
-//	remove(filepath);
+	remove(filepath);
 	return 0;
 }
 

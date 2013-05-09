@@ -24,7 +24,8 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 {
 	if(n > MAX_BUFFERS)
 	{
-		fprintf(stderr, "Maximum number of buffers filled. Try adjusting MAX_BUFFERS in %s\n", __FILE__);
+		fprintf(stderr, "Maximum number of buffers filled. Try adjusting MAX_BUFFERS in config.h\n");
+		exit(-1);
 	}
 
 	int other_n;

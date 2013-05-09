@@ -5,7 +5,7 @@ if [[ ! -a $1 ]]; then echo "Usage:" $0 "corpus_to_analyze";exit;fi;
 for i in `seq 1 6`; do
 	rm -rf ./tests_output/`basename $1`.${i}.d
 	rm -rf ./tests_output/`basename $1`.${i}.d
-	retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --wordsearch-index-depth=${i} --numbuffers=10  >/dev/null)
+	retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --wordsearch-index-depth=${i} --numbuffers=5  >/dev/null)
 	if [ $retval ];
 	then
 		echo "Failed to run ngram-counter data";

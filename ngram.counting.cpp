@@ -47,19 +47,19 @@ static void adjustBoundaryToSpace(const char* mmaped_file, off_t &offset_to_adju
 		}else
 		{
 			offset_to_adjust--;
-			last_was_whitespace = 0;
 		}
 		if(!offset_to_adjust)
 			break;
 		read = u8_mbtouc(&character,(const uint8_t*)( mmaped_file + offset_to_adjust),file_size - offset_to_adjust);
 		if( (read > 0) && uc_is_property_white_space(character))
 		{
-			if(!last_was_whitespace)
+			if(num_spaces && !last_was_whitespace)
 			{
 				num_spaces--;
 			}
 			last_was_whitespace = 1;
-		}
+		}else
+			last_was_whitespace = 0;
 	}
 }
 
@@ -182,44 +182,52 @@ int fillABuffer(const char* mmaped_file,const char (**f),const char* eof, long l
 		buffer->advance_to(2*(n_gram_size - 1));
 	
 		int counter = 0;
+		int first = 1;
+		int first_was_null = 0;
 		while(counter < (2*(n_gram_size - 1)))
 		{
+			off_t prev_offset = tmp_offset;
 			adjustBoundaryToSpace(mmaped_file,tmp_offset,eof-mmaped_file, 1);
 			if(!tmp_offset)
 			{
-				fprintf(stderr,"The buffers being used are too small");
+				fprintf(stderr,"The buffers being used are too small\n");
 				exit(-1);
 			}
 
 	
 			const char* tmp_filePtr = mmaped_file + tmp_offset;
 	
-			size_t wordlength = getnextword(word,&tmp_filePtr, eof, norm,state, buffer);
+			size_t wordlength = getnextword(word,&tmp_filePtr, mmaped_file + prev_offset, norm,state, buffer);
 			if(state != 1)
 			{
 				fprintf(stderr,"This should never happen and indicates that somewhere there is  bug\n");
 				exit(-1);
 			}
 	
-			if(!wordlength)
+			if(!wordlength)//This means there was no word there, meaning we need to go back further to get to a word.
 			{
-				fprintf(stderr,"Unexpected file EOF, this is probably a bug somewhere\n");
-				exit(-1);
-
+				continue;
 			}else if(wordlength > MAX_WORD_SIZE)
 			{
+				if(first)
+					first_was_null = 1;
 				buffer->add_null_word_at_start();
 			}else
 			{
 				buffer->add_word_at_start(word);
 				counter++;
 			}
+			first = 0;
 		}
 	
 		buffer->add_null_word_at_start();
 		buffer->advance_to(2*(n_gram_size - 1));
 
-		buffer->set_current_word_as_last_word();
+		if(!first_was_null)
+			buffer->set_current_word_as_last_word();
+		else
+			buffer->add_null_word();
+
 		buffer->set_top_pointer(n_gram_size - 1);
 	}else
 	{
@@ -255,10 +263,10 @@ int fillABuffer(const char* mmaped_file,const char (**f),const char* eof, long l
 	}
 	buffer->add_null_word();
 
-	if(!is_rightmost_buffer)
-		buffer->set_bottom_pointer(n_gram_size - 1);
-	else
+	if(is_rightmost_buffer && (state == 0))
 		buffer->set_bottom_pointer(0);
+	else
+		buffer->set_bottom_pointer(n_gram_size-1);
 
 	return state;
 }
@@ -325,12 +333,21 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
 	vector<void*> internal_buffers;
 	internal_buffers.reserve(num_concurrent_buffers);
+
+
+	//We actually need to store at least 2*ngramsize - 1 wordds.
+	if((MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers) < (2*(MAX_WORD_SIZE + 1 + sizeof(word))))
+	{
+		fprintf(stderr, "Buffers are too small\n");
+		munmap(infile,filesize);
+		exit(-1);
+	}
 	for(size_t i = 0; i<num_concurrent_buffers;i++)
 	{
 		void* cur = malloc(MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers);
 		if(!cur)
 		{
-			fprintf(stderr,"Unable to allocate memory for buffers");
+			fprintf(stderr,"Unable to allocate memory for buffers\n");
 			munmap(infile,filesize);
 			exit(-1);
 		}
@@ -361,8 +378,8 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 			if(memmngt_retval == -1)
 			{
 				off_t new_start = (const char*)filePtr -(const char*) infile;
-				adjustBoundaryToSpace((const char*)infile,new_start,filesize,1);
-				indexes->add_range_to_schedule(new_start,end);
+				if(new_start != end)
+					indexes->add_range_to_schedule(new_start,end);
 			}
 			indexes->mark_the_fact_that_a_range_has_been_read_in();
 			indexes->writeBufferToDisk(local_buffercount,0,new_buffer,&local_null_word);
