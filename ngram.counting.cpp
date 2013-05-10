@@ -200,7 +200,7 @@ int fillABuffer(const char* mmaped_file,const char (**f),const char* eof, long l
 			size_t wordlength = getnextword(word,&tmp_filePtr, mmaped_file + prev_offset, norm,state, buffer);
 			if(state != 1)
 			{
-				fprintf(stderr,"This should never happen and indicates that somewhere there is  bug\n");
+				fprintf(stderr,"This should never happen and indicates that somewhere there is  bug (Or that you are using corpora with very long words at the start and very small buffers)\n");
 				exit(-1);
 			}
 	
