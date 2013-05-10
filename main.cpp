@@ -19,7 +19,7 @@ void print_usage(char* argv[])
 int main (int argc, char* argv[])
 {
 
-  if((argc < 3) || (argc > 6))
+  if((argc < 3) || (argc > 7))
   {
 	  print_usage(argv);
           exit(1);
