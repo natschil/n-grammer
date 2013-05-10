@@ -11,6 +11,7 @@ void print_usage(char* argv[])
     cerr<<"\tWhere N is the size of the ngrams you want to count.\n";
     cerr<<"\tAnd options is one or many of:\n";
     cerr<<"\t\t--wordsearch-index-depth=k	(Split the word into k groups and build an index for each combination of these groups)\n";
+    cerr<<"\t\t--cache-entire-file	(Whether or not to tell the kernel to load the whole file into memory)\n";
     cerr<<endl;
 }
 
@@ -66,6 +67,8 @@ int main (int argc, char* argv[])
  numbuffers = 1;
 #endif
 
+  bool cache_entire_file = false;
+
   if(argc > options_start)
   {
 	for(int i = options_start; i<argc;i++)
@@ -96,6 +99,9 @@ int main (int argc, char* argv[])
 				exit(1);
 			}
 
+		}else if(!strncmp(argv[i],"--cache-entire-file",strlen("--cache-entire-file")))
+		{
+			cache_entire_file = true;
 		}else {
 			cerr<<"\nInvalid option"<<argv[i]<<"\n\n";
 			print_usage(argv);
@@ -105,6 +111,6 @@ int main (int argc, char* argv[])
   }
 
   
-  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers);
+  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers,cache_entire_file);
   return 0; 
 }

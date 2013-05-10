@@ -70,8 +70,12 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 	}
 	if(run_next_merge)
 	{
-		#pragma omp task firstprivate(n,k,rightmost_run,run_next_merge,scheduling_table,prefix) default(none)
+		fprintf(stdout,"|");
+		fflush(stdout);
+		//#pragma omp task firstprivate(n,k,rightmost_run,run_next_merge,scheduling_table,prefix) default(none)
 		merge_next(k,n,rightmost_run || (run_next_merge == 2),scheduling_table,prefix);
+		fprintf(stdout,"|");
+		fflush(stdout);
 	}
 }
 
@@ -97,7 +101,7 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 		exit(-1);
 	}
 	mkdir(dirbuf,S_IRUSR | S_IWUSR | S_IXUSR);
-	fprintf(stdout, "Merging %d_%d with %d_%d to give %d_%d\n",k,n,k,other_n,final_k,final_n);
+	//fprintf(stdout, "Merging %d_%d with %d_%d to give %d_%d\n",k,n,k,other_n,final_k,final_n);
 
 	#pragma omp flush //TODO: Research whether doing a flush here is neccessary, it probably isn't.
 	int i;

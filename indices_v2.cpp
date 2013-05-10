@@ -464,6 +464,8 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 
 void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write,word* null_word)
 {
+	fprintf(stdout,"(");
+	fflush(stdout);
 	word* buffer_bottom = buffer_to_write->words_buffer_bottom();
 	word* buffer_top = buffer_to_write->words_buffer_top();
 	uint8_t* strings_start = buffer_to_write->strings_start();
@@ -516,6 +518,8 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		current_word = (buffer_bottom + current_word->reduces_to) + 1;
 	}
 
+	fprintf(stdout,")");
+	fflush(stdout);
 	//At this point do all merging
 	for(unsigned int i = 0; i< numcombos; i++)
 	{

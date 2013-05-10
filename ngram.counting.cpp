@@ -254,7 +254,8 @@ int fillABuffer(const char* mmaped_file,const char (**f),const char* eof, long l
 
 			if((totalwords % 1000000 == 0))
 			{
-				fprintf(stdout,"%lld\n",(long long int) totalwords/1000000);
+				fprintf(stdout,".");
+				fflush(stdout);
 			}
 
 		}
@@ -273,7 +274,7 @@ int fillABuffer(const char* mmaped_file,const char (**f),const char* eof, long l
 
 
 
-long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers)
+long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file)
 {
     //Initialization:
 	setlocale(LC_CTYPE,"");
@@ -312,6 +313,14 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 		close(fd);
 		fprintf(stderr,"Unable to mmap file %s\n",infile_name);
 		exit(-1);
+	}
+	if(cache_entire_file)
+	{
+		if(madvise(infile,filesize,MADV_WILLNEED))
+		{
+			fprintf(stderr, "Unable to madvise with MADV_WILLNEED for file\n");
+			exit(-1);
+		}
 	}
 
 	vector<off_t> boundaries;
@@ -367,6 +376,18 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
 			off_t start = current_schedule_entry.first.start;
 			off_t end = current_schedule_entry.first.end;
+
+			off_t page_start = (start/sysconf(_SC_PAGESIZE)) * sysconf(_SC_PAGESIZE);
+			if(!cache_entire_file)
+			{
+				if(madvise(infile + page_start, end - page_start, MADV_SEQUENTIAL))
+				{
+					fprintf(stderr, "madvise failed\n");
+					exit(-1);
+				}
+			}
+
+
 			unsigned int local_buffercount = current_schedule_entry.first.buffercount;
 
 			word local_null_word;
@@ -393,6 +414,9 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
    //Here we do various postprocessing operations, such as moving the files to their final positions, etc...
    //We also cleanup everything and free memory
+   
+	fprintf(stdout,"\n");
+	fflush(stdout);
    
 	int k = get_final_k();
 	indexes->copyToFinalPlace(k);
