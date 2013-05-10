@@ -10,8 +10,9 @@ void print_usage(char* argv[])
     cerr << "Usage: " << argv[0] << " N input [outputdir = ./processing] [options]\n";
     cerr<<"\tWhere N is the size of the ngrams you want to count.\n";
     cerr<<"\tAnd options is one or many of:\n";
-    cerr<<"\t\t--wordsearch-index-depth=k	(Split the word into k groups and build an index for each combination of these groups)\n";
-    cerr<<"\t\t--cache-entire-file	(Whether or not to tell the kernel to load the whole file into memory)\n";
+    cerr<<"\t\t--wordsearch-index-depth=k\t(Split the word into k groups and build an index for each combination of these groups)\n";
+    cerr<<"\t\t--cache-entire-file\t\t(Whether or not to tell the kernel to load the whole file into memory)\n";
+    cerr<<"\t\t--numbuffers=b\t\t\t(Use b buffers internally, and with that at maximum b threads)\n";
     cerr<<endl;
 }
 
