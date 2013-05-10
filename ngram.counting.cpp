@@ -12,46 +12,55 @@ int max_ngram_string_length = 0;
 
 
 //Returns 0 if there is no next character.
- int get_next_ucs4t_from_file(FILE* f,ucs4_t *character)
+static int get_next_ucs4t_from_file( const char (**ptr),const char* eof,ucs4_t *character)
 {
-	static uint8_t buf[4];
-	static int numwords = 0;
-	for(; numwords<4;numwords++)
+	int read = u8_mbtouc(character,(const uint8_t*)*ptr,eof - *ptr);
+	while(eof > *ptr &&  read <= 0)
 	{
-		int c = fgetc(f);
-		if(c == EOF)
-			break;
-		buf[numwords] = c;
+		(*ptr)++;
+		read = u8_mbtouc(character,(const uint8_t*) *ptr,eof - *ptr);
 	}
-	int read = u8_mbtouc(character, buf, numwords);
-	while(numwords && (read <= 0))
-	{
-		//We shift right;
-		for(int i = 1; i < numwords; i++)
-		{
-			buf[i -1] = buf[i];
-		}
-		int c = fgetc(f);
-		if(c == EOF)
-			numwords--;
-		else
-			buf[numwords - 1] = c;
 
-		read = u8_mbtouc(character,buf,numwords);
-	}
-	if(numwords)
-	{
-		for(int i = read; i < numwords; i++)
-		{
-			buf[i - read] = buf[i];
-		}	
-		numwords -= read;
-		return 1;
-	}else
-	{
+	if(*ptr == eof)
 		return 0;
-	}
 
+	(*ptr) += read;
+	return 1;
+}
+
+/*
+ *This function looks at the region of UTF-8 memory pointed to by mmaped_file + offset_to_adjust
+ *And sets offset_to_adjust backward by num_spaces regions of Unicode whitespace, or to 0, whichever comes first,
+ * so that mmaped_file + offset_to_adjust points to the start of a region of whitespace, or to the start of the file.
+ */
+static void adjustBoundaryToSpace(const char* mmaped_file, off_t &offset_to_adjust,off_t file_size,int num_spaces)
+{
+	ucs4_t character;
+	int read;
+	int last_was_whitespace = 0;
+	while(1)
+	{
+		if(!num_spaces && !last_was_whitespace)
+		{
+			offset_to_adjust++;
+			break;
+		}else
+		{
+			offset_to_adjust--;
+		}
+		if(!offset_to_adjust)
+			break;
+		read = u8_mbtouc(&character,(const uint8_t*)( mmaped_file + offset_to_adjust),file_size - offset_to_adjust);
+		if( (read > 0) && uc_is_property_white_space(character))
+		{
+			if(num_spaces && !last_was_whitespace)
+			{
+				num_spaces--;
+			}
+			last_was_whitespace = 1;
+		}else
+			last_was_whitespace = 0;
+	}
 }
 
 /*Sets s to be a pointer to a (uint8_t, NUL terminated) string of the next word from f.
@@ -75,14 +84,14 @@ int max_ngram_string_length = 0;
  */
 
 
-size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int &memmanagement_retval,IndexCollection &index_collection)
+size_t getnextword(uint8_t * &s,const char (**f),const char *eof, uninorm_t norm,int &memmanagement_retval,Buffer* buf)
 {
 
     size_t wordlength = 0; 
     uint8_t word[MAX_WORD_SIZE+1]; 
 
     ucs4_t character;
-    for(; get_next_ucs4t_from_file(f,&character);)
+    for(; get_next_ucs4t_from_file(f,eof,&character);)
     { 
 	if(uc_is_property_white_space(character))
 	{
@@ -135,19 +144,19 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int &memmanagement_retval,
     {
 	//At this point we have an unnormalized lowercase unicode string.
 	const size_t bytes_to_allocate = sizeof(*s) * (MAX_WORD_SIZE + 1);
-	s = index_collection.allocate_for_string(bytes_to_allocate,memmanagement_retval);
+	s = buf->allocate_for_string(bytes_to_allocate,memmanagement_retval);
 	size_t retval = bytes_to_allocate;
 
 	u8_normalize(norm,word, wordlength, s, &retval);
 
 	if((retval > MAX_WORD_SIZE)) //This is possible because we allow the normalizer to write up to MAX_WORD_SIZE + 1 characters
 	{
-		index_collection.rewind_string_allocation(bytes_to_allocate);
+		buf->rewind_string_allocation(bytes_to_allocate);
 		retval = MAX_WORD_SIZE + 1;
 	}
 
 	if((bytes_to_allocate- retval) > 0)
-		index_collection.rewind_string_allocation(bytes_to_allocate - retval - sizeof(*s)); //The last sizeof(*s) is for the NUL at the end of the string.
+		buf->rewind_string_allocation(bytes_to_allocate - retval - sizeof(*s)); //The last sizeof(*s) is for the NUL at the end of the string.
 
 	s[retval] = (uint8_t) '\0';
 
@@ -160,15 +169,76 @@ size_t getnextword(uint8_t* &s,FILE* f,uninorm_t norm,int &memmanagement_retval,
 
 
 
-//Fills a buffer with words and n-grams.
-int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, IndexCollection &indices)
+//Fills a buffer with words
+int fillABuffer(const char* mmaped_file,const char (**f),const char* eof, long long int &totalwords, uninorm_t norm, Buffer *buffer,int is_rightmost_buffer)
 {
 	int state = 1;
 	uint8_t* word;
+
+	if((n_gram_size > 1) && (*f != mmaped_file))
+	{
+		//We read in what we need from the previous part of the file.
+		off_t tmp_offset = *f - mmaped_file;
+		buffer->advance_to(2*(n_gram_size - 1));
+	
+		int counter = 0;
+		int first = 1;
+		int first_was_null = 0;
+		while(counter < (2*(n_gram_size - 1)))
+		{
+			off_t prev_offset = tmp_offset;
+			adjustBoundaryToSpace(mmaped_file,tmp_offset,eof-mmaped_file, 1);
+			if(!tmp_offset)
+			{
+				fprintf(stderr,"The buffers being used are too small\n");
+				exit(-1);
+			}
+
+	
+			const char* tmp_filePtr = mmaped_file + tmp_offset;
+	
+			size_t wordlength = getnextword(word,&tmp_filePtr, mmaped_file + prev_offset, norm,state, buffer);
+			if(state != 1)
+			{
+				fprintf(stderr,"This should never happen and indicates that somewhere there is  bug (Or that you are using corpora with very long words at the start and very small buffers)\n");
+				exit(-1);
+			}
+	
+			if(!wordlength)//This means there was no word there, meaning we need to go back further to get to a word.
+			{
+				continue;
+			}else if(wordlength > MAX_WORD_SIZE)
+			{
+				if(first)
+					first_was_null = 1;
+				buffer->add_null_word_at_start();
+			}else
+			{
+				buffer->add_word_at_start(word);
+				counter++;
+			}
+			first = 0;
+		}
+	
+		buffer->add_null_word_at_start();
+		buffer->advance_to(2*(n_gram_size - 1));
+
+		if(!first_was_null)
+			buffer->set_current_word_as_last_word();
+		else
+			buffer->add_null_word();
+
+		buffer->set_top_pointer(n_gram_size - 1);
+	}else
+	{
+		buffer->add_null_word();
+		buffer->set_top_pointer(0);
+	}
+
+
 	while(state == 1)
 	{
-
-		size_t wordlength = getnextword(word,f,norm,state,indices);
+		size_t wordlength = getnextword(word,f,eof,norm,state,buffer);
 		
 		if(!wordlength) //We've reached the end of the file.
 		{
@@ -176,27 +246,47 @@ int fillABuffer(FILE* f, long long int &totalwords, uninorm_t norm, IndexCollect
 			break;
 		}else if(wordlength > MAX_WORD_SIZE) //The word should not be counted as a word.
 		{
-			indices.add_null_word();
+			buffer->add_null_word();
 		}else
 		{
-			indices.add_word(word,state);
+			buffer->add_word(word,state);
+			totalwords++;
+
+			if((totalwords % 1000000 == 0))
+			{
+				fprintf(stdout,".");
+				fflush(stdout);
+			}
+
 		}
 
-		totalwords++;//TODO: Figure out what exactly should be counted as a word...
 
-		if((totalwords % 1000000 == 0))
-		{
-			fprintf(stdout,"%lld\n",(long long int) totalwords/1000000);
-		}
 	}
-	indices.add_null_word();
+	buffer->add_null_word();
+
+	if(is_rightmost_buffer && (state == 0))
+		buffer->set_bottom_pointer(0);
+	else
+		buffer->set_bottom_pointer(n_gram_size-1);
+
 	return state;
 }
 
-long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const char* outdir,unsigned int wordsearch_index_depth)
+
+
+long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file)
 {
     //Initialization:
-    	FILE* infile = input_file ? fopen(input_file,"r") : stdin;
+	setlocale(LC_CTYPE,"");
+    	struct stat st;
+	if(stat(infile_name, &st))
+	{
+		fprintf(stdout,"Failed to stat %s\n", infile_name);
+		exit(-1);
+	}
+	off_t filesize = st.st_size;
+	int fd = open(infile_name,O_RDONLY);
+
     	struct timeval start_time,end_time;
   	gettimeofday(&start_time,NULL);
 
@@ -205,109 +295,142 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 	#pragma omp flush(n_gram_size,max_ngram_string_length) //This is probably uneccessary
 
 	init_merger(max_ngram_string_length);
-	setlocale(LC_CTYPE,"");
 
 	mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
 	chdir(outdir);
 
 	long long int totalwords = 0;
-
-	IndexCollection *final_indices = new IndexCollection(BUFFER_SIZE, (MAX_WORD_SIZE +1) + sizeof(word),ngramsize,wordsearch_index_depth);
+	IndexCollection *indexes = new IndexCollection(ngramsize,wordsearch_index_depth);
 
 	//We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details on normalization forms.
 	uninorm_t norm = UNINORM_NFKD; 
 
-    //Here we fill the buffers, write them to disk and merge them.
-	volatile int buffercount = -1;
 
-	#pragma omp parallel
+	//We now mmap the file...
+	void* infile = mmap(NULL,filesize,PROT_READ, MAP_PRIVATE,fd,0);
+	if(infile == (void*) -1)
 	{
-	#pragma omp master
+		close(fd);
+		fprintf(stderr,"Unable to mmap file %s\n",infile_name);
+		exit(-1);
+	}
+	if(cache_entire_file)
 	{
-		int state = 1;
-		//Because of the way buffers work, it should be noted that set_top_pointer
-		//refers to the number of words ignored at the *start* of the input.
-		final_indices->current_buffer->set_top_pointer(0);
-		while(state)
+		if(madvise(infile,filesize,MADV_WILLNEED))
 		{
-			state = fillABuffer(infile,totalwords,norm,*final_indices);
-			buffercount++;
-			int numbuffers_in_use = final_indices->get_numbuffers_in_use();
-			Buffer* old_buffer = final_indices->current_buffer;
-
-			if(state)//I.e this run is not the last one
-			{
-				final_indices->makeNewBuffer();
-				word* ptr = old_buffer->words_buffer_bottom() + 2*(ngramsize-1) - 1; 
-				if(ptr > old_buffer->words_buffer_top())
-				{
-					cerr<<"Please use larger buffers"<<endl;
-					exit(-1);
-				}
-				final_indices->add_null_word();
-				for(;ptr >= old_buffer->words_buffer_bottom(); ptr--)
-				{
-					int tmp_retval = 1;
-					uint8_t* new_string = final_indices->allocate_for_string(strlen((const char*)old_buffer->strings_start() + ptr->contents) + 1,tmp_retval);
-					memcpy(new_string,((const char*) old_buffer->strings_start() + ptr->contents), (strlen((const char*)old_buffer->strings_start() + ptr->contents) + 1) * sizeof(*new_string));
-
-					if(ptr->prev == final_indices->get_null_word())
-					{
-						final_indices->add_null_word();
-					}
-
-					final_indices->add_word(new_string,tmp_retval);
-
-					if(tmp_retval == -1)
-					{
-						cerr<<"Buffer sizes are too small,exiting..."<<endl;
-						exit(-1);
-					}
-				}
-
-				//Because of the way buffers work, it should be noted that set_top_pointer
-				//refers to the number of words ignored at the *start* of the input and vice versa...
-				old_buffer->set_bottom_pointer(ngramsize - 1);
-				final_indices->current_buffer->set_top_pointer(ngramsize - 1);
-			}else
-			{
-
-				//Because of the way buffers work, it should be noted that set_top_pointer
-				//refers to the number of words ignored at the *start* of the input and vice versa...
-				old_buffer->set_bottom_pointer(0);
-			}
-	
-			if(!state || (numbuffers_in_use >= (MAX_CONCURRENT_BUFFERS - 1)))
-			{
-				final_indices->writeBufferToDisk(buffercount,state == -1 ? 0 : 1,old_buffer);
-			}else
-			{
-				#pragma omp task firstprivate(old_buffer, buffercount,state)
-				{
-					final_indices->writeBufferToDisk(buffercount,state == -1? 0:1,old_buffer);
-				}
-			}
-
+			fprintf(stderr, "Unable to madvise with MADV_WILLNEED for file\n");
+			exit(-1);
 		}
 	}
+
+	vector<off_t> boundaries;
+	boundaries.reserve(num_concurrent_buffers + 1);
+	for(unsigned int i = 0; i<= num_concurrent_buffers; i++)
+	{
+		boundaries.push_back((filesize * i)/num_concurrent_buffers);
 	}
 
-	//We've done all our reading from the input file.
-	//We know that all merging is finished due to the implicit barrier at the end of the paralell section.
-	
+	for(unsigned int i = 1; i < num_concurrent_buffers; i++)
+	{
+		adjustBoundaryToSpace((const char*)infile,boundaries[i],filesize,1);
+	}
+
+	for(size_t i = 1; i <= num_concurrent_buffers; i++)
+	{
+		indexes->add_range_to_schedule(boundaries[i-1],boundaries[i]);
+	}
+
+	vector<void*> internal_buffers;
+	internal_buffers.reserve(num_concurrent_buffers);
+
+
+	//We actually need to store at least 2*ngramsize - 1 wordds.
+	if((MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers) < (2*ngramsize*(MAX_WORD_SIZE + 1 + sizeof(word))))
+	{
+		fprintf(stderr, "Buffers are too small\n");
+		munmap(infile,filesize);
+		exit(-1);
+	}
+	for(size_t i = 0; i<num_concurrent_buffers;i++)
+	{
+		void* cur = malloc(MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers);
+		if(!cur)
+		{
+			fprintf(stderr,"Unable to allocate memory for buffers\n");
+			munmap(infile,filesize);
+			exit(-1);
+		}
+		internal_buffers.push_back(cur);
+	}
+
+	#pragma omp parallel for
+	for(size_t i = 0; i < num_concurrent_buffers; i++)
+	{
+		void* this_internal_buffer = internal_buffers[i];
+		long long int local_totalwords = 0;
+		while(1)
+		{
+			pair<schedule_entry, int> current_schedule_entry = indexes->get_next_schedule_entry();
+			if(!current_schedule_entry.second)
+				break;
+
+			off_t start = current_schedule_entry.first.start;
+			off_t end = current_schedule_entry.first.end;
+
+			off_t page_start = (start/sysconf(_SC_PAGESIZE)) * sysconf(_SC_PAGESIZE);
+			if(!cache_entire_file)
+			{
+				if(madvise(infile + page_start, end - page_start, MADV_SEQUENTIAL))
+				{
+					fprintf(stderr, "madvise failed\n");
+					exit(-1);
+				}
+			}
+
+
+			unsigned int local_buffercount = current_schedule_entry.first.buffercount;
+
+			word local_null_word;
+
+			Buffer* new_buffer = new Buffer(this_internal_buffer,MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers,(MAX_WORD_SIZE + 1) + sizeof(word),&local_null_word);
+			int memmngt_retval = 1;
+			const char* filePtr = (const char*)( infile + start) ;
+			memmngt_retval = fillABuffer((const char*) infile,&filePtr,(const char*) (infile + end),local_totalwords,norm,new_buffer, end == filesize? 1:0 );
+			if(memmngt_retval == -1)
+			{
+				off_t new_start = (const char*)filePtr -(const char*) infile;
+				if(new_start != end)
+					indexes->add_range_to_schedule(new_start,end);
+			}
+			indexes->mark_the_fact_that_a_range_has_been_read_in();
+			indexes->writeBufferToDisk(local_buffercount,0,new_buffer,&local_null_word);
+			delete new_buffer;
+		}
+		#pragma omp atomic
+		totalwords += local_totalwords;
+
+		free(this_internal_buffer);
+	}
+
+   //Here we do various postprocessing operations, such as moving the files to their final positions, etc...
+   //We also cleanup everything and free memory
+   
+	fprintf(stdout,"\n");
+	fflush(stdout);
+   
 	int k = get_final_k();
-	final_indices->copyToFinalPlace(k);
+	indexes->copyToFinalPlace(k);
 
 	char* output_location = (char*) malloc(strlen("ngrams_")+  4 + strlen(".metadata")+ 1); //MARKER5
 	sprintf(output_location,"%u_grams.metadata",ngramsize);
 	remove(output_location);
 
 	FILE* metadata_file = fopen(output_location,"w");
-	fprintf(metadata_file,"Filename:\t%s\n",input_file);
+	fprintf(metadata_file,"Filename:\t%s\n",infile_name);
 	fprintf(metadata_file,"Numwords:\t%lld\n",totalwords);
   	gettimeofday(&end_time,NULL);
 	fprintf(metadata_file,"Time:\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
-	final_indices->writeMetadata(metadata_file);
+	indexes->writeMetadata(metadata_file);
 	fclose(metadata_file);
 	metadata_file = fopen(output_location,"r");
 	free(output_location);
@@ -317,6 +440,9 @@ long long int count_ngrams(unsigned int ngramsize,const char* input_file ,const 
 		fputc(c,stdout);
 	};
 
-	delete final_indices;
+   //Cleanup:
+	delete indexes;
+	munmap(infile,filesize);
+
 	return totalwords;
 }

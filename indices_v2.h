@@ -21,6 +21,7 @@ using namespace std;
 
 #include <iostream>
 #include <vector>
+#include <stack>
 #include <algorithm>
 
 #include "config.h"
@@ -44,9 +45,9 @@ class word
 
 
 	word* prev;
-	uint32_t contents;
-	uint32_t reduces_to;
-	uint32_t flags;
+	uint64_t contents;
+	uint64_t reduces_to;
+	uint8_t flags;
 	word* next;
 	word(){}; //required by std::sort
 	word(word&& old) //move constructor
@@ -112,8 +113,17 @@ class Buffer
 	public:
 		Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word);
 		~Buffer();
+
+
 		void add_word(uint8_t* word_location,int &memmgnt_retval );
-		void add_null_word(word* null_word);
+		void add_null_word();
+
+		void advance_to(size_t nmeb);
+		void set_current_word_as_last_word();
+
+		void add_word_at_start(const uint8_t* word_location);
+		void add_null_word_at_start();
+
 		uint8_t* allocate_for_string(size_t numbytes, int &memmngnt_retval);
 		uint8_t* strings_start(void);
 		void rewind_string_allocation(size_t numbytes);
@@ -131,6 +141,7 @@ class Buffer
 		size_t strings_top;
 		size_t maximum_single_allocation;
 		word* last_word;
+		word* null_word;
 
 		//Points to the first word that should be counted.
 		size_t top_pointer;
@@ -139,81 +150,39 @@ class Buffer
 
 };
 
+struct schedule_entry
+{
+	off_t start;
+	off_t end;
+	unsigned int buffercount;
+};
 
 class IndexCollection
 {
 	public:
-		IndexCollection(unsigned int buffer_size,size_t maximum_single_allocation,unsigned int ngramsize,unsigned int wordsearch_index_upto);
+		IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto);
 		~IndexCollection();
-
-		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write);
-		void makeNewBuffer();
+		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write,word* null_word);
 		void writeMetadata(FILE* metadata_file);
 		void copyToFinalPlace(int k);
 
-		void increment_numbuffers_in_use()
-		{
-			#pragma omp atomic
-			numbuffers_in_use++;
+		void add_range_to_schedule(off_t start, off_t end);
+		void mark_the_fact_that_a_range_has_been_read_in(void);
+		pair<schedule_entry,int> get_next_schedule_entry();
 
-		}
-		void decrement_numbuffers_in_use()
-		{
-			#pragma omp atomic
-			numbuffers_in_use--;
-		}
-		int get_numbuffers_in_use()
-		{
-			#pragma omp flush
-			return numbuffers_in_use;
-		}
 
-		void add_word(uint8_t* word_location, int &memmgnt_retval)
-		{
-			return current_buffer->add_word(word_location,memmgnt_retval);
-		};
-
-		void add_null_word()
-		{
-			return current_buffer->add_null_word(&null_word);
-		}
-
-		const word* get_null_word()
-		{
-			return &null_word;
-		}
-
-		uint8_t* allocate_for_string(size_t numbytes, int &memmngt_retval)
-		{
-			return current_buffer->allocate_for_string(numbytes,memmngt_retval);
-		};
-		void rewind_string_allocation(size_t numbytes)
-		{
-			return current_buffer->rewind_string_allocation(numbytes);
-		};
-		void set_top_pointer(size_t nmeb)
-		{
-			return current_buffer->set_top_pointer(nmeb);
-		};
-		void set_bottom_pointer(size_t nmeb)
-		{
-			return current_buffer->set_bottom_pointer(nmeb);
-		};
-
-		Buffer* current_buffer;
 	private:
-		size_t buffer_size;
-		size_t maximum_single_allocation;
 		size_t ngramsize;
-		word null_word;
 
 		size_t numcombos;
 		vector<unsigned int* >combinations;
 		vector<optimized_combination> optimized_combinations;
 		vector<char*> prefixes;
-		uint8_t (*mergeschedulers)[MAX_K][MAX_BUFFERS]; //For merging 
 
-		int numbuffers_in_use;
+		uint8_t (*mergeschedulers)[MAX_K][MAX_BUFFERS]; //For merging 
+		stack<schedule_entry> unread_ranges;
+		int num_being_read;
+		int buffercounter;
 
 };
 

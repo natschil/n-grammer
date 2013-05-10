@@ -2,11 +2,9 @@
 #define NGRAM_COUNTER_H
 // Count word n-grams in a corpus.
 //
-#include <deque>
 
 #include <stdio.h>
 #include <locale.h>
-#include <wchar.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -22,15 +20,12 @@
 #include <unictype.h>
 #include <unistdio.h>
 #include <unicase.h>
-#include <ftw.h>
 
 //We include our configuration options
 #include "config.h"
 
-
-
 #include "mergefiles.h"
 #include "indices_v2.h"
 
-long long int count_ngrams(unsigned int ngramsize,const char* infile,const char* outdir,unsigned int wordsearch_index_depth);
+long long int count_ngrams(unsigned int ngramsize,const char* infile_name,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file);
 #endif
