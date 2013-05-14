@@ -13,6 +13,7 @@ Metadata::Metadata(string &filename,string &foldername)
 
 	folder_name = foldername;
 	metadata_filename = foldername + "/" + filename;
+	wordlength_index_exists = 0;
 
 	ifstream metadata_file(metadata_filename.c_str(),ios::in);
 	if(!metadata_file)
@@ -78,7 +79,17 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 			metadata_file >> max_frequency;
 		}else if(nextline == "Filename")
 		{
-			metadata_file >> file_name;
+			getline(metadata_file,file_name);
+			metadata_file.unget();
+		}else if(nextline == "WorlengthIndexExists")
+		{
+			string wordlength_index;
+			getline(metadata_file,wordlength_index);
+			if(wordlength_index == "yes")
+			{
+				wordlength_index_exists = true;
+			}
+			metadata_file.unget();
 		}
 
 		metadata_file.get();//To get rid of newline character.
@@ -93,6 +104,8 @@ void Metadata::write(void)
 	outfile<<"Numwords:\t"<<num_words<<"\n";
 	outfile<<"Time:\t"<<time_taken<<"\n";
 	outfile<<"MaxFrequency:\t"<<max_frequency<<"\n";
+	if(wordlength_index_exists)
+		outfile<<"WordlengthIndexExists:\tyes\n";
 	outfile<<"Indexes:"<<"\n";
 	for( set<vector<unsigned int> >::iterator i = indices.begin(); i != indices.end(); i++)
 	{

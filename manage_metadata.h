@@ -24,6 +24,8 @@ class Metadata
 
 		set<vector<unsigned int> > indices;
 		set<vector<unsigned int> > inverted_indices;
+		bool wordlength_index_exists;
+
 		unsigned long long num_words;
 		unsigned int time_taken;
 		unsigned int max_frequency;

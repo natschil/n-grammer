@@ -8,6 +8,63 @@ static inline unsigned int integer_pow_10(unsigned int num)
 	return result;
 }
 
+static void get_max_frequency(Metadata &relevant_metadata, string &foldername)
+{
+	long long int max_freq = 0;
+	char* filename_buf =(char*) malloc(1024);
+	size_t filename_buf_size = 1024;
+
+	string filename = foldername + string("/0.out");
+	FILE* index_file = fopen(filename.c_str(),"r");
+	if(!index_file)
+	{
+		cerr<<"Could not open file "<<filename<<endl;
+		exit(-1);
+	}
+	ssize_t read;
+	while((read = getline(&filename_buf, &filename_buf_size,index_file)) > 0)
+	{
+		//Set ptr to point to the newline after the number.
+		const char* ptr = filename_buf + read - 1;
+		long long number = 0;
+		int current_power = 0;
+		while(--ptr >= filename_buf)
+		{
+			switch(*ptr)
+			{
+			case '0':;
+			break;
+			case '1':number += 1*integer_pow_10(current_power);
+			break;
+			case '2': number += 2*integer_pow_10(current_power);
+			break;
+			case '3':number += 3*integer_pow_10(current_power);
+			break;
+			case '4':number += 4*integer_pow_10(current_power);
+			break;
+			case '5':number += 5*integer_pow_10(current_power);
+			break;
+			case '6':number += 6*integer_pow_10(current_power);
+			break;
+			case '7':number += 7*integer_pow_10(current_power);
+			break;
+			case '8':number += 8*integer_pow_10(current_power);
+			break;
+			case '9':number += 9*integer_pow_10(current_power);
+			break;
+			default: goto outofloop;
+			}
+			current_power++;
+		}
+		outofloop:
+		if(number > max_freq)
+			max_freq = number;
+	}
+	fclose(index_file);
+	free(other_buf);
+	relevant_metadata.max_frequency =max_freq;
+}
+
 void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 {
 	if(!arguments.size())
@@ -21,7 +78,9 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		exit(-1);
 	}
 
+	//Something like 0_1_2_3 as an argument has three '_' characters and therefore refers to a 4-gram index.
 	size_t ngram_size = (std::count(arguments[0].begin(), arguments[0].end(), '_') + 1);
+	//See whether we have indexes for that ngram size or not.
 	if(metadatas.find(ngram_size) == metadatas.end())
 	{
 		cerr<<"invert_index: Either the argument is invalid, or there doesn't exist a "<<ngram_size<<"_grams.metadata file"<<endl;
@@ -39,82 +98,10 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		exit(-1);
 	}
 	closedir(argument_folder);
-	long long int file_starts_at[256];
-	file_starts_at[0] = 0;
-	for(size_t i = 0; i<1;i++)
-	{
-		struct stat current_file;
-		char buf[4];
-		snprintf(buf,4,"%u",(unsigned int)i);
-		string filename = foldername + string("/")  + string(buf) + string(".out");
-		if(stat(filename.c_str(), &current_file))
-		{
-			cerr<<"invert_index: Unable to stat "<<filename<<endl;
-			exit(-1);
-		}
-		file_starts_at[i + 1] = current_file.st_size + file_starts_at[i];
-	}
 
 	if(!relevant_metadata.max_frequency)
 	{
-		long long int max_freq = 0;
-		char buf[4];
-		char* other_buf =(char*) malloc(1024);
-		size_t other_buf_size = 1024;
-		for(size_t i = 0; i< 1; i++)
-		{
-			snprintf(buf,4,"%u",(unsigned int)i);
-			string filename = foldername + string("/") + string(buf) + string(".out");
-			FILE* cur = fopen(filename.c_str(),"r");
-			if(!cur)
-			{
-				cerr<<"Could not open file "<<filename<<endl;
-				exit(-1);
-			}
-			ssize_t read;
-			while((read = getline(&other_buf, &other_buf_size,cur)) > 0)
-			{
-				const char* ptr = other_buf + read - 1 -1;
-				long long number = 0;
-				int index = 0;
-				while(1)
-				{
-					switch(*ptr--)
-					{
-					case '0':;
-					break;
-					case '1':number += 1*integer_pow_10(index);
-					break;
-					case '2': number += 2*integer_pow_10(index);
-					break;
-					case '3':number += 3*integer_pow_10(index);
-					break;
-					case '4':number += 4*integer_pow_10(index);
-					break;
-					case '5':number += 5*integer_pow_10(index);
-					break;
-					case '6':number += 6*integer_pow_10(index);
-					break;
-					case '7':number += 7*integer_pow_10(index);
-					break;
-					case '8':number += 8*integer_pow_10(index);
-					break;
-					case '9':number += 9*integer_pow_10(index);
-					break;
-					default: goto outofloop;
-
-					}
-					index++;
-				}
-outofloop:
-				if(number > max_freq)
-					max_freq = number;
-			}
-			fclose(cur);
-
-		}
-		free(other_buf);
-		relevant_metadata.max_frequency =max_freq;
+		get_max_frequency(relevant_metadata,foldername);
 	}
 
 	long long int *table = (long long int*) calloc(relevant_metadata.max_frequency + 1,sizeof(*table));
