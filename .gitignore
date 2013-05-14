@@ -1,6 +1,8 @@
 .gitingore
-test_output/*
+tests_output/*
 processing/*
+reference_data/tiny.*
+reference_data/*.d
 tiny.1.output
 tiny.2.output
 tiny.3.output
