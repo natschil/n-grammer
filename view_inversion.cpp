@@ -59,7 +59,7 @@ static void writeOutAddress(off_t address, off_t* offsets, string foldername,lon
 		exit(-1);
 	}
 	madvise(mmaped_file, offsets[i+1] - offsets[i],MADV_RANDOM);
-	char* ptr = (char*)( mmaped_file + real_offset);
+	char* ptr = (char*)( mmaped_file) + real_offset;
 	while(*ptr != '\t')
 	{
 		cout<<*(ptr++);
