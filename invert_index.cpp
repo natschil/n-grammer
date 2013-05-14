@@ -61,7 +61,7 @@ static void get_max_frequency(Metadata &relevant_metadata, string &foldername)
 			max_freq = number;
 	}
 	fclose(index_file);
-	free(other_buf);
+	free(filename_buf);
 	relevant_metadata.max_frequency =max_freq;
 }
 
@@ -181,7 +181,7 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 
 	for(size_t i = 0; i< 1; i++)
 	{
-		long long current_offset = file_starts_at[i];
+		long long current_offset = 0;
 		//We use C here instead of C++ for maximum efficientcy
 		sprintf(ptr,"%lu.out",i);
 		FILE* currentfile = fopen(filename_buf,"r");
