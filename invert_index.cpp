@@ -107,103 +107,99 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	long long int *table = (long long int*) calloc(relevant_metadata.max_frequency + 1,sizeof(*table));
 
 	//The first pass of a distribution sort.
-	char* filename_buf = (char*) malloc(foldername.length() + strlen("/") + strlen("256") + strlen(".out") + 1);
-	strcpy(filename_buf, foldername.c_str());
-	strcat(filename_buf,"/");
+	string filename  = foldername + string("/0.out");
+	const char* filename_c_str = filename.c_str();
 
-	char* ptr = filename_buf + strlen(filename_buf);
-	
-	char* string_buf = (char*) malloc(1024); //This is more than enough.
+	//A buffer for getline.
+	char* string_buf = (char*) malloc(1024);
 	size_t string_buf_size = 1024;
+
 	size_t output_file_size = 0;
-	for(size_t i = 0; i< 1; i++)
+
+	//We use C here instead of C++ for maximum efficiency
+	FILE* currentfile = fopen(filename_c_str,"r");
+	if(!currentfile)
 	{
-		//We use C here instead of C++ for maximum efficiency
-		sprintf(ptr,"%lu.out",i);
-		FILE* currentfile = fopen(filename_buf,"r");
-		if(!currentfile)
+		free(string_buf); free(table);
+		cerr<<"Unable to open "<<filename<<" for reading"<<endl;
+		exit(-1);
+	}
+	ssize_t num_read;
+	while((num_read = getline(&string_buf,&string_buf_size,currentfile)) > 0)
+	{
+		const char* endptr = string_buf + num_read - 1; 
+		endptr--; //Get rid of ending newline...
+		while(isdigit(*endptr))
+			endptr--;
+		char* errptr;
+		long long number = strtoll(endptr,&errptr,10);
+		if((*errptr) != '\n'|| !number)
 		{
-			free(string_buf);
-			free(filename_buf);
-			free(table);
-			cerr<<"Unable to open "<<filename_buf<<" for reading"<<endl;
+			free(string_buf); free(table);
+			fprintf(stderr,"invert_index: Non-empty file to read has an invalid format\n");
 			exit(-1);
 		}
-		ssize_t num_read;
-		while((num_read = getline(&string_buf,&string_buf_size,currentfile)) > 0)
-		{
-			const char* endptr = string_buf + num_read - 1; 
-			endptr--; //Get rid of ending newline...
-			while(isdigit(*endptr))
-				endptr--;
-			char* errptr;
-			long long number = strtoll(endptr,&errptr,10);
-			if((*errptr) != '\n'|| !number)
-			{
-				fprintf(stderr,"invert_index: File to read %lu has lines but no lines ending numbers then newlines\n",i);
-				free(string_buf);
-				free(filename_buf);
-				free(table);
-				exit(-1);
-			}
-			table[number]++;
-			output_file_size += (16 + 1 + 16 + 1); //16 characters per 64 bit hex number
-		}
-		fclose(currentfile);
-	}
-	//We sift up:
-	for(size_t i = relevant_metadata.max_frequency; i>1;i--)
-	{
-		table[i -1] += table[i];
+		table[number]++;
+ 		//16 characters per 64 bit hex number
+		output_file_size += (16 + 1 + 16 + 1);
 	}
 
+	fclose(currentfile);
+	free(string_buf);
+
+	//We sift up:
+	for(size_t i = relevant_metadata.max_frequency; i>1;i--)
+		table[i -1] += table[i];
+
+	//We open the output file, set it to the right size and then mmap it.
 	int fd = open(out_filename.c_str(),O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 	if(fd == -1)
 	{
-		free(string_buf);
-		free(filename_buf);
 		free(table);
 		cerr<<"invert_index: Unable to open file "<<out_filename.c_str()<<endl;
 		exit(-1);
 	}
 
-	ftruncate(fd,output_file_size);
+	if(ftruncate(fd,output_file_size))
+	{
+		cerr<<"Unable to ftruncate output file"<<endl;
+	}
 
 	void* outfile_map = mmap(NULL,output_file_size,PROT_WRITE | PROT_READ,MAP_SHARED,fd,0);
 	if(outfile_map == MAP_FAILED)
 	{
-		free(string_buf);
-		free(filename_buf);
 		free(table);
 		cerr<<"invert_index: Unable to mmap file "<<out_filename.c_str()<<endl;
 		exit(-1);
 	}
 
-	for(size_t i = 0; i< 1; i++)
+	//The last stage of the distribution sort
+	string_buf_size = 1024;
+	string_buf = (char*) malloc(string_buf_size);
+	long long current_offset = 0;
+	currentfile = fopen(filename_c_str,"r");
+	while((num_read = getline(&string_buf,&string_buf_size,currentfile)) > 0)
 	{
-		long long current_offset = 0;
-		//We use C here instead of C++ for maximum efficientcy
-		sprintf(ptr,"%lu.out",i);
-		FILE* currentfile = fopen(filename_buf,"r");
-		ssize_t num_read;
-		while((num_read = getline(&string_buf,&string_buf_size,currentfile)) > 0)
-		{
-			const char* endptr = string_buf + num_read -1;
-			endptr--; //Get rid of ending newline...
-			while(isdigit(*endptr))
-				endptr--;
-			char* errptr;
-			long long number = strtoll(endptr,&errptr,10);
-			long long int pos = --table[number]; 
+		const char* endptr = string_buf + num_read -1;
+		endptr--; //Get rid of ending newline...
+		while(isdigit(*endptr))
+			endptr--;
+		char* errptr;
+		long long number = strtoll(endptr,&errptr,10);
+		long long int pos = --table[number]; 
 
-			char* write_pos = (char*) outfile_map + pos*(16+1+16+1);
-			snprintf(write_pos,(16+ 1+16+1), "%16llX\t%16llX",number, current_offset);
-			write_pos[16 + 1 +16 +1 -1] = '\n';
-			current_offset += num_read;
-		}
-		fclose(currentfile);
+		char* write_pos = (char*) outfile_map + pos*(16+1+16+1);
+		snprintf(write_pos,(16+ 1+16+1), "%16llX\t%16llX",number, current_offset);
+		write_pos[16 + 1 +16 +1 -1] = '\n';
+		current_offset += num_read;
 	}
+	fclose(currentfile);
+	free(string_buf);
+
 	munmap(outfile_map,output_file_size);
+	close(fd);
+
+	//We convert the index name to a vector of integers
 	vector<unsigned int> index_name_as_vector;
 	stringstream forsplitting(arguments[0]);
 	while(!forsplitting.eof())
@@ -214,11 +210,11 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		index_name_as_vector.push_back(cur);
 	}
 	
+	//We write the fact that we've made a new index to the n-gram metadata.
 	relevant_metadata.inverted_indices.insert(index_name_as_vector);
 	relevant_metadata.write();
-	free(filename_buf);
+
 	free(table);
-	free(string_buf);
 	return;
 
 }
