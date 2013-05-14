@@ -84,6 +84,10 @@ void make_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 		fprintf(outfile, "%16llX\t%16llx\n",i,table[i]); 
 	}
 	fclose(outfile);
+
+	relevant_metadata.wordlength_stats_exist = 1;
+	relevant_metadata.write();
+
 	return;
 }
 

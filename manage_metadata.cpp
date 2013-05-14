@@ -13,7 +13,7 @@ Metadata::Metadata(string &filename,string &foldername)
 
 	folder_name = foldername;
 	metadata_filename = foldername + "/" + filename;
-	wordlength_index_exists = 0;
+	wordlength_stats_exist = 0;
 
 	ifstream metadata_file(metadata_filename.c_str(),ios::in);
 	if(!metadata_file)
@@ -81,13 +81,13 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 		{
 			getline(metadata_file,file_name);
 			metadata_file.unget();
-		}else if(nextline == "WorlengthIndexExists")
+		}else if(nextline == "WordlengthStatsExist")
 		{
-			string wordlength_index;
-			getline(metadata_file,wordlength_index);
-			if(wordlength_index == "yes")
+			string wordlength_stats_exist_str;
+			getline(metadata_file,wordlength_stats_exist_str);
+			if(wordlength_stats_exist_str == "yes")
 			{
-				wordlength_index_exists = true;
+				wordlength_stats_exist = true;
 			}
 			metadata_file.unget();
 		}
@@ -104,8 +104,8 @@ void Metadata::write(void)
 	outfile<<"Numwords:\t"<<num_words<<"\n";
 	outfile<<"Time:\t"<<time_taken<<"\n";
 	outfile<<"MaxFrequency:\t"<<max_frequency<<"\n";
-	if(wordlength_index_exists)
-		outfile<<"WordlengthIndexExists:\tyes\n";
+	if(wordlength_stats_exist)
+		outfile<<"WordlengthStatsExist:\tyes\n";
 	outfile<<"Indexes:"<<"\n";
 	for( set<vector<unsigned int> >::iterator i = indices.begin(); i != indices.end(); i++)
 	{
