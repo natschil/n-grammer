@@ -16,6 +16,7 @@
 #include "search.h"
 #include "view_inversion.h"
 #include "make_wordlength_stats.h"
+#include "view_wordlength_stats.h"
 
 void print_usage(int argc,char* argv[]);
 
@@ -100,7 +101,10 @@ int main(int argc, char* argv[])
 	}else if(command == "make_wordlength_stats")
 	{
 		make_wordlength_stats(metadatas,arguments);
-	} else
+	}else if(command == "view_wordlength_stats")
+	{
+		view_wordlength_stats(metadatas,arguments);
+	}else
 	{
 		print_usage(argc,argv);
 		exit(-1);
@@ -117,6 +121,7 @@ void print_usage(int argc,char* argv[])
 	fprintf(stderr,"\t\tsearch\t\t\t<search string e.g. \"this * a test\">\n");
 	fprintf(stderr,"\t\tget_top\t\t\t<ngram number> <number of results to display> \n");
 	fprintf(stderr,"\t\tmake_wordlength_stats\t<ngram_number>\n");
+	fprintf(stderr,"\t\tview_wordlength_stats\t<ngram_number>\n");
 	fflush(stderr);
 	return;
 }
