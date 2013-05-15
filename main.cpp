@@ -23,6 +23,8 @@ void print_usage(int argc,char* argv[]);
 
 int main(int argc, char* argv[])
 {
+	setlocale(LC_CTYPE,"en_US.UTF-8");
+
 	if(argc <= 2)
 	{
 		print_usage(argc,argv);

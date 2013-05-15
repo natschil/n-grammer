@@ -34,7 +34,7 @@ searchable_file::searchable_file(string &index_filename)
 	const char* ptr2 = ptr;
 	while(ptr2 < (mmaped_index + mmaped_index_size))
 	{
-		if(*ptr2== '\n')
+		if(*ptr2== '\t')
 			break;
 		ptr2++;
 	}
@@ -50,13 +50,12 @@ searchable_file::searchable_file(string &index_filename)
 	ptr2 = ptr;
 	while(ptr2 < (mmaped_index + mmaped_index_size))
 	{
-		if(*ptr2== '\n')
+		if(*ptr2== '\t')
 			break;
 		ptr2++;
 	}
 
-	//We add an artifical key that is slightly larger than the last key in the file to our search key.
-	search_tree[string(ptr, ptr2 - ptr) + 'a'] = mmaped_index_size - 1;
+	search_tree[string(ptr, ptr2 - ptr)] = mmaped_index_size - 1;
 }
 
 searchable_file::~searchable_file()
@@ -77,23 +76,18 @@ void searchable_file::search(string &search_str,vector<string> &results)
 	}
 	
 	
-		/*
 	map<string,off_t>::iterator itr = search_tree.lower_bound(string(search_string));
 	if(itr == search_tree.end())
 	{
 		return;
 	}
 	int64_t upper = (*itr).second;
-	itr++;
+	itr--;
 	if(itr == search_tree.end())
 	{
 		return;
 	}
 	int64_t lower = (*itr).second;
-	int64_t i;
-	*/
-	int64_t upper = mmaped_index_size - 1;
-	int64_t lower = 0;
 	int64_t i;
 
 	stringstream foundstrings;
