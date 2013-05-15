@@ -96,7 +96,7 @@ class Buffer
 		Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word);
 
 		//Add a word at the end of the doubly linked list
-		void add_word(uint8_t* word_location,int &memmgnt_retval );
+		void add_word(uint8_t* word_location);
 		//Add a non-word at the end of the doubly linked list.
 		void add_null_word();
 
@@ -112,7 +112,7 @@ class Buffer
 		void add_null_word_at_start();
 
 		//Allocate numbytes of bytes for a string.
-		uint8_t* allocate_for_string(size_t numbytes, int &memmngnt_retval);
+		uint8_t* allocate_for_string(size_t numbytes);
 		//Set back the number of bytes taken by the last allocation by numbytes from the end of the region.
 		void rewind_string_allocation(size_t numbytes);
 
@@ -135,6 +135,7 @@ class Buffer
 		word* words_buffer_bottom();
 		//Write this buffer to disk.
 		void writeToDisk();
+		bool is_full;
 	private:
 		void* internal_buffer;
 		size_t buffer_size;
@@ -161,7 +162,7 @@ struct schedule_entry
 class IndexCollection
 {
 	public:
-		IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto);
+		IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto,bool is_pos_supplement_index = false);
 		~IndexCollection();
 		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write,word* null_word);
 		void writeMetadata(FILE* metadata_file);
@@ -183,6 +184,7 @@ class IndexCollection
 		stack<schedule_entry> unread_ranges;
 		int num_being_read;
 		int buffercounter;
+		bool is_pos_supplement_index;
 
 };
 

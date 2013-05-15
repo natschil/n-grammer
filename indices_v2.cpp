@@ -279,6 +279,7 @@ void Dict::writeOutNGram(word* ngram_start,long long int count)
 Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word)
 {
 	this->internal_buffer = internal_buffer;
+	this->is_full = false;
 	this->buffer_size = buffer_size;
 	this->maximum_single_allocation = maximum_single_allocation;
 
@@ -295,7 +296,7 @@ Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_a
 };
 
 
-void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
+void Buffer::add_word(uint8_t* word_location)
 {
 	word* new_word;
 	words_bottom_internal -= sizeof(*new_word);
@@ -306,7 +307,7 @@ void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
 
 	if((words_bottom_internal - strings_top) < maximum_single_allocation)
 	{
-		mmgnt_retval = -1;
+		is_full = true;
 	}
 
 	last_word->next = new_word;
@@ -356,13 +357,13 @@ void Buffer::add_null_word_at_start()
 	last_word = null_word;
 }
 
-uint8_t* Buffer::allocate_for_string(size_t numbytes, int &mmgnt_retval)
+uint8_t* Buffer::allocate_for_string(size_t numbytes)
 {
 	strings_top += numbytes;
 	uint8_t* result = (uint8_t*) (internal_buffer + strings_top - numbytes);
 	if((words_bottom_internal -  strings_top) < maximum_single_allocation)
 	{
-		mmgnt_retval = -1;
+		is_full = true;
 	}
 	return result;
 }
@@ -437,7 +438,7 @@ static unsigned long long int number_of_special_combinations(unsigned int number
 	return result;	
 }
 
-IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto)
+IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto,bool is_pos_supplement_index)
 {
 	this->ngramsize = ngramsize;
 	this->numcombos = number_of_special_combinations(wordsearch_index_upto);
@@ -448,6 +449,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 
 	this->buffercounter = 0;
 	this->num_being_read = 0;
+	this->is_pos_supplement_index = is_pos_supplement_index;
 
 	if(!this->mergeschedulers)
 	{
@@ -487,20 +489,25 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 		}
 
 
-		//MARKER5
-		char* new_prefix = (char*)  malloc(6 + (3 + 1) * ngramsize + 1);//this means 999-grams are the largest we can search for.
-		strcpy(new_prefix,"tmp.by");
-		char* ptr = new_prefix + strlen(new_prefix);
+		stringstream new_prefix_stream("");
+
+		if(!is_pos_supplement_index)
+		{
+			new_prefix_stream<<"tmp.by";
+		}else
+		{
+			new_prefix_stream<<"tmp."<<ngramsize<<"_grams_pos_supplement_index_";
+		}
 		for(size_t i = 0; i<ngramsize; i++)
 		{
-			ptr += sprintf(ptr,"_%d",(int) new_word_combo[i]);
+			new_prefix_stream<<"_"<<(int) new_word_combo[i];
 		}
 
-		recursively_remove_directory(new_prefix);
+		recursively_remove_directory(new_prefix_stream.str().c_str());
 
 		combinations.push_back(new_word_combo);
 		optimized_combinations.push_back(optimized_combination(new_word_combo,ngramsize));
-		prefixes.push_back(new_prefix);
+		prefixes.push_back(strdup(new_prefix_stream.str().c_str()));
 		free(current_combo);
 		combo_number++;
 
@@ -600,10 +607,16 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 
 void IndexCollection::writeMetadata(FILE* metadata_file)
 {
-	fprintf(metadata_file,"Indexes:\n");
-	for(size_t i = 0; i< numcombos;i++)
+	if(!is_pos_supplement_index)
 	{
-		fprintf(metadata_file,"\t%s\n",prefixes[i] + 4);//To remove the preceding "tmp.".
+		fprintf(metadata_file,"Indexes:\n");
+		for(size_t i = 0; i< numcombos;i++)
+		{
+			fprintf(metadata_file,"\t%s\n",prefixes[i] + 4);//To remove the preceding "tmp.".
+		}
+	}else
+	{
+		fprintf(metadata_file, "POSIndexes:\tyes\n");
 	}
 	return;
 }

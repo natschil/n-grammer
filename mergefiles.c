@@ -43,14 +43,18 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 
 		if(other_n != (n - 1))
 		{
-			char old_directory_name[512];
-			char new_directory_name[512];
-			snprintf(old_directory_name, 512,"%s/%d_%d",prefix,k,n);
-			snprintf(new_directory_name, 512,"%s/%d_%d", prefix,other_k,other_n + 1);
+			//MARKER8
+			char* old_directory_name = malloc(strlen(prefix) + 1 + 4 + 1 + 4 + 1);
+			char* new_directory_name = malloc(strlen(prefix) + 1 + 4 + 1 + 4 + 1);
+
+			snprintf(old_directory_name, strlen(prefix) + 1 + 4 + 1 + 4 + 1,"%s/%d_%d",prefix,k,n);
+			snprintf(new_directory_name, strlen(prefix) + 1 + 4 + 1 + 4 + 1,"%s/%d_%d", prefix,other_k,other_n + 1);
 			remove(new_directory_name); //This shouldn't exist, so better be safe.
 			rename(old_directory_name,new_directory_name);
 			n = other_n + 1;
 			k = other_k;
+			free(old_directory_name);
+			free(new_directory_name);
 		}
 
 	}else
@@ -93,13 +97,10 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 	int other_n = (n && (n % 2)) ? n - 1: n+1;
 	int final_n = ((n && (n % 2)) ? other_n : n) / 2;  //I.e. take the even one, divide by two
 	int final_k = k + 1;
-	char dirbuf[512];//Should be more than enough
+	//MARKER8
+	char* dirbuf = malloc(strlen(prefix) + 1 + 4 + 1 + 4 + 1);
 
-	if(snprintf(dirbuf, 512,"%s/%d_%d",prefix,final_k,final_n) >= 512)
-	{
-		fprintf(stderr, "The buffer is too small, this should be fixed\n");
-		exit(-1);
-	}
+	snprintf(dirbuf, strlen(prefix) + 1 + 4 + 1 + 4 + 1,"%s/%d_%d",prefix,final_k,final_n);
 	mkdir(dirbuf,S_IRUSR | S_IWUSR | S_IXUSR);
 	//fprintf(stdout, "Merging %d_%d with %d_%d to give %d_%d\n",k,n,k,other_n,final_k,final_n);
 
@@ -108,8 +109,9 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 	for(i = 0; i< 1;i++)
 	{
 
-		char buf[512];
-		char buf2[512];
+		//MARKER8
+		char* buf = malloc(strlen(prefix) + 4 + 4 + 1 +4 + 4 + 1);
+		char* buf2 = malloc(strlen(prefix) + 4 + 4 + 1 +4 + 4 + 1);
 		char output[512];
 		snprintf(buf, 512, "%s/%d_%d/%d.out",prefix,k,n,i);
 		snprintf(buf2, 512,"%s/%d_%d/%d.out",prefix,k,other_n,i);
@@ -173,12 +175,16 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 			fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
 			exit(-1);
 		}
+		free(buf);
+		free(buf2);
 	}
 
 	snprintf(dirbuf,512,"%s/%d_%d",prefix,k,n);
 	remove(dirbuf);
 	snprintf(dirbuf,512,"%s/%d_%d",prefix,k,other_n);
 	remove(dirbuf);
+	free(dirbuf);
+
 	schedule_next_merge(final_k,final_n,rightmost_run,scheduling_table,prefix);
 	return;
 }

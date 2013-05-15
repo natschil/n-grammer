@@ -5,9 +5,19 @@
 
 /* Options for core n-gram counter*/
 
-	//The number of bytes to use per word. Any words larger than this are ignred.
+	//The number of bytes to use per word. Any words larger than this are ignored.
 	#ifndef MAX_WORD_SIZE
 		#define MAX_WORD_SIZE 40
+	#endif
+
+	//The maximum number of bytes to use per part of speech classification
+	#ifndef MAX_CLASSIFICATION_SIZE
+		#define MAX_CLASSIFICATION_SIZE 40
+	#endif
+
+	//The maximum number of bytes to use per lemma.
+	#ifndef MAX_LEMMA_SIZE
+		#define MAX_LEMMA_SIZE 40
 	#endif
 
 	//This isn't so much of an option, but something that various parts of the program rely on. Hence changing it does nothing
@@ -44,6 +54,7 @@
 /*Options for the merger*/
 	//Note that when changing the values below, change them so that  MAX_K = log2(MAX_BUFFERS) + 1
 	//The MAX_BUFFERS option gives the maximum number of total buffers that will be used
+	//Search for MARKER8 for places in the code that depend on on MAX_BUFFERS being less than 9999
 	#ifndef MAX_BUFFERS
 		#define MAX_BUFFERS  2048
 	#endif
