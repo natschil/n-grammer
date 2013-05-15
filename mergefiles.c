@@ -110,12 +110,13 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 	{
 
 		//MARKER8
-		char* buf = malloc(strlen(prefix) + 4 + 4 + 1 +4 + 4 + 1);
-		char* buf2 = malloc(strlen(prefix) + 4 + 4 + 1 +4 + 4 + 1);
-		char output[512];
-		snprintf(buf, 512, "%s/%d_%d/%d.out",prefix,k,n,i);
-		snprintf(buf2, 512,"%s/%d_%d/%d.out",prefix,k,other_n,i);
-		snprintf(output, 512,"%s/%d_%d/%d.out",prefix,final_k,final_n,i);
+		char* buf = malloc(strlen(prefix)+1 + 4 + 1 + 4 + 1 +4 + 4 + 1);
+		char* buf2 = malloc(strlen(prefix)+1 + 4 + 1 + 4 + 1 +4 + 4 + 1);
+		char* output = malloc(strlen(prefix)+1 + 4 + 1 + 4 + 1 +4 + 4 + 1);
+
+		sprintf(buf,  "%s/%d_%d/%d.out",prefix,k,n,i);
+		sprintf(buf2, "%s/%d_%d/%d.out",prefix,k,other_n,i);
+		sprintf(output, "%s/%d_%d/%d.out",prefix,final_k,final_n,i);
 
 		struct stat firstfile_st;
 		struct stat secondfile_st;
@@ -177,11 +178,12 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 		}
 		free(buf);
 		free(buf2);
+		free(output);
 	}
 
-	snprintf(dirbuf,512,"%s/%d_%d",prefix,k,n);
+	sprintf(dirbuf,"%s/%d_%d",prefix,k,n);
 	remove(dirbuf);
-	snprintf(dirbuf,512,"%s/%d_%d",prefix,k,other_n);
+	sprintf(dirbuf,"%s/%d_%d",prefix,k,other_n);
 	remove(dirbuf);
 	free(dirbuf);
 

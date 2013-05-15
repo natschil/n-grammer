@@ -202,7 +202,7 @@ int getnextwordandaddit(
     size_t lemma_length = 0;
 
     uint8_t* current_word_part = inflexion;
-    size_t &current_word_length = inflexion_length;
+    size_t *current_word_length = &inflexion_length;
     size_t current_word_capacity = MAX_WORD_SIZE + 1;
 
     ucs4_t character;
@@ -222,7 +222,7 @@ int getnextwordandaddit(
 			}
 		}
 
-		if(!current_word_length) //We ignore preceding whitespace.
+		if(!*current_word_length) //We ignore preceding whitespace.
 			continue;
 		else //We have reached the end of the word
 		{
@@ -233,12 +233,12 @@ int getnextwordandaddit(
 				if(current_word_part == inflexion)
 				{
 					current_word_part = classification;
-					current_word_length = classification_length;
+					current_word_length = &classification_length;
 					current_word_capacity = MAX_CLASSIFICATION_SIZE + 1;
 				}else if(current_word_part == classification)
 				{
 					current_word_part = lemma;
-					current_word_length = classification_length;
+					current_word_length = &lemma_length;
 					current_word_capacity = MAX_LEMMA_SIZE + 1;
 				}else //This means there was no newline after the lemma, as the test above would have caught that.
 				{
@@ -247,26 +247,26 @@ int getnextwordandaddit(
 			}
 				
 		}
-	}else if(current_word_length <= current_word_capacity) 
+	}else if(*current_word_length <= current_word_capacity) 
 	{
 		if(uc_is_property_alphabetic(character))
 		{
 			character = uc_tolower(character);
 
-		}else if(!(current_word_length && 
+		}else if(!(*current_word_length && 
 				(uc_is_property_hyphen(character) || 
 					 (uc_is_property_diacritic(character) && !uc_is_general_category(character, UC_MODIFIER_SYMBOL)))))
 		{
 			continue;
 		}
 
-		int read = u8_uctomb(current_word_part + current_word_length,character,current_word_capacity - current_word_length);
+		int read = u8_uctomb(current_word_part + *current_word_length,character,current_word_capacity - *current_word_length);
 		if(read < 0)
 		{
-			current_word_length = current_word_capacity;
+			*current_word_length = current_word_capacity;
 		}else
 		{
-			current_word_length += read;
+			*current_word_length += read;
 		}
 
 	}
@@ -342,8 +342,8 @@ int getnextwordandaddit(
 		inflexion_s[retval] = '\0';
 
 		s[retval] = '|';
-		size_t tmp_retval;
-		uint8_t *ptr = s + retval;
+		size_t tmp_retval = MAX_CLASSIFICATION_SIZE + 1;
+		uint8_t *ptr = s + retval + 1;
 		u8_normalize(norm,classification,classification_length,ptr,&tmp_retval);
 
 		
@@ -361,6 +361,7 @@ int getnextwordandaddit(
 		ptr += tmp_retval;
 		*ptr = '|';
 		ptr++;
+		tmp_retval = MAX_LEMMA_SIZE + 1;
 		u8_normalize(norm, lemma,lemma_length,ptr, &tmp_retval);		
 		if(tmp_retval > MAX_LEMMA_SIZE)
 		{
@@ -374,8 +375,6 @@ int getnextwordandaddit(
 		lemma_s[tmp_retval] = '\0';
 
 		ptr += tmp_retval;
-		*ptr = (uint8_t)'|';
-		ptr++;
 		*ptr = (uint8_t) '\0';
 		ngram_buf->rewind_string_allocation( bytes_to_allocate - (ptr - s) - 1);
 
@@ -440,7 +439,8 @@ void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* e
 	
 			const uint8_t* tmp_filePtr = mmaped_file + tmp_offset;
 	
-			int res = getnextwordandaddit(&tmp_filePtr, mmaped_file + prev_offset, norm, buffer,NULL,true);
+			//We don't bother adding these words to the pos buffer, as they've already been added to it.
+			int res = getnextwordandaddit(&tmp_filePtr, mmaped_file + prev_offset, norm, buffer,pos_buffer,true);
 			if(buffer->is_full)
 			{
 				fprintf(stderr,"This should never happen and indicates that somewhere there is  bug (Or that you are using corpora with very long words at the start and very small buffers)\n");
@@ -483,7 +483,7 @@ void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* e
 
 	while(!buffer->is_full || (pos_buffer && pos_buffer->is_full))
 	{
-		int res = getnextwordandaddit(f,eof,norm,buffer);
+		int res = getnextwordandaddit(f,eof,norm,buffer,pos_buffer);
 		
 		if(!res) //We've reached the end of the file.
 		{
@@ -702,7 +702,13 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
 			//We tell the scheduler that we're finished with this chunk. Note that it is important that we do so 
 			//only *after* having told it about what's (potentially) left of the chunk
-			indexes->mark_the_fact_that_a_range_has_been_read_in();
+			bool this_was_last = indexes->mark_the_fact_that_a_range_has_been_read_in();
+			if(this_was_last)
+			{
+				indexes->writeEmptyLastBuffer(local_buffercount+1);
+				if(is_pos)
+					pos_indexes->writeEmptyLastBuffer(local_buffercount+1);
+			}
 
 			//At this point, after having read in all of the words, we write them to disk.
 			indexes->writeBufferToDisk(local_buffercount,0,new_buffer,&local_null_word);
@@ -748,6 +754,10 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	fprintf(metadata_file,"Numwords:\t%lld\n",totalwords);
   	gettimeofday(&end_time,NULL);
 	fprintf(metadata_file,"Time:\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
+	fprintf(metadata_file,"MAX_WORD_SIZE:\t%d\n", MAX_WORD_SIZE);
+	fprintf(metadata_file,"MAX_CLASSIFICATION_SIZE:\t%d\n", MAX_CLASSIFICATION_SIZE);
+	fprintf(metadata_file,"MAX_LEMMA_SIZE:\t%d\n", MAX_LEMMA_SIZE);
+
 	indexes->writeMetadata(metadata_file);
 	if(is_pos)
 	{

@@ -496,7 +496,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 			new_prefix_stream<<"tmp.by";
 		}else
 		{
-			new_prefix_stream<<"tmp."<<ngramsize<<"_grams_pos_supplement_index_";
+			new_prefix_stream<<"tmp.pos_supplement_index";
 		}
 		for(size_t i = 0; i<ngramsize; i++)
 		{
@@ -629,7 +629,7 @@ void IndexCollection::copyToFinalPlace(int k)
 		char* finalpath = (char*) malloc(strlen(prefixes[i]) * sizeof(*finalpath) + 1);
 		strcpy(finalpath,prefixes[i] + 4);//To remove preceding "tmp."
 		recursively_remove_directory(finalpath);
-		char* original_path = (char*) malloc(strlen(prefixes[i]) + 256 );//More than enough
+		char* original_path = (char*) malloc(strlen(prefixes[i]) + 1 + 4 + 1 + 1 );
 		sprintf(original_path, "%s/%d_0",prefixes[i],k);
 		rename(original_path,finalpath);
 		recursively_remove_directory(prefixes[i]);
@@ -652,33 +652,32 @@ void IndexCollection::add_range_to_schedule(off_t start, off_t end)
 		#pragma omp flush
 	}
 }
-void IndexCollection::mark_the_fact_that_a_range_has_been_read_in(void)
+bool IndexCollection::mark_the_fact_that_a_range_has_been_read_in()
 {
-	int was_last = 0;
-	int local_buffercount;
+	bool was_last = false;
 	#pragma omp critical(buffer_scheduling)
 	{
 		#pragma omp flush
 		num_being_read--;
 		if(!num_being_read && unread_ranges.empty())
 		{
-			was_last = 1;
-			local_buffercount = buffercounter++;
+			was_last =true; 
 			
 		}
 		#pragma omp flush
 	}
-	if(was_last)
-	{
-		void* tmp_internal_buffer = malloc((MAX_WORD_SIZE + 1) + sizeof(word));
-		word null_word;
-		Buffer* empty = new Buffer(tmp_internal_buffer,MAX_WORD_SIZE + 1 + sizeof(word),(MAX_WORD_SIZE + 1) + sizeof(word),&null_word);
-		empty->set_top_pointer(0);
-		empty->set_bottom_pointer(0);
-		this->writeBufferToDisk(local_buffercount,1,empty,&null_word);
-		delete empty;
-		free(tmp_internal_buffer);
-	}
+	return was_last;
+}
+void IndexCollection::writeEmptyLastBuffer(int buffercount)
+{
+	void* tmp_internal_buffer = malloc((MAX_WORD_SIZE + 1) + sizeof(word));
+	word null_word;
+	Buffer* empty = new Buffer(tmp_internal_buffer,MAX_WORD_SIZE + 1 + sizeof(word),(MAX_WORD_SIZE + 1) + sizeof(word),&null_word);
+	empty->set_top_pointer(0);
+	empty->set_bottom_pointer(0);
+	this->writeBufferToDisk(buffercount,1,empty,&null_word);
+	delete empty;
+	free(tmp_internal_buffer);
 }
 pair<schedule_entry,int> IndexCollection::get_next_schedule_entry()
 {

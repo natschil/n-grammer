@@ -169,7 +169,8 @@ class IndexCollection
 		void copyToFinalPlace(int k);
 
 		void add_range_to_schedule(off_t start, off_t end);
-		void mark_the_fact_that_a_range_has_been_read_in(void);
+		bool mark_the_fact_that_a_range_has_been_read_in();
+		void writeEmptyLastBuffer(int buffercount);
 		pair<schedule_entry,int> get_next_schedule_entry();
 
 	private:
