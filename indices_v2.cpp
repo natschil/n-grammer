@@ -1,5 +1,43 @@
 #include "indices_v2.h"
 
+word::word(word&& old)
+{
+	prev = old.prev;
+	next = old.next;
+	contents = old.contents;
+	reduces_to = old.reduces_to;
+	flags = old.flags;
+	prev->next = this;
+	next->prev = this;	
+	this->next = old.next;
+	this->prev = old.prev;
+};
+
+word& word::operator=(word&& old)
+{			
+	prev = old.prev;
+	next = old.next;
+	flags = old.flags;
+	contents = old.contents;
+	reduces_to = old.reduces_to;
+
+	prev->next = this;
+	next->prev = this;	
+
+	this->next = old.next;
+	this->prev = old.prev;
+	return *this;
+};
+
+word_cmp::word_cmp(const char* strings_start)
+{
+	this->strings_start = strings_start;
+}
+bool word_cmp::operator()(const word &first, const word &second)
+{
+	return strcmp(strings_start + first.contents, strings_start + second.contents) < 0;
+}
+
 ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int* word_order,const optimized_combination *optimized_combo,const word* null_word)
 {
 	n_gram_size = ngramsize;
@@ -27,12 +65,12 @@ static inline int ngramcmp(unsigned int n_gram_size,const word *first, const wor
 
 	for(size_t i = 1; i<n_gram_size;i++)
 	{
-		int k = word_order[i] - word_order[0];
-		if(k >= 0)
+		int relative_position = word_order[i] - word_order[0];
+		if(relative_position >= 0)
 		{
-			if(k > max_found)
+			if(relative_position > max_found)
 			{
-				for(int l = max_found; l < k ;l++)
+				for(int j = max_found; j < relative_position;j++)
 				{
 					if(max_found_w1->next != null_word)
 					{
@@ -46,9 +84,9 @@ static inline int ngramcmp(unsigned int n_gram_size,const word *first, const wor
 					}else
 						return  -1;
 
-					cache[optimized_combo->upper[l + 1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
+					cache[optimized_combo->upper[j + 1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
 				}
-				max_found = k;
+				max_found = relative_position;
 			}
 			if(cache[i] == 0)
 				continue;
@@ -57,9 +95,9 @@ static inline int ngramcmp(unsigned int n_gram_size,const word *first, const wor
 			
 		}else
 		{
-			if(-k > min_found)
+			if(-relative_position > min_found)
 			{
-				for(int l = min_found;l < -k ;l++)
+				for(int j = min_found;j < -relative_position ;j++)
 				{
 					if(min_found_w1->prev != null_word)
 					{
@@ -73,9 +111,9 @@ static inline int ngramcmp(unsigned int n_gram_size,const word *first, const wor
 					}else
 						return  -1;
 
-					cache[optimized_combo->lower[l]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
+					cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
 				}
-				min_found = -k ;
+				min_found = -relative_position ;
 			}
 			if(cache[i] == 0)
 				continue;
@@ -94,154 +132,168 @@ bool ngram_cmp::operator()(const word &first,const word &second)
 
 class Dict
 {
-	public:
-	Dict(unsigned int ngramsize,const char* prefix, unsigned int buffercount,const optimized_combination *optimized_combo,const unsigned int* word_order,const word* null_word,word* buffer_bottom,uint8_t* strings_start)
-	{
-		this->ngramsize = ngramsize;
-		this->prefix = prefix;
-		this->buffercount = buffercount;
-		this->null_word = null_word;
-		this->buffer_bottom = buffer_bottom;
-		this->strings_start = strings_start;
-		this->cmp = ngram_cmp(ngramsize,word_order,optimized_combo,null_word);
-		this->optimized_combo = optimized_combo;
-		this->word_order = word_order;
+    public:
+	Dict(
+		unsigned int ngramsize,
+		const char* prefix,
+	       	unsigned int buffercount,
+		const optimized_combination *optimized_combo,
+		const unsigned int* word_order,
+		const word* null_word,
+		word* buffer_bottom,
+		uint8_t* strings_start
+		);
+	void cleanUp(void);
+	void writeToDisk(word* start);
+	void writeOutNGram(word* ngram_start,long long int count);
+    private:
+	const optimized_combination *optimized_combo;
+	const unsigned int* word_order;
 
-		if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
-		{
-			fprintf(stderr, "Unable to create directory %s",prefix);
-		}
-
-		char buf[512];//512 Characters should be more than enough to hold 2 integers, a few characters and prefix.
-
-		if(snprintf(buf,512,"./%s/0_%u",prefix,buffercount) >= 512)
-		{
-			//This should never happen.
-			fprintf(stderr,"Error, poor program design");
-			exit(-1);
-		}
-		if(mkdir(buf,S_IRUSR | S_IWUSR | S_IXUSR ) && (errno !=  EEXIST))
-		{
-			fprintf(stderr,"Unable to create directory %s",buf);
-			exit(-1);
-		}
-	
-		if(snprintf(buf,512,"./%s/0_%u/0.out",prefix,buffercount) >= 512) 
-		{
-			//This should never happen either.
-			fprintf(stderr,"Error, bad coding");
-			exit(-1);
-		}
-		outfile = fopen(buf,"a");
-		if(!outfile)
-		{
-			fprintf(stderr,"Unable to open file %s", buf);
-			exit(-1);
-		}
-	
-
-	}
-	void cleanUp(void)
-	{
-		fclose(outfile);
-	};
-	void writeToDisk(word* start)
-	{
-		word* end = (start->reduces_to + buffer_bottom) + 1;
-		if(ngramsize > 1)
-			std::sort(start, end, cmp);
-
-		word* prev = start;
-		long long int count = 0;
-		for(word* i = start; i < end; i++)
-		{
-			if(i->flags & NON_STARTING_WORD)
-				continue;
-
-			if(!ngramcmp(ngramsize,i,prev,optimized_combo,word_order,null_word))
-			{
-				count++;
-			}else
-			{
-				this->writeOutNGram(prev,count);
-				count = 1;
-				prev= i;
-			}
-		}
-
-		if(count)
-			this->writeOutNGram(prev, count);
-	};
-	void writeOutNGram(word* ngram_start,long long int count)
-	{
-		//MARKER5
-		const uint8_t *words_in_ngram[64];
-		word* tmp = ngram_start;
-		int skip = 0;
-		for(size_t j = 0; j < optimized_combo->lower_size; j++)
-		{
-			if(tmp->prev == null_word)
-			{
-				skip = 1;
-				break;
-			}else
-				tmp = tmp->prev;
-			words_in_ngram[optimized_combo->lower[j]] = strings_start + tmp->contents;
-		}
-
-		tmp = ngram_start;
-		words_in_ngram[0] = strings_start + tmp->contents;
-		for(size_t j = 1; j < optimized_combo->upper_size;j++)
-		{
-			if(tmp->next == null_word)
-			{
-				skip = 1;
-				break;
-			}else
-				tmp = tmp->next;
-			words_in_ngram[optimized_combo->upper[j]] = strings_start + tmp->contents;
-		}
-		for(size_t j = 0;!skip && ( j <ngramsize); j++)
-		{
-			ulc_fprintf(outfile,"%U",words_in_ngram[j]);
-			if(j != (ngramsize - 1))
-				fprintf(outfile," ");
-		}
-		if(!skip)
-			fprintf(outfile,"\t%lld\n",count);
-	}
-
-	private:
-		const optimized_combination *optimized_combo;
-		const unsigned int* word_order;
-
-		ngram_cmp cmp;
-		unsigned int ngramsize;
-		unsigned int buffercount;
-		const char* prefix;
-		const word* null_word;
-		word* buffer_bottom;
-		uint8_t* strings_start;
-		FILE* outfile;
+	ngram_cmp cmp;
+	unsigned int ngramsize;
+	unsigned int buffercount;
+	const char* prefix;
+	const word* null_word;
+	word* buffer_bottom;
+	uint8_t* strings_start;
+	FILE* outfile;
 };
+Dict::Dict(
+		unsigned int ngramsize,
+		const char* prefix,
+	       	unsigned int buffercount,
+		const optimized_combination *optimized_combo,
+		const unsigned int* word_order,
+		const word* null_word,
+		word* buffer_bottom,
+		uint8_t* strings_start
+		)
+{
+	this->ngramsize = ngramsize;
+	this->prefix = prefix;
+	this->buffercount = buffercount;
+	this->optimized_combo = optimized_combo;
+	this->word_order = word_order;
+	this->null_word = null_word;
+	this->buffer_bottom = buffer_bottom;
+	this->strings_start = strings_start;
+
+	this->cmp = ngram_cmp(ngramsize,word_order,optimized_combo,null_word);
+
+	if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
+	{
+		fprintf(stderr, "Unable to create directory %s",prefix);
+	}
+
+	stringstream buf("");
+	buf<<"./"<<prefix<<"/0_"<<buffercount;
+
+	if(mkdir(buf.str().c_str(),S_IRUSR | S_IWUSR | S_IXUSR ) && (errno !=  EEXIST))
+	{
+		fprintf(stderr,"Unable to create directory %s",buf.str().c_str());
+		exit(-1);
+	}
+	buf<<"/0.out";
+
+	outfile = fopen(buf.str().c_str(),"a");
+	if(!outfile)
+	{
+		fprintf(stderr,"Unable to open file %s", buf.str().c_str());
+		exit(-1);
+	}
+}
+void Dict::cleanUp(void)
+{
+	fclose(outfile);
+	return;
+};
+void Dict::writeToDisk(word* start)
+{
+	word* end = (start->reduces_to + buffer_bottom) + 1;
+	if(ngramsize > 1)
+		std::sort(start, end, cmp);
+
+	word* prev = start;
+	long long int count = 0;
+	for(word* i = start; i < end; i++)
+	{
+		if(i->flags & NON_STARTING_WORD)
+			continue;
+
+		if(!ngramcmp(ngramsize,i,prev,optimized_combo,word_order,null_word))
+		{
+			count++;
+		}else
+		{
+			this->writeOutNGram(prev,count);
+			count = 1;
+			prev= i;
+		}
+	}
+
+	if(count)
+		this->writeOutNGram(prev, count);
+	return;
+};
+void Dict::writeOutNGram(word* ngram_start,long long int count)
+{
+	//MARKER5
+	const uint8_t *words_in_ngram[64];
+	word* tmp = ngram_start;
+	int skip = 0;
+	for(size_t j = 0; j < optimized_combo->lower_size; j++)
+	{
+		if(tmp->prev == null_word)
+		{
+			skip = 1;
+			break;
+		}else
+			tmp = tmp->prev;
+		words_in_ngram[optimized_combo->lower[j]] = strings_start + tmp->contents;
+	}
+
+	tmp = ngram_start;
+	words_in_ngram[0] = strings_start + tmp->contents;
+	for(size_t j = 1; j < optimized_combo->upper_size;j++)
+	{
+		if(tmp->next == null_word)
+		{
+			skip = 1;
+			break;
+		}else
+			tmp = tmp->next;
+		words_in_ngram[optimized_combo->upper[j]] = strings_start + tmp->contents;
+	}
+	for(size_t j = 0;!skip && ( j <ngramsize); j++)
+	{
+		ulc_fprintf(outfile,"%U",words_in_ngram[j]);
+		if(j != (ngramsize - 1))
+			fprintf(outfile," ");
+	}
+	if(!skip)
+		fprintf(outfile,"\t%lld\n",count);
+	return;
+}
 
 Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word)
 {
 	this->internal_buffer = internal_buffer;
 	this->buffer_size = buffer_size;
+	this->maximum_single_allocation = maximum_single_allocation;
+
+	//Set the pointers so that they indicate the buffer is empty.
 	this->words_bottom_internal = buffer_size;
 	this->strings_top = 0;
-	this->maximum_single_allocation = maximum_single_allocation;
+
 	this->last_word = null_word;
 	this->null_word = null_word;
-	//These two had better be set by hand, else garbage will come out.
+
+	//These two had better be set by hand later on at some point.
 	this->top_pointer = 0;
 	this->bottom_pointer = 0;
 };
 
-Buffer::~Buffer()
-{
-}
 
 void Buffer::add_word(uint8_t* word_location, int &mmgnt_retval)
 {
@@ -304,7 +356,6 @@ void Buffer::add_null_word_at_start()
 	last_word = null_word;
 }
 
-
 uint8_t* Buffer::allocate_for_string(size_t numbytes, int &mmgnt_retval)
 {
 	strings_top += numbytes;
@@ -316,16 +367,15 @@ uint8_t* Buffer::allocate_for_string(size_t numbytes, int &mmgnt_retval)
 	return result;
 }
 
-uint8_t* Buffer::strings_start()
-{
-	return (uint8_t*) internal_buffer;
-}
-
-
 void Buffer::rewind_string_allocation(size_t numbytes)
 {
 	if(strings_top >= numbytes)
 		strings_top -= numbytes;
+}
+
+uint8_t* Buffer::strings_start()
+{
+	return (uint8_t*) internal_buffer;
 }
 
 void Buffer::set_top_pointer(size_t nmeb)
@@ -358,9 +408,7 @@ word* Buffer::words_buffer_bottom()
 	return (word*) (internal_buffer + words_bottom_internal);
 }
 
-
-
-static unsigned long long int  factorial(unsigned int number)
+static unsigned long long int factorial(unsigned int number)
 {
 	if(!number) return 1;
 	int result = number;
@@ -372,7 +420,9 @@ static unsigned long long int  factorial(unsigned int number)
 }
 
 //Computes n C [n/2] where "n C r"  is  n choose r, and [n/2] means floor(n/2)
-//See the citiations in searchindexcombinations.h for justification of this
+//See the citiations in searchindexcombinations.h for justification for this representing the number of indexes
+//needed for multi-word retrieval for n-grams.
+//As this function is only called rarely, it isn't overly optimized.
 static unsigned long long int number_of_special_combinations(unsigned int number)
 {
 	unsigned long long int result = factorial(number)/
@@ -395,6 +445,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 	this->optimized_combinations.reserve(numcombos);
 	this->prefixes.reserve(numcombos);
 	this->mergeschedulers = (uint8_t (*)[MAX_K][MAX_BUFFERS]) calloc(sizeof(*this->mergeschedulers), numcombos);
+
 	this->buffercounter = 0;
 	this->num_being_read = 0;
 
@@ -410,10 +461,10 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 	}
 
 
-	 CombinationIterator combination_itr(wordsearch_index_upto);
-	 size_t combo_number = 0;
-	 do
-	 {
+	CombinationIterator combination_itr(wordsearch_index_upto);
+	size_t combo_number = 0;
+	do
+	{
  		unsigned int* current_combo = *combination_itr;		 
 		unsigned int* new_word_combo = (unsigned int*) malloc(ngramsize * sizeof(new_word_combo));
 
@@ -453,13 +504,23 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 		free(current_combo);
 		combo_number++;
 
-	 }while(++combination_itr);
+	}while(++combination_itr);
 
-	 if(combo_number != numcombos)
-	 {
+	if(combo_number != numcombos)
+	{
 		fprintf(stderr,"There is an bug in index calculating\n");
 		exit(-1);
-	 }
+	}
+}
+
+IndexCollection::~IndexCollection()
+{
+	for(size_t i = 0; i< numcombos;i++)
+	{
+		free(combinations[i]);
+		free(prefixes[i]);
+	}
+	free(mergeschedulers);
 }
 
 void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write,word* null_word)
@@ -469,8 +530,6 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	word* buffer_bottom = buffer_to_write->words_buffer_bottom();
 	word* buffer_top = buffer_to_write->words_buffer_top();
 	uint8_t* strings_start = buffer_to_write->strings_start();
-
-
 
 	for(word* ptr = buffer_bottom; ptr < buffer_to_write->words_bottom(); ptr++)
 	{
@@ -504,10 +563,18 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	for(size_t i = 0; i < numcombos; i++)
 	{
 		current_ngrams.push_back(
-				Dict(ngramsize,prefixes[i],buffercount,&optimized_combinations[i],combinations[i],null_word,buffer_bottom,strings_start)
+				Dict(
+					ngramsize,
+					prefixes[i],
+					buffercount,
+					&optimized_combinations[i],
+					combinations[i],
+					null_word,
+					buffer_bottom,
+					strings_start
+					)
 				);
 	}
-
 
 	for(word* current_word = buffer_bottom; current_word != buffer_top;)
 	{
@@ -531,17 +598,6 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	return;
 }
 
-
-IndexCollection::~IndexCollection()
-{
-	for(size_t i = 0; i< numcombos;i++)
-	{
-		free(combinations[i]);
-		free(prefixes[i]);
-	}
-	free(mergeschedulers);
-}
-
 void IndexCollection::writeMetadata(FILE* metadata_file)
 {
 	fprintf(metadata_file,"Indexes:\n");
@@ -551,6 +607,7 @@ void IndexCollection::writeMetadata(FILE* metadata_file)
 	}
 	return;
 }
+
 void IndexCollection::copyToFinalPlace(int k)
 {
 	for(size_t i = 0; i < numcombos;i++)
@@ -631,7 +688,6 @@ pair<schedule_entry,int> IndexCollection::get_next_schedule_entry()
 		}
 		#pragma omp flush
 	}
-
 	return result;
 }
 
