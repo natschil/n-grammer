@@ -13,6 +13,7 @@ void print_usage(char* argv[])
     cerr<<"\t\t--wordsearch-index-depth=k\t(Split the word into k groups and build an index for each combination of these groups)\n";
     cerr<<"\t\t--cache-entire-file\t\t(Whether or not to tell the kernel to load the whole file into memory)\n";
     cerr<<"\t\t--numbuffers=b\t\t\t(Use b buffers internally, and with that at maximum b threads)\n";
+    cerr<<"\t\t--corpus-has-pos-data\t\t(The corpus contains 'part of speech' information)\n";
     cerr<<endl;
 }
 
@@ -69,6 +70,7 @@ int main (int argc, char* argv[])
 #endif
 
   bool cache_entire_file = false;
+  bool is_pos = false;
 
   if(argc > options_start)
   {
@@ -103,7 +105,11 @@ int main (int argc, char* argv[])
 		}else if(!strncmp(argv[i],"--cache-entire-file",strlen("--cache-entire-file")))
 		{
 			cache_entire_file = true;
-		}else {
+		}else  if(!strncmp(argv[i],"--corpus-has-pos-data", strlen("--corpus-has-pos-data")))
+		{
+			is_pos = true;
+		}else
+		{
 			cerr<<"\nInvalid option"<<argv[i]<<"\n\n";
 			print_usage(argv);
 			exit(1);
@@ -112,6 +118,6 @@ int main (int argc, char* argv[])
   }
 
   
-  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers,cache_entire_file);
+  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers,cache_entire_file,is_pos);
   return 0; 
 }

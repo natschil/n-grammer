@@ -338,7 +338,7 @@ int fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* eo
 
 
 
-long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file)
+long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file,bool is_pos)
 {
     //Get the current time, for timing how long the function took.
     	struct timeval start_time,end_time;
