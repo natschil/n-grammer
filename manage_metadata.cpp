@@ -10,6 +10,9 @@ Metadata::Metadata(string &filename,string &foldername)
 	num_words = 0;
 	time_taken = 0;
 	max_frequency = 0;
+	this->MAX_LEMMA_SIZE = 40;
+	this->MAX_WORD_SIZE = 40; 
+	this->MAX_CLASSIFICATION_SIZE = 40;
 
 	folder_name = foldername;
 	metadata_filename = foldername + "/" + filename;
@@ -90,7 +93,18 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 				wordlength_stats_exist = true;
 			}
 			metadata_file.unget();
+		}else if(nextline == "MAX_WORD_SIZE")
+		{
+			metadata_file>>MAX_WORD_SIZE;
+		}else if(nextline == "MAX_CLASSIFICATION_SIZE")
+		{
+			metadata_file>>MAX_CLASSIFICATION_SIZE;
+		}else if(nextline == "MAX_LEMMA_SIZE")
+		{
+			metadata_file>>MAX_LEMMA_SIZE;
 		}
+
+
 
 		metadata_file.get();//To get rid of newline character.
 	}
@@ -104,6 +118,9 @@ void Metadata::write(void)
 	outfile<<"Numwords:\t"<<num_words<<"\n";
 	outfile<<"Time:\t"<<time_taken<<"\n";
 	outfile<<"MaxFrequency:\t"<<max_frequency<<"\n";
+	outfile<<"MAX_WORD_SIZE:\t"<<MAX_WORD_SIZE<<"\n";
+	outfile<<"MAX_CLASSIFICATION_SIZE:\t"<<MAX_CLASSIFICATION_SIZE<<"\n";
+	outfile<<"MAX_LEMMA_SIZE:\t"<<MAX_CLASSIFICATION_SIZE<<"\n";
 	if(wordlength_stats_exist)
 		outfile<<"WordlengthStatsExist:\tyes\n";
 	outfile<<"Indexes:"<<"\n";

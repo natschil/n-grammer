@@ -5,10 +5,6 @@
 #ifndef NGRAM_ANALYIS_WORDLENGTH_STATS_H
 #define NGRAM_ANALYIS_WORDLENGTH_STATS_H
 
-//TODO: Get MAX_WORD_SIZE using the metadata files.
-#ifndef MAX_WORD_SIZE
-#define MAX_WORD_SIZE 40
-#endif
 
 #include <string>
 #include <vector>

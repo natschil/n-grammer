@@ -32,6 +32,10 @@ class Metadata
 		string file_name;
 		string metadata_filename;
 		string folder_name;
+
+		int MAX_WORD_SIZE;
+		int MAX_CLASSIFICATION_SIZE;
+		int MAX_LEMMA_SIZE;
 };
 
 
