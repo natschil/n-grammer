@@ -205,6 +205,8 @@ int getnextwordandaddit(
     size_t *current_word_length = &inflexion_length;
     size_t current_word_capacity = MAX_WORD_SIZE + 1;
 
+    void* normalization_result;
+
     ucs4_t character;
     while(get_next_ucs4t_from_file(f,eof,&character))
     { 
@@ -340,63 +342,67 @@ int getnextwordandaddit(
 	bytes_to_allocate *= sizeof(*s);
 
 	s = ngram_buf->allocate_for_string(bytes_to_allocate);
-	size_t retval = bytes_to_allocate;
-
-	u8_normalize(norm,inflexion, inflexion_length, s, &retval);
-
-	if((retval > MAX_WORD_SIZE)) //This is possible because we allow the normalizer to write up to MAX_WORD_SIZE + 1 characters
+	if(!pos_buf)
 	{
-		ngram_buf->rewind_string_allocation(bytes_to_allocate);
-		return 2;
-	}
-
-	if(pos_buf)
-	{
-		inflexion_s = pos_buf->allocate_for_string(retval + 1);
-		strncpy((char*)inflexion_s,(const char*) s,retval);
-		inflexion_s[retval] = '\0';
-
-		s[retval] = '|';
-		size_t tmp_retval = MAX_CLASSIFICATION_SIZE + 1;
-		uint8_t *ptr = s + retval + 1;
-		u8_normalize(norm,classification,classification_length,ptr,&tmp_retval);
-
-		
-		if(tmp_retval > MAX_CLASSIFICATION_SIZE)
+		size_t inflexion_s_length = bytes_to_allocate;
+		normalization_result = u8_normalize(norm,inflexion, inflexion_length, s, &inflexion_s_length);
+	
+		if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE)) //This is possible because we allow the normalizer to write up to MAX_WORD_SIZE + 1 characters
 		{
 			ngram_buf->rewind_string_allocation(bytes_to_allocate);
-			pos_buf->rewind_string_allocation(retval + 1);
-			return MAX_WORD_SIZE + 1;
+			return 2;
 		}
 
-		classification_s = pos_buf->allocate_for_string(tmp_retval + 1);
-		strncpy((char*)classification_s, (const char*)ptr, tmp_retval);
-		classification_s[tmp_retval] = '\0';
-
-		ptr += tmp_retval;
-		*ptr = '|';
-		ptr++;
-		tmp_retval = MAX_LEMMA_SIZE + 1;
-		u8_normalize(norm, lemma,lemma_length,ptr, &tmp_retval);		
-		if(tmp_retval > MAX_LEMMA_SIZE)
-		{
-			ngram_buf->rewind_string_allocation(bytes_to_allocate);
-			pos_buf->rewind_string_allocation(retval + 1 + tmp_retval + 1);
-			return MAX_WORD_SIZE + 1;
-		}
-
-		lemma_s = pos_buf->allocate_for_string(tmp_retval + 1);
-		strncpy((char*)lemma_s,(const char*) ptr, tmp_retval);
-		lemma_s[tmp_retval] = '\0';
-
-		ptr += tmp_retval;
-		*ptr = (uint8_t) '\0';
-		ngram_buf->rewind_string_allocation( bytes_to_allocate - (ptr - s) - 1);
-
+		s[inflexion_s_length] = (uint8_t) '\0';
+		inflexion_s_length++;
+		ngram_buf->rewind_string_allocation(bytes_to_allocate - inflexion_s_length);
 	}else
 	{
-		s[retval] = (uint8_t) '\0';
-		ngram_buf->rewind_string_allocation(bytes_to_allocate - retval - 1); 
+		size_t classification_s_length = MAX_CLASSIFICATION_SIZE + 1;
+		normalization_result = u8_normalize(norm,classification,classification_length,s,&classification_s_length);
+		if(!normalization_result || (classification_s_length > MAX_CLASSIFICATION_SIZE))
+		{
+			ngram_buf->rewind_string_allocation(bytes_to_allocate);
+			return 2;
+		}
+		classification_s = pos_buf->allocate_for_string(classification_s_length + 1);
+		strncpy((char*)classification_s, (const char*)s, classification_s_length);
+		classification_s[classification_s_length] = '\0';
+		s[classification_s_length] = '|';
+
+		uint8_t *ptr = s + classification_s_length + 1;
+
+		size_t lemma_s_length = MAX_LEMMA_SIZE + 1;
+		normalization_result = u8_normalize(norm,lemma,lemma_length,ptr, &lemma_s_length);
+		if(!normalization_result || (lemma_s_length > MAX_LEMMA_SIZE))
+		{
+			ngram_buf->rewind_string_allocation(bytes_to_allocate);
+			pos_buf->rewind_string_allocation(lemma_s_length + 1);
+			return 2;
+		}
+		lemma_s = pos_buf->allocate_for_string(lemma_s_length + 1);
+		strncpy((char*)lemma_s,(const char*) ptr, lemma_s_length);
+		lemma_s[lemma_s_length] = '\0';
+		ptr += lemma_s_length;
+		*ptr = '|';
+		ptr++;
+
+		size_t inflexion_s_length = MAX_WORD_SIZE + 1;
+		normalization_result = u8_normalize(norm,inflexion,inflexion_length,ptr, &inflexion_s_length);
+		if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE))
+		{
+			ngram_buf->rewind_string_allocation(bytes_to_allocate);
+			pos_buf->rewind_string_allocation(inflexion_s_length + 1);
+			pos_buf->rewind_string_allocation(inflexion_s_length + 1);
+		}
+		inflexion_s = pos_buf->allocate_for_string(inflexion_s_length + 1);
+		strncpy((char*)inflexion_s,(const char*) ptr, inflexion_s_length);
+		inflexion_s[inflexion_s_length] = '\0';
+		ptr += inflexion_s_length;
+		*ptr = '\0';
+		ptr++;
+		ngram_buf->rewind_string_allocation( bytes_to_allocate - (ptr - s));
+
 	}
 
 	if(!add_at_start)
