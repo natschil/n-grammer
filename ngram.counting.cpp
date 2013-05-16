@@ -216,9 +216,18 @@ int getnextwordandaddit(
 			if(current_word_part == lemma)
 			{
 				break;
-			}else
+			}else if(inflexion[0] == '<')
 			{
 				return 2;
+			}else
+			{
+				current_word_part = inflexion;
+				current_word_length = &inflexion_length;
+				current_word_capacity = MAX_WORD_SIZE + 1;
+
+				inflexion_length = 0;
+				classification_length = 0;
+				lemma_length = 0;
 			}
 		}
 
@@ -247,12 +256,18 @@ int getnextwordandaddit(
 			}
 				
 		}
-	}else if(*current_word_length <= current_word_capacity) 
+	}else if(*current_word_length < current_word_capacity) 
 	{
 		if(uc_is_property_alphabetic(character))
 		{
 			character = uc_tolower(character);
 
+		}else if(pos_buf && !*current_word_length && (character == '<'))
+		{
+
+			*current_word_length = current_word_capacity;
+			inflexion[0] = '<';
+			continue;
 		}else if(!(*current_word_length && 
 				(uc_is_property_hyphen(character) || 
 					 (uc_is_property_diacritic(character) && !uc_is_general_category(character, UC_MODIFIER_SYMBOL)))))
