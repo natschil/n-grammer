@@ -25,15 +25,17 @@ using namespace std;
 class searchable_file
 {
 	public:
-		searchable_file(string &filename);
+		searchable_file(string filename,bool is_pos=false);
 		~searchable_file();
 		void search(string &search_str,vector<string> &results,string &filter); 
 
 	private:
+		bool string_matches_filter(string &result_s, string &filter_s,string &search_string_s);
 		int fd;
 		char* mmaped_index;
 		int64_t mmaped_index_size;
 		map<string, off_t> search_tree;
+		bool is_pos;
 };
 
 

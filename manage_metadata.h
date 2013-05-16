@@ -23,6 +23,7 @@ class Metadata
 		void write();
 
 		set<vector<unsigned int> > indices;
+		bool posIndexesExist;
 		set<vector<unsigned int> > inverted_indices;
 		bool wordlength_stats_exist;
 

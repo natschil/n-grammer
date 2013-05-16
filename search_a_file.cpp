@@ -1,18 +1,19 @@
 #include "search_a_file.h"
 
-searchable_file::searchable_file(string &index_filename)
+searchable_file::searchable_file(string index_filename,bool is_pos)
 {
+	this->is_pos = is_pos;
 	//Let's open the file,get its size, and then mmap it.
 	fd = open(index_filename.c_str(), O_RDWR);
 	if(fd == -1)
 	{
-		cerr<<"search: Unable to open index" << index_filename<<endl;
+		cerr<<"search: Unable to open index " << index_filename<<endl;
 		exit(-1);
 	}
 	struct stat fileinfo;
 	if(stat(index_filename.c_str(),&fileinfo))
 	{
-		cerr<<"search: Unable to stat index" << index_filename<<endl;
+		cerr<<"search: Unable to stat index " << index_filename<<endl;
 		exit(-1);
 	}
 	mmaped_index_size = fileinfo.st_size;
@@ -31,23 +32,17 @@ searchable_file::searchable_file(string &index_filename)
 
 
 	const char* ptr = mmaped_index;
-	const char* ptr2 = ptr;
-	while(ptr2 < (mmaped_index + mmaped_index_size))
-	{
-		if(*ptr2== '\t')
-			break;
-		ptr2++;
-	}
 	       
-	search_tree[string(ptr, ptr2 - ptr)] = 0;
+	//An artificial, impossibly small key.
+	search_tree[string("")] = 0;
 
-	ptr = mmaped_index + mmaped_index_size - 2;
 	//Find the last string in the file.
+	ptr = mmaped_index + mmaped_index_size - 2;
 	while((ptr > mmaped_index) && (*ptr != '\n'))
 		ptr--;
 	ptr++;
 
-	ptr2 = ptr;
+	const char *ptr2 = ptr;
 	while(ptr2 < (mmaped_index + mmaped_index_size))
 	{
 		if(*ptr2== '\t')
@@ -55,7 +50,8 @@ searchable_file::searchable_file(string &index_filename)
 		ptr2++;
 	}
 
-	search_tree[string(ptr, ptr2 - ptr)] = mmaped_index_size - 1;
+	//An artifically large key.
+	search_tree[string(ptr, ptr2 - ptr) + 'a'] = mmaped_index_size - 1;
 }
 
 searchable_file::~searchable_file()
@@ -64,7 +60,7 @@ searchable_file::~searchable_file()
 	close(fd);
 }
 
-int string_matches_filter(string &result_s, string &filter_s,string &search_string_s)
+bool searchable_file::string_matches_filter(string &result_s, string &filter_s,string &search_string_s)
 {
 	const char* result = result_s.c_str();
 	const char* filter = filter_s.c_str();
@@ -121,11 +117,21 @@ int string_matches_filter(string &result_s, string &filter_s,string &search_stri
 		if(*filter_ptr == '*')
 		{
 			//TODO: optimize this.
-			if(*strchrnul(result_ptr, ' '))
-				result_ptr = strchrnul(result_ptr, ' ');
-			else
-				result_ptr = strchrnul(result_ptr,'\t');
-
+			if(!is_pos)
+			{
+				const char* result_tmp = strpbrk(result_ptr," \t");
+				if(result_tmp)
+					result_ptr = result_tmp;
+				else
+					result_ptr = result_ptr + strlen(result_ptr);
+			}else
+			{
+				const char* result_tmp = strpbrk(result_ptr,"| \t");
+				if(result_tmp)
+					result_ptr = result_tmp;
+				else
+					result_ptr = result_ptr + strlen(result_ptr);
+			}
 			result_ptr--;
 			continue;
 		}
@@ -168,7 +174,6 @@ void searchable_file::search(string &search_str,vector<string> &results,string &
 	{
 		if(upper<lower)
 		{
-			cerr<<"No matches found"<<endl;
 			break;
 		}else
 		{
