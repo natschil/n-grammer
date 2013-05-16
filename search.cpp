@@ -28,7 +28,7 @@ static void normalize_search_string_format(string& search_string_str)
 			{
 				if((ptr > search_string) && (*(ptr -1 ) != ']'))
 				{
-					new_search_string += ("[" + *current_string_part + "|*|*]");
+					new_search_string += ("[*|*|" + *current_string_part + "]");
 				}
 				if(*ptr)
 				{
