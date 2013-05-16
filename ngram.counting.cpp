@@ -219,7 +219,7 @@ int getnextwordandaddit(
 			if(current_word_part == lemma)
 			{
 				break;
-			}else if(inflexion_length && (inflexion[0] == '<'))
+			}else if(inflexion_length > MAX_WORD_SIZE)
 			{
 				return 2;
 			}else 
@@ -271,7 +271,6 @@ int getnextwordandaddit(
 		{
 
 			*current_word_length = current_word_capacity;
-			inflexion[0] = '<';
 			continue;
 		}else if(!(*current_word_length && 
 				(uc_is_property_hyphen(character) || 
@@ -294,10 +293,7 @@ int getnextwordandaddit(
 
     if(inflexion_length > MAX_WORD_SIZE)
     {
-	    if(inflexion[0] == '<')
-		    return 0;
-	    else
-    	    	return 2;
+	    return 2;
     }
 
     if(pos_buf)
@@ -310,6 +306,11 @@ int getnextwordandaddit(
 	    {
 		return 2;
 	    }
+	    if(current_word_part != lemma)
+	    {
+		    return 0;
+	    }
+
 
 	    if( !classification_length || !lemma_length)
 	    {
