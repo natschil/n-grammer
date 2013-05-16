@@ -9,7 +9,7 @@ static void normalize_search_string_format(string& search_string_str)
 	string new_search_string("");
 
 	const char* ptr;
-	bool in_brackets;
+	bool in_brackets = false;
 	string current_inflexion("");
 	string current_classification("");
 	string current_lemma("");
