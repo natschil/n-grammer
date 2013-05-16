@@ -226,7 +226,8 @@ void Dict::writeToDisk(word* start)
 			count++;
 		}else
 		{
-			this->writeOutNGram(prev,count);
+			if(count)
+				this->writeOutNGram(prev,count);
 			count = 1;
 			prev= i;
 		}
