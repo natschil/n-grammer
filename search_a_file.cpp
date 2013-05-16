@@ -100,7 +100,7 @@ bool searchable_file::string_matches_filter(string &result_s, string &filter_s,s
 				break;
 			}else
 			{
-				cerr<<"This is a bug in the filter mechanism of search"<<endl;
+				cerr<<"This is a (probably serious) bug in the filter mechanism of search for filter."<<endl;
 				return 0;
 			}
 		}

@@ -171,8 +171,8 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 							continue;//Too broad of a scope to search...
 						}else
 						{
-					   		string search_string = inflexion;
-					 		string filter = search_string + " * *";
+					   		string search_string = inflexion + " ";
+					 		string filter = search_string + "* *";
 							index_used = i_c_l;
 							i_c_l->search(search_string,tmp_result,filter);
 						}
@@ -180,8 +180,8 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 					{
 						if(inflexion == "*")
 						{
-							string search_string = lemma;
-							string filter = search_string + " * *";
+							string search_string = lemma + " ";
+							string filter = search_string + "* *";
 							index_used = l_i_c;
 							l_i_c->search(search_string,tmp_result,filter);
 						}else
