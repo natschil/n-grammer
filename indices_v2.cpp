@@ -500,7 +500,19 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 		}
 		for(size_t i = 0; i<ngramsize; i++)
 		{
-			new_prefix_stream<<"_"<<(int) new_word_combo[i];
+			new_prefix_stream<<"_";
+			if(is_pos_supplement_index)
+			{
+				if(new_word_combo[i] == 0)
+					new_prefix_stream<<'i';
+				else if(new_word_combo[i] == 1)
+					new_prefix_stream<<'c';
+				else if(new_word_combo[i] == 2)
+					new_prefix_stream<<'l';
+			}else
+			{
+				new_prefix_stream<<(int)new_word_combo[i];
+			}
 		}
 
 		recursively_remove_directory(new_prefix_stream.str().c_str());
