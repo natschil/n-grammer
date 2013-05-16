@@ -188,9 +188,9 @@ int getnextwordandaddit(
 {
 
     uint8_t *s;
-    uint8_t *inflexion_s;
-    uint8_t *classification_s;
-    uint8_t *lemma_s;
+    uint8_t *inflexion_s =NULL;
+    uint8_t *classification_s =NULL;
+    uint8_t *lemma_s =NULL;
 
     uint8_t inflexion[MAX_WORD_SIZE+1];
     size_t inflexion_length = 0; 
@@ -212,16 +212,17 @@ int getnextwordandaddit(
     { 
 	if(uc_is_property_white_space(character))
 	{
+
 		//TODO: find out whether comparing ucs4_t to a char is portable.
 		if(pos_buf && (character == '\n'))
 		{
 			if(current_word_part == lemma)
 			{
 				break;
-			}else if(inflexion[0] == '<')
+			}else if(inflexion_length && (inflexion[0] == '<'))
 			{
 				return 2;
-			}else
+			}else 
 			{
 				current_word_part = inflexion;
 				current_word_length = &inflexion_length;
@@ -230,11 +231,13 @@ int getnextwordandaddit(
 				inflexion_length = 0;
 				classification_length = 0;
 				lemma_length = 0;
+				continue;
 			}
 		}
 
 		if(!*current_word_length) //We ignore preceding whitespace.
 			continue;
+
 		else //We have reached the end of the word
 		{
 			if(!pos_buf)
@@ -291,7 +294,10 @@ int getnextwordandaddit(
 
     if(inflexion_length > MAX_WORD_SIZE)
     {
-    	    return 2;
+	    if(inflexion[0] == '<')
+		    return 0;
+	    else
+    	    	return 2;
     }
 
     if(pos_buf)
@@ -502,7 +508,7 @@ void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* e
 	}
 
 
-	while(!buffer->is_full || (pos_buffer && pos_buffer->is_full))
+	while(!buffer->is_full && !(pos_buffer && pos_buffer->is_full))
 	{
 		int res = getnextwordandaddit(f,eof,norm,buffer,pos_buffer);
 		
@@ -527,11 +533,12 @@ void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* e
 	buffer->add_null_word();
 	if(pos_buffer)
 	{
+		pos_buffer->add_null_word();
 		pos_buffer->set_bottom_pointer(0);
 		pos_buffer->set_top_pointer(0);
 	}
 
-	if(is_rightmost_buffer && !buffer->is_full && !(pos_buffer && !pos_buffer->is_full)) //There is nothing to be read in after this buffer.
+	if(is_rightmost_buffer && !buffer->is_full && !(pos_buffer && pos_buffer->is_full)) //There is nothing to be read in after this buffer.
 		buffer->set_bottom_pointer(0);
 	else //The last ngramsize - 1 words should not be starting words, because they will be starting words in the next buffer.
 		buffer->set_bottom_pointer(ngramsize-1);
