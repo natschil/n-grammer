@@ -118,11 +118,20 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	}else
 		tosearchfor += " ";
 
+	//We make a filter
+	
+	string filter = tosearchfor;
+	for(size_t i = matches; i < ngramsize; i++)
+	{
+		filter += '*';
+		if(i < (ngramsize - 1))
+			filter += ' ';
+	}
 
 	//We do the actual search
 	
 	vector<string> results;
-	index_file->search(tosearchfor, results);
+	index_file->search(tosearchfor, results,filter);
 
 	
 	for(size_t i = 0; i < results.size(); i++)

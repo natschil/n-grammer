@@ -64,7 +64,80 @@ searchable_file::~searchable_file()
 	close(fd);
 }
 
-void searchable_file::search(string &search_str,vector<string> &results)
+int string_matches_filter(string &result_s, string &filter_s,string &search_string_s)
+{
+	const char* result = result_s.c_str();
+	const char* filter = filter_s.c_str();
+	const char* search_string = search_string_s.c_str();
+
+	if(strlen(filter) < strlen(search_string))
+	{
+		cerr<<"There is a bug somewhere..."<<endl;
+		exit(-1);
+	}
+	if(strlen(filter) == strlen(search_string))
+	{
+		return 1;
+	}
+	if(strlen(result) < strlen(search_string))
+	{
+		cerr<<"This indicates that there is a bug"<<endl;
+		exit(-1);
+	}
+
+	const char* filter_ptr;
+	const char* result_ptr;
+	for(filter_ptr= filter + strlen(search_string),result_ptr = result + strlen(search_string);; filter_ptr++,result_ptr++)
+	{
+		if(!*filter_ptr)
+		{
+			if(*result_ptr)
+				result_ptr++;
+			else
+			{
+				cerr<<"It looks like there is a bug here"<<endl;
+				return 0;
+			}
+
+			if(isdigit(*result_ptr))
+			{
+				break;
+			}else
+			{
+				cerr<<"This is a bug in the filter mechanism of search"<<endl;
+				return 0;
+			}
+		}
+		if(!*result_ptr)
+		{
+			cerr<<"This is a bug"<<endl;
+			exit(-1);
+		}
+		if(*filter_ptr == ' ')
+		{
+			continue;
+		}
+
+		if(*filter_ptr == '*')
+		{
+			//TODO: optimize this.
+			if(*strchrnul(result_ptr, ' '))
+				result_ptr = strchrnul(result_ptr, ' ');
+			else
+				result_ptr = strchrnul(result_ptr,'\t');
+
+			result_ptr--;
+			continue;
+		}
+
+		if(*filter_ptr != *result_ptr)
+			return 0;		
+	}
+
+	return 1;
+}
+
+void searchable_file::search(string &search_str,vector<string> &results,string &filter)
 {
 
 	const char* search_string = search_str.c_str();
@@ -90,7 +163,7 @@ void searchable_file::search(string &search_str,vector<string> &results)
 	int64_t lower = (*itr).second;
 	int64_t i;
 
-	stringstream foundstrings;
+	stringstream foundstring;
 	while(1)
 	{
 		if(upper<lower)
@@ -111,24 +184,29 @@ void searchable_file::search(string &search_str,vector<string> &results)
 			if(cmp == 0)
 			{
 				int64_t  itr;
+				string result_string;
 				for(itr = i; itr<mmaped_index_size ;itr++)
 				{
 					if((mmaped_index[itr] == '\n') && (itr < (mmaped_index_size -1)))
 					{
-						results.push_back(foundstrings.str());
-						foundstrings.str("");
+						result_string = foundstring.str();
+
+						if(string_matches_filter(result_string,filter,search_str))
+							results.push_back(result_string);
+						foundstring.str("");
 						itr++;
 						if(strncmp(mmaped_index +itr, search_string,search_string_length))
 						{
 							break;
 						}
 					}
-					foundstrings<<mmaped_index[itr];
+					foundstring<<mmaped_index[itr];
 				}
-				if(foundstrings.str().length())
-					results.push_back(foundstrings.str());
+				result_string = foundstring.str();
+				if(result_string.length() && string_matches_filter(result_string,filter,search_str))
+					results.push_back(result_string);
 
-				foundstrings.str("");
+				foundstring.str("");
 				
 				while(i)
 				{
@@ -147,11 +225,14 @@ void searchable_file::search(string &search_str,vector<string> &results)
 						int64_t j;
 						for(j = itr; mmaped_index[j] != '\n';j++)
 						{
-							foundstrings<<mmaped_index[j];
+							foundstring<<mmaped_index[j];
 						}
 					}
-					results.push_back(foundstrings.str());
-					foundstrings.str("");
+					result_string = foundstring.str();
+					if(string_matches_filter(result_string,filter,search_str))
+						results.push_back(result_string);
+
+					foundstring.str("");
 					i = itr;
 				}
 				break;

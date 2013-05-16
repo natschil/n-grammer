@@ -27,7 +27,7 @@ class searchable_file
 	public:
 		searchable_file(string &filename);
 		~searchable_file();
-		void search(string &search_str,vector<string> &results); 
+		void search(string &search_str,vector<string> &results,string &filter); 
 
 	private:
 		int fd;
