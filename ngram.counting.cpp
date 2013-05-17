@@ -748,6 +748,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 		totalwords += local_totalwords;
 
 		free(this_internal_buffer);
+		free(this_pos_internal_buffer);
 	}
 
    //Here we do various postprocessing operations, such as moving the files to their final positions, etc...
