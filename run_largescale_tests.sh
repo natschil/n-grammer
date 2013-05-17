@@ -2,10 +2,23 @@
 mkdir -p ./tests_output
 
 if [[ ! -a $1 ]]; then echo "Usage:" $0 "corpus_to_analyze";exit;fi;
+is_pos=0;
+if [ $(echo `basename $1` | cut -c1,2,3) == "pos" ]
+then
+	is_pos=1;
+	echo "Creating POS reference data";
+fi;
+
 for i in `seq 1 6`; do
 	rm -rf ./tests_output/`basename $1`.${i}.d
 	rm -rf ./tests_output/`basename $1`.${i}.d
-	retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --wordsearch-index-depth=${i} --cache-entire-file --numbuffers=2  >/dev/null)
+	if [ ! is_pos ]
+	then
+		retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --wordsearch-index-depth=${i} --cache-entire-file --numbuffers=8 >/dev/null)
+	else
+		retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --wordsearch-index-depth=${i} --corpus-has-pos-data=yes --numbuffers=4 >/dev/null)
+	fi;
+
 	if [ $retval ];
 	then
 		echo "Failed to run ngram-counter data";
