@@ -128,6 +128,9 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 		if(!firstfile_st.st_size)//Simply move the other file to the final location.
 		{
 			rename(buf2,output);
+			free(buf);
+			free(buf2);
+			free(output);
 			continue;
 		}
 		if(stat(buf2,&secondfile_st))
@@ -138,6 +141,9 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 		if(!secondfile_st.st_size)
 		{
 			rename(buf,output);
+			free(buf);
+			free(buf2);
+			free(output);
 			continue;
 		}
 
@@ -393,4 +399,6 @@ getbothfiles:
 			get_first = 0;
 		}
 	}
+	free(buf);
+	free(buf2);
 }	

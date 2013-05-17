@@ -561,7 +561,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
    //Create a new IndexCollection object representing all of the indexes we are making
 	IndexCollection *indexes = new IndexCollection(ngramsize,wordsearch_index_depth);
-	IndexCollection *pos_indexes;
+	IndexCollection *pos_indexes = NULL;
 	if(is_pos)
 	{
 		pos_indexes = new IndexCollection(3,3,true);
@@ -613,7 +613,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	vector<void*> internal_buffers;
 	internal_buffers.reserve(num_concurrent_buffers);
 	size_t buffer_size = MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers;
-	size_t pos_buffer_size;
+	size_t pos_buffer_size = 0;
 
 	vector<void*> pos_internal_buffers;
 	if(is_pos)
@@ -802,6 +802,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	{
 		delete pos_indexes;
 	}
+	fclose(metadata_file);
 	munmap(infile,filesize);
 
 	return totalwords;
