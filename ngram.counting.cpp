@@ -581,11 +581,13 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	}
 	if(cache_entire_file)
 	{
+		fprintf(stderr,"Telling the kernel to cache the file...\n");
 		if(madvise(infile,filesize,MADV_WILLNEED))
 		{
 			fprintf(stderr, "Unable to madvise with MADV_WILLNEED for file\n");
 			exit(-1);
 		}
+		fprintf(stderr,"Done telling the kernel to cache the file...\n");
 	}
 
    //We split the file into num_concurrent_buffers (almost) equally sized chunks.
