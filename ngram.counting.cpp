@@ -581,7 +581,6 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 		pos_indexes = new IndexCollection(3,3,true);
 	}
 
-
    //We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details on normalization forms.
 	uninorm_t norm = UNINORM_NFKD; 
 
