@@ -516,6 +516,10 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 
 		}
 	}
+	if(buffer->is_full)
+		fprintf(stdout,"+");
+	else
+		fprintf(stdout,"-");
 	//Add a null word at the end so everything goes ok.
 	buffer->add_null_word();
 	if(pos_buffer)
@@ -620,9 +624,9 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	{
 		pos_internal_buffers.reserve(num_concurrent_buffers);
 		//Roughly how much memory we expect to be taking.
-		buffer_size = ((MEMORY_TO_USE_FOR_BUFFERS * ngramsize)/(ngramsize + 3))/num_concurrent_buffers;
+		buffer_size = (((double)MEMORY_TO_USE_FOR_BUFFERS * (double)ngramsize)/((double)ngramsize + (double)4.5))/(double)num_concurrent_buffers;
 		//TODO: Think about alignment issues when allocating buffer size.
-		pos_buffer_size = MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers - buffer_size; 
+		pos_buffer_size = (((double)MEMORY_TO_USE_FOR_BUFFERS * (double)4.5)/((double)ngramsize + (double)4.5))/(double)num_concurrent_buffers;
 	}
 
 	//We need to store at least 2*ngramsize - 1 words per buffer, so checking for 2*ngramsize buffers is sufficient.
