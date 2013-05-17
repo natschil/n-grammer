@@ -567,7 +567,11 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
    //Make the output directory(if it doesn't exist, and move to it)
 	mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
-	chdir(outdir);
+	if(chdir(outdir))
+	{
+		fprintf(stderr, "Chdir(2) failed");
+		exit(-1);
+	}
 
    //Create a new IndexCollection object representing all of the indexes we are making
 	IndexCollection *indexes = new IndexCollection(ngramsize,wordsearch_index_depth);

@@ -223,7 +223,11 @@ static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* outpu
 		}
 	
 		off_t output_end = out_cur + inputsize - in_cur ;
-		ftruncate(out_fd, output_end);
+		if(ftruncate(out_fd, output_end))
+		{
+			fprintf(stderr,"merge: Unable to ftruncute(2) output file");
+			exit(-1);
+		}
 
 
 		off_t input_offset_start = sysconf(_SC_PAGESIZE) * (in_cur / sysconf(_SC_PAGESIZE)); //Round down to nearest page size.
