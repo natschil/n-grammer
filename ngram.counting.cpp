@@ -5,11 +5,11 @@
 
 /* This function first decrements offset_to_adjust once, and then continuously decrements it until (mmaped_file + offset_to_adjust) points
  * to the start of a region of continuous unicode space so that there are num_spaces regions of unicode space between
- * the original value of (mmaped_file + offset_to_adjust - 1) and the final value of (mmaped_file + offset_to_adjust)
- * including the region of spaces starting at (mmaped_file + offset_to_adjust).
+ * the original value of (mmaped_file + offset_to_adjust - 1) and the final value of (mmaped_file + offset_to_adjust).
+ * If is_pos is set, only newlines ('\n') are treated as space.
  * mmaped_file needs to point to a region of memory of size file_size in utf-8 encoding.
  * If there do not exist num_spaces regions of space in the file, offset_to_adjust is set to 0.
- * num_spaces must not be 0.
+ * num_spaces may not be 0.
  */
 static void adjustBoundaryToSpace(const uint8_t* mmaped_file, off_t &offset_to_adjust,off_t file_size,unsigned int num_spaces,bool is_pos);
 
@@ -18,35 +18,42 @@ static void adjustBoundaryToSpace(const uint8_t* mmaped_file, off_t &offset_to_a
  * The result is stored in *character.
  * On encountering something that is invalid utf-8, *ptr is incremented until a valid character sequence is found, or the
  * file ends.
- * Returns 1 on sucess and 0 if there is nothing more left to fetch in the file
+ * Returns 1 on sucess 
+ * Returns 0 if there is nothing more left to fetch in the file.
  */
 static int get_next_ucs4t_from_file( const uint8_t (**ptr),const uint8_t* eof,ucs4_t *character);
 
 /* Adds the next string from *f to the relevant buffers. Note that it does *NOT* add a null_word on invalid words.
  * The string is normalized using norm
  *
- * Returns 2 if there was a subsequent word in f and it was valid.
- * Returns 1 if there was a subsequent word in f, but it was not valid (i.e. too long, poor pos formatting or ---END.OF.DOCUMENT---).
- * Returns 0 if there was no subsequent word in f. 
- *
  * The following transformations of the input string(s) from the file also take place:
  * 	Alphabetic characters from f are converted to their lowercase equivalents. (Note that this is done on a per-character basis)
  * 	Diacritics are left unmodified unless through normalization, or if they in the Unicode Sk category, in which case they are ignored.
- * 		Currently Diacritics which precede are ignored. TODO: Research whether this is good or not.
- * 	Hyphen Characters are ignored unless they are within a word. 
- * 		For example: an input of --X-ray will result in the word x-ray being returned
- *	Punctuation characters are ignored.
- *	Any other character is also ignored.
+ * 		Currently Diacritics which precede a word are ignored. TODO: Consider whether this is good or not.
+ * 	Hyphen Characters are ignored if the precede a word.
+ * 		For example: an input of --X-ray- will result in the word x-ray- being returned
+ *	Any other characters are ignored.
  *
- * Any whitespace constitutes a word delimiter.
- * If pos_buf is set, the word is ignored if the third delimiter is not a newline.
+ * For the non-POS case:
+ * 	Any whitespace constitutes a word delimiter.
+ * For the POS case (i.e. pos_buf is non-NULl):
+ * 	The word is marked as invalid if any of the following is true:
+ * 				a) It starts with '<'
+ * 				b) Either the word, its POS tag or its lemma is longer than the relevant values in config.h
+ * 				c) It has more than 3 'sections' per line, where "a b cde efg\n" would have 4 sections, and "a b\n" one.
+ * 					NOTE: "efg \n" counts as 2 sections due to the trailing space but leading spaces are ignored.
+ *
  * The word is added to the start of the buffer if add_word_at_start is set to true. If this is a case, remember to call Buffer::advance_to first.
+ *
+ * Returns 2 if there was a subsequent word in f and it was valid.
+ * Returns 1 if there was a subsequent word in f, but it was not valid (i.e. too long, poor pos formatting or ---END.OF.DOCUMENT---).
+ * Returns 0 if there was no subsequent word in f. 
  */
-int getnextwordandaddit(
+static int getnextwordandaddit(
 		const uint8_t (**f),
 		const uint8_t *eof,
 	       	uninorm_t norm,
-		Buffer* buf,
+		Buffer* ngram_buf,
 	       	Buffer* pos_buf = NULL,
 		bool add_word_at_start = false
 		);
@@ -59,7 +66,7 @@ int getnextwordandaddit(
  * The argument is_rightmost_buffer should be set to 1 if eof is the actual end of the mmaped file, i.e. there are no buffers
  * that start after this buffer.
  */
-void fillABuffer(
+static void fillABuffer(
 		const uint8_t* mmaped_file,
 		const uint8_t (**f),
 		const uint8_t* eof,
@@ -126,25 +133,12 @@ static void adjustBoundaryToSpace(const uint8_t* mmaped_file, off_t &offset_to_a
 
 		read = u8_mbtouc(&character, mmaped_file + offset_to_adjust,file_size - offset_to_adjust);
 
-		if( (read > 0) && uc_is_property_white_space(character))
+		if( (read > 0) && uc_is_property_white_space(character) && (!is_pos || (character == '\n')))
 		{
 			if(!last_was_whitespace)
 			{
-				if(!is_pos)
-				{
-					num_spaces--;
-					last_was_whitespace = 1;
-				}else
-				{
-					if(character == '\n')
-					{
-						num_spaces--;
-						last_was_whitespace = 1;
-					}else
-					{
-						last_was_whitespace = 0;
-					}
-				}
+				num_spaces--;
+				last_was_whitespace = 1;
 			}
 		}else
 		{
@@ -177,20 +171,16 @@ static int get_next_ucs4t_from_file( const uint8_t (**ptr),const uint8_t* eof,uc
 	return 1;
 }
 
-int getnextwordandaddit(
+static int getnextwordandaddit(
 		const uint8_t (**f),
 		const uint8_t *eof, 
 		uninorm_t norm,
 		Buffer* ngram_buf,
-	       	Buffer* pos_buf/* (= NULL)*/,
-		bool add_at_start /*(= true)*/
+	       	Buffer* pos_buf,
+		bool add_at_start
 		)
 {
 
-    uint8_t *s;
-    uint8_t *inflexion_s =NULL;
-    uint8_t *classification_s =NULL;
-    uint8_t *lemma_s =NULL;
 
     uint8_t inflexion[MAX_WORD_SIZE+1];
     size_t inflexion_length = 0; 
@@ -212,17 +202,21 @@ int getnextwordandaddit(
     { 
 	if(uc_is_property_white_space(character))
 	{
-
 		//TODO: find out whether comparing ucs4_t to a char is portable.
 		if(pos_buf && (character == '\n'))
 		{
 			if(current_word_part == lemma)
 			{
-				break;
-			}else if(inflexion_length > MAX_WORD_SIZE)
+				break;//We've read in an entire line
+
+			}else if( 	//We've reached a newline too early, and one of the first two words is set to be ignored.
+					(inflexion_length > MAX_WORD_SIZE) || 
+						( classification_length > (MAX_CLASSIFICATION_SIZE))
+					)
 			{
+				
 				return 2;
-			}else 
+			}else  //We've reached a newline too early, but none of the words in it are set to be ignored.
 			{
 				current_word_part = inflexion;
 				current_word_length = &inflexion_length;
@@ -238,38 +232,39 @@ int getnextwordandaddit(
 		if(!*current_word_length) //We ignore preceding whitespace.
 			continue;
 
-		else //We have reached the end of the word
+		if(!pos_buf) //In non-POS cases, it is enough to read in a single word.
+			break;
+		else //We have reached the end of a "section"
 		{
-			if(!pos_buf)
-				break;
-			else
+			if(current_word_part == inflexion)
 			{
-				if(current_word_part == inflexion)
-				{
-					current_word_part = classification;
-					current_word_length = &classification_length;
-					current_word_capacity = MAX_CLASSIFICATION_SIZE + 1;
-				}else if(current_word_part == classification)
-				{
-					current_word_part = lemma;
-					current_word_length = &lemma_length;
-					current_word_capacity = MAX_LEMMA_SIZE + 1;
-				}else //This means there was no newline after the lemma, as the test above would have caught that.
-				{
-					return 2;
-				}
+				current_word_part = classification;
+				classification_length = 0;
+				current_word_length = &classification_length;
+				current_word_capacity = MAX_CLASSIFICATION_SIZE + 1;
+			}else if(current_word_part == classification)
+			{
+				current_word_part = lemma;
+				lemma_length = 0;
+				current_word_length = &lemma_length;
+				current_word_capacity = MAX_LEMMA_SIZE + 1;
+			}else //This means there are too many spaces.
+			{
+				//Ignore the word once we reach a newline.
+				*current_word_length = current_word_capacity;
+				continue;
 			}
-				
 		}
-	}else if(*current_word_length < current_word_capacity) 
+	}else if(*current_word_length < current_word_capacity)  //We are not dealing with whitespace, and there is still space to read in.
 	{
 		if(uc_is_property_alphabetic(character))
 		{
 			character = uc_tolower(character);
 
-		}else if(pos_buf && !*current_word_length && (character == '<'))
+		}else if(pos_buf && !*current_word_length && (character == '<')) //Ignore words starting with '<';
 		{
 
+			//We do not return here, as we need to read in the whole line.
 			*current_word_length = current_word_capacity;
 			continue;
 		}else if(!(*current_word_length && 
@@ -280,161 +275,151 @@ int getnextwordandaddit(
 		}
 
 		int read = u8_uctomb(current_word_part + *current_word_length,character,current_word_capacity - *current_word_length);
-		if(read < 0)
+		if(read < 0) 
 		{
+			//Set the word to be ignored it is too long.
 			*current_word_length = current_word_capacity;
 		}else
 		{
 			*current_word_length += read;
 		}
-
 	}
     }	
 
-    if(inflexion_length > MAX_WORD_SIZE)
+
+    if(!pos_buf)
     {
+    	if(inflexion_length > MAX_WORD_SIZE)
 	    return 2;
-    }
+    	if(!inflexion_length)
+	    return 0;
 
-    if(pos_buf)
+   	inflexion[inflexion_length] = '\0';
+    }else
     {
-	    if(classification_length > MAX_CLASSIFICATION_SIZE)
-	    {
-		return 2;
-	    }
-	    if(lemma_length > MAX_LEMMA_SIZE)
-	    {
-		return 2;
-	    }
+	    //If any of the word parts were set to be ignored
+	    if((inflexion_length > MAX_WORD_SIZE) || (classification_length > MAX_CLASSIFICATION_SIZE)|| (lemma_length > MAX_LEMMA_SIZE))
+		   return 2;
+
+            //If the file ended before reaching a lemma.
 	    if(current_word_part != lemma)
-	    {
-		    return 0;
-	    }
+	  	  return 0;
 
+	    //If there are any empty words at this point, the file ended too soon
+	    if(!inflexion_length || !classification_length || !lemma_length)
+		  return 0;
 
-	    if( !classification_length || !lemma_length)
-	    {
-		    return 0;
-	    }
-   }
-    
-   inflexion[inflexion_length] = '\0';
-   if(pos_buf)
-   {
+	   inflexion[inflexion_length] = '\0';
 	   classification[classification_length] = '\0';
 	   lemma[lemma_length] = '\0';
    }
-
-
-    if(!inflexion_length)
-    {
-	    return 0;
-    }else
-    {
-
-	//---END.OF.DOCUMENT--- becomes END.OF.DOCUMENT--- because preceding hyphens are ignored.
-    	if(!strcmp((const char*) inflexion,"END.OF.DOCUMENT---")) 
-    	{
-		return 2;
-    	}
-
-
-	//At this point we have an unnormalized lowercase unicode string.
-	size_t bytes_to_allocate = MAX_WORD_SIZE + 1;
-	if(pos_buf)
-	{
-		bytes_to_allocate += MAX_CLASSIFICATION_SIZE + 1;
-		bytes_to_allocate += MAX_LEMMA_SIZE + 1;
-	}
-	bytes_to_allocate *= sizeof(*s);
-
-	s = ngram_buf->allocate_for_string(bytes_to_allocate);
-	if(!pos_buf)
-	{
-		size_t inflexion_s_length = bytes_to_allocate;
-		normalization_result = u8_normalize(norm,inflexion, inflexion_length, s, &inflexion_s_length);
-	
-		if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE)) //This is possible because we allow the normalizer to write up to MAX_WORD_SIZE + 1 characters
-		{
-			ngram_buf->rewind_string_allocation(bytes_to_allocate);
-			return 2;
-		}
-
-		s[inflexion_s_length] = (uint8_t) '\0';
-		inflexion_s_length++;
-		ngram_buf->rewind_string_allocation(bytes_to_allocate - inflexion_s_length);
-	}else
-	{
-		size_t classification_s_length = MAX_CLASSIFICATION_SIZE + 1;
-		normalization_result = u8_normalize(norm,classification,classification_length,s,&classification_s_length);
-		if(!normalization_result || (classification_s_length > MAX_CLASSIFICATION_SIZE))
-		{
-			ngram_buf->rewind_string_allocation(bytes_to_allocate);
-			return 2;
-		}
-		classification_s = pos_buf->allocate_for_string(classification_s_length + 1);
-		strncpy((char*)classification_s, (const char*)s, classification_s_length);
-		classification_s[classification_s_length] = '\0';
-		s[classification_s_length] = '|';
-
-		uint8_t *ptr = s + classification_s_length + 1;
-
-		size_t lemma_s_length = MAX_LEMMA_SIZE + 1;
-		normalization_result = u8_normalize(norm,lemma,lemma_length,ptr, &lemma_s_length);
-		if(!normalization_result || (lemma_s_length > MAX_LEMMA_SIZE))
-		{
-			ngram_buf->rewind_string_allocation(bytes_to_allocate);
-			pos_buf->rewind_string_allocation(lemma_s_length + 1);
-			return 2;
-		}
-		lemma_s = pos_buf->allocate_for_string(lemma_s_length + 1);
-		strncpy((char*)lemma_s,(const char*) ptr, lemma_s_length);
-		lemma_s[lemma_s_length] = '\0';
-		ptr += lemma_s_length;
-		*ptr = '|';
-		ptr++;
-
-		size_t inflexion_s_length = MAX_WORD_SIZE + 1;
-		normalization_result = u8_normalize(norm,inflexion,inflexion_length,ptr, &inflexion_s_length);
-		if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE))
-		{
-			ngram_buf->rewind_string_allocation(bytes_to_allocate);
-			pos_buf->rewind_string_allocation(inflexion_s_length + 1);
-			pos_buf->rewind_string_allocation(inflexion_s_length + 1);
-		}
-		inflexion_s = pos_buf->allocate_for_string(inflexion_s_length + 1);
-		strncpy((char*)inflexion_s,(const char*) ptr, inflexion_s_length);
-		inflexion_s[inflexion_s_length] = '\0';
-		ptr += inflexion_s_length;
-		*ptr = '\0';
-		ptr++;
-		ngram_buf->rewind_string_allocation( bytes_to_allocate - (ptr - s));
-
-	}
-
-	if(!add_at_start)
-	{
-		ngram_buf->add_word(s);
-	}else
-	{
-		ngram_buf->add_word_at_start(s);
-	}
-
-	if(pos_buf)
-	{
-		pos_buf->add_null_word();
-		pos_buf->add_word(inflexion_s);
-		pos_buf->add_word(classification_s);
-		pos_buf->add_word(lemma_s);
-		pos_buf->add_null_word();
-	}
-	return 1;
+    
+    //---END.OF.DOCUMENT--- becomes END.OF.DOCUMENT--- because preceding hyphens are ignored.
+   if(!strcmp((const char*) inflexion,"END.OF.DOCUMENT---")) 
+   {
+	return 2;
    }
+
+
+   //At this point we have an unnormalized lowercase unicode string.
+   size_t bytes_to_allocate = MAX_WORD_SIZE + 1;
+   if(pos_buf)
+   {
+	bytes_to_allocate += MAX_CLASSIFICATION_SIZE + 1;
+	bytes_to_allocate += MAX_LEMMA_SIZE + 1;
+   }
+   uint8_t *s;
+   bytes_to_allocate *= sizeof(*s);
+   s = ngram_buf->allocate_for_string(bytes_to_allocate);
+
+   uint8_t *inflexion_s = NULL;
+   uint8_t *classification_s = NULL;
+   uint8_t *lemma_s = NULL;
+
+   if(!pos_buf)
+   {
+	size_t inflexion_s_length = bytes_to_allocate;
+	normalization_result = u8_normalize(norm,inflexion, inflexion_length, s, &inflexion_s_length);
+
+	if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE)) 
+	{
+		ngram_buf->rewind_string_allocation(bytes_to_allocate);
+		return 2;
+	}
+
+	s[inflexion_s_length] = (uint8_t) '\0';
+	inflexion_s_length++;
+	ngram_buf->rewind_string_allocation(bytes_to_allocate - inflexion_s_length);
+   }else
+   {
+	size_t classification_s_length = MAX_CLASSIFICATION_SIZE + 1;
+	normalization_result = u8_normalize(norm,classification,classification_length,s,&classification_s_length);
+	if(!normalization_result || (classification_s_length > MAX_CLASSIFICATION_SIZE))
+	{
+		ngram_buf->rewind_string_allocation(bytes_to_allocate);
+		return 2;
+	}
+	classification_s = pos_buf->allocate_for_string(classification_s_length + 1);
+	strncpy((char*)classification_s, (const char*)s, classification_s_length);
+	classification_s[classification_s_length] = '\0';
+	s[classification_s_length] = '|';
+
+	uint8_t *ptr = s + classification_s_length + 1;
+
+	size_t lemma_s_length = MAX_LEMMA_SIZE + 1;
+	normalization_result = u8_normalize(norm,lemma,lemma_length,ptr, &lemma_s_length);
+	if(!normalization_result || (lemma_s_length > MAX_LEMMA_SIZE))
+	{
+		ngram_buf->rewind_string_allocation(bytes_to_allocate);
+		pos_buf->rewind_string_allocation(lemma_s_length + 1);
+		return 2;
+	}
+	lemma_s = pos_buf->allocate_for_string(lemma_s_length + 1);
+	strncpy((char*)lemma_s,(const char*) ptr, lemma_s_length);
+	lemma_s[lemma_s_length] = '\0';
+	ptr += lemma_s_length;
+	*ptr = '|';
+	ptr++;
+
+	size_t inflexion_s_length = MAX_WORD_SIZE + 1;
+	normalization_result = u8_normalize(norm,inflexion,inflexion_length,ptr, &inflexion_s_length);
+	if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE))
+	{
+		ngram_buf->rewind_string_allocation(bytes_to_allocate);
+		pos_buf->rewind_string_allocation(inflexion_s_length + 1);
+		pos_buf->rewind_string_allocation(inflexion_s_length + 1);
+	}
+	inflexion_s = pos_buf->allocate_for_string(inflexion_s_length + 1);
+	strncpy((char*)inflexion_s,(const char*) ptr, inflexion_s_length);
+	inflexion_s[inflexion_s_length] = '\0';
+	ptr += inflexion_s_length;
+	*ptr = '\0';
+	ptr++;
+	ngram_buf->rewind_string_allocation( bytes_to_allocate - (ptr - s));
+   }
+
+   if(!add_at_start)
+   {
+	ngram_buf->add_word(s);
+   }else
+   {
+	ngram_buf->add_word_at_start(s);
+   }
+
+   if(pos_buf)
+   {
+	pos_buf->add_null_word();
+	pos_buf->add_word(inflexion_s);
+	pos_buf->add_word(classification_s);
+	pos_buf->add_word(lemma_s);
+	pos_buf->add_null_word();
+   }
+   return 1;
 }
 
 
 
-void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* eof, long long int &totalwords, uninorm_t norm, Buffer *buffer,int is_rightmost_buffer,unsigned int ngramsize,Buffer *pos_buffer/*( = NULL)*/)
+static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* eof, long long int &totalwords, uninorm_t norm, Buffer *buffer,int is_rightmost_buffer,unsigned int ngramsize,Buffer *pos_buffer/*( = NULL)*/)
 {
 
 	if((ngramsize > 1) && (*f != mmaped_file))
@@ -531,6 +516,7 @@ void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* e
 
 		}
 	}
+	//Add a null word at the end so everything goes ok.
 	buffer->add_null_word();
 	if(pos_buffer)
 	{
