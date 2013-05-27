@@ -2,20 +2,29 @@
 
 #include "mergefiles.h"
 
-//static uint8_t scheduling_table[MAX_K][MAX_BUFFERS] = {{0}};
+/*Function declarations of functions found in this file*/
+
+void init_merger(int new_max_ngram_string_length);
+void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char* prefix);
+int get_final_k();
+static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char* prefix);
+static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* output);
+int merge_files(FILE* in_first,off_t first_size, FILE* in_second,off_t second_size, FILE* out,int max_ngram_string_length);
+
+
+/*Global variables */
+
 static int max_k = 0;
+//Given that this only serves as a hint, it doesn't matter whether or not it is set to the real value.
+static int max_ngram_string_length = 40; 
 
 
-static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char*);
-static int max_ngram_string_length = 40; //Given that this only serves as a hint, it doesn't matter whether or not it is set to the real value.
+/*Function definitions*/
 
 void init_merger(int new_max_ngram_string_length)
 {
 	max_ngram_string_length = new_max_ngram_string_length;
 }
-
-
-
 
 //Call this function with k,n referring to an n-gram collection that already exists.
 //i.e. when the n-th nonterminal buffer has been written to disk, call schedule_next_merge(0,n,0)
@@ -29,8 +38,8 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 	}
 
 	int other_n;
-
-	if(n && rightmost_run) //Here we move the file up the merge tree until the next merge can be done "normally"
+	//Whether or not this is the final merge..
+	if(n && rightmost_run) 
 	{
 		//We find the next highest "peak", and move the file there.
 		int other_k = k;
@@ -56,13 +65,13 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 			free(old_directory_name);
 			free(new_directory_name);
 		}
-
 	}else
 	{
 		other_n = (n && (n % 2)) ? n - 1: n + 1;
 	}
 
 	int run_next_merge;
+	//TODO: Do this with openmp locks instead.
 	#pragma omp critical(merge_scheduler)
 	{
 		#pragma omp flush
@@ -72,6 +81,7 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 			(*scheduling_table)[k][other_n] = rightmost_run ? 2 : 1;
 		#pragma omp flush
 	}
+
 	if(run_next_merge)
 	{
 		fprintf(stdout,"|");
@@ -83,9 +93,7 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 	}
 }
 
-//This function outputs the location of the output file.
-//Only call this when you are sure that all merging has finished
-//Returns -1 on error, though this is really an impossibility.
+//This function returns the value of the "deepest" value 
 int get_final_k()
 {
 	#pragma omp flush

@@ -22,6 +22,8 @@
  *
  *
  */
+#ifndef NGRAM_COUNTER_SEARCHINDEXCOMBINATIONS_H
+#define NGRAM_COUNTER_SEARCHINDEXCOMBINATIONS_H
 
 #include <vector>
 #include <algorithm>
@@ -57,4 +59,5 @@ class optimized_combination
 		unsigned int* upper;
 		size_t upper_size;
 };
+#endif
 

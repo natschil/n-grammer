@@ -1,281 +1,5 @@
 #include "indices_v2.h"
 
-word::word(word&& old)
-{
-	prev = old.prev;
-	next = old.next;
-	contents = old.contents;
-	reduces_to = old.reduces_to;
-	flags = old.flags;
-	prev->next = this;
-	next->prev = this;	
-	this->next = old.next;
-	this->prev = old.prev;
-};
-
-word& word::operator=(word&& old)
-{			
-	prev = old.prev;
-	next = old.next;
-	flags = old.flags;
-	contents = old.contents;
-	reduces_to = old.reduces_to;
-
-	prev->next = this;
-	next->prev = this;	
-
-	this->next = old.next;
-	this->prev = old.prev;
-	return *this;
-};
-
-word_cmp::word_cmp(const char* strings_start)
-{
-	this->strings_start = strings_start;
-}
-bool word_cmp::operator()(const word &first, const word &second)
-{
-	return strcmp(strings_start + first.contents, strings_start + second.contents) < 0;
-}
-
-ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int* word_order,const optimized_combination *optimized_combo,const word* null_word)
-{
-	n_gram_size = ngramsize;
-	this->word_order = word_order;
-	this->optimized_combo = optimized_combo;
-	this->null_word = null_word;
-}
-
-/*
- *This function compares two n-grams where the first word of the n-gram is the same.
- */
-static inline int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,const optimized_combination* optimized_combo, const unsigned int* word_order,const word* null_word)
-{
-	int min_found = 0;
-	int max_found = 0;
-
-	const word* max_found_w1 = first;
-	const word* max_found_w2 = second;
-	const word* min_found_w1 = first;
-	const word* min_found_w2 = second;
-
-	//MARKER5
-	int cache[64];
-	cache[0] = 0;
-
-	for(size_t i = 1; i<n_gram_size;i++)
-	{
-		int relative_position = word_order[i] - word_order[0];
-		if(relative_position >= 0)
-		{
-			if(relative_position > max_found)
-			{
-				for(int j = max_found; j < relative_position;j++)
-				{
-					if(max_found_w1->next != null_word)
-					{
-						max_found_w1 = max_found_w1->next;
-					}else
-						return (max_found_w2->next == null_word) ? 0 : 1;
-
-					if(max_found_w2->next !=  null_word)
-					{
-						max_found_w2 = max_found_w2->next;
-					}else
-						return  -1;
-
-					cache[optimized_combo->upper[j + 1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
-				}
-				max_found = relative_position;
-			}
-			if(cache[i] == 0)
-				continue;
-			else 
-				return cache[i];
-			
-		}else
-		{
-			if(-relative_position > min_found)
-			{
-				for(int j = min_found;j < -relative_position ;j++)
-				{
-					if(min_found_w1->prev != null_word)
-					{
-						min_found_w1 = min_found_w1->prev;
-					}else
-						return (min_found_w2->prev == null_word) ? 0 : 1;
-
-					if(min_found_w2->prev != null_word)
-					{
-						min_found_w2 = min_found_w2->prev;
-					}else
-						return  -1;
-
-					cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
-				}
-				min_found = -relative_position ;
-			}
-			if(cache[i] == 0)
-				continue;
-			else
-				return cache[i];
-		}	
-	}
-
-	return 0;
-}
-
-bool ngram_cmp::operator()(const word &first,const word &second)
-{
-	return ngramcmp(n_gram_size,&first,&second,optimized_combo, word_order,null_word) < 0;
-}
-
-class Dict
-{
-    public:
-	Dict(
-		unsigned int ngramsize,
-		const char* prefix,
-	       	unsigned int buffercount,
-		const optimized_combination *optimized_combo,
-		const unsigned int* word_order,
-		const word* null_word,
-		word* buffer_bottom,
-		uint8_t* strings_start
-		);
-	void cleanUp(void);
-	void writeToDisk(word* start);
-	void writeOutNGram(word* ngram_start,long long int count);
-    private:
-	const optimized_combination *optimized_combo;
-	const unsigned int* word_order;
-
-	ngram_cmp cmp;
-	unsigned int ngramsize;
-	unsigned int buffercount;
-	const char* prefix;
-	const word* null_word;
-	word* buffer_bottom;
-	uint8_t* strings_start;
-	FILE* outfile;
-};
-Dict::Dict(
-		unsigned int ngramsize,
-		const char* prefix,
-	       	unsigned int buffercount,
-		const optimized_combination *optimized_combo,
-		const unsigned int* word_order,
-		const word* null_word,
-		word* buffer_bottom,
-		uint8_t* strings_start
-		)
-{
-	this->ngramsize = ngramsize;
-	this->prefix = prefix;
-	this->buffercount = buffercount;
-	this->optimized_combo = optimized_combo;
-	this->word_order = word_order;
-	this->null_word = null_word;
-	this->buffer_bottom = buffer_bottom;
-	this->strings_start = strings_start;
-
-	this->cmp = ngram_cmp(ngramsize,word_order,optimized_combo,null_word);
-
-	if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
-	{
-		fprintf(stderr, "Unable to create directory %s",prefix);
-	}
-
-	stringstream buf("");
-	buf<<"./"<<prefix<<"/0_"<<buffercount;
-
-	if(mkdir(buf.str().c_str(),S_IRUSR | S_IWUSR | S_IXUSR ) && (errno !=  EEXIST))
-	{
-		fprintf(stderr,"Unable to create directory %s",buf.str().c_str());
-		exit(-1);
-	}
-	buf<<"/0.out";
-
-	outfile = fopen(buf.str().c_str(),"a");
-	if(!outfile)
-	{
-		fprintf(stderr,"Unable to open file %s", buf.str().c_str());
-		exit(-1);
-	}
-}
-void Dict::cleanUp(void)
-{
-	fclose(outfile);
-	return;
-};
-void Dict::writeToDisk(word* start)
-{
-	word* end = (start->reduces_to + buffer_bottom) + 1;
-	if(ngramsize > 1)
-		std::sort(start, end, cmp);
-
-	word* prev = start;
-	long long int count = 0;
-	for(word* i = start; i < end; i++)
-	{
-		if(i->flags & NON_STARTING_WORD)
-			continue;
-
-		if(!ngramcmp(ngramsize,i,prev,optimized_combo,word_order,null_word))
-		{
-			count++;
-		}else
-		{
-			if(count)
-				this->writeOutNGram(prev,count);
-			count = 1;
-			prev= i;
-		}
-	}
-
-	if(count)
-		this->writeOutNGram(prev, count);
-	return;
-};
-void Dict::writeOutNGram(word* ngram_start,long long int count)
-{
-	//MARKER5
-	const uint8_t *words_in_ngram[64];
-	word* tmp = ngram_start;
-	int skip = 0;
-	for(size_t j = 0; j < optimized_combo->lower_size; j++)
-	{
-		if(tmp->prev == null_word)
-		{
-			skip = 1;
-			break;
-		}else
-			tmp = tmp->prev;
-		words_in_ngram[optimized_combo->lower[j]] = strings_start + tmp->contents;
-	}
-
-	tmp = ngram_start;
-	words_in_ngram[0] = strings_start + tmp->contents;
-	for(size_t j = 1; j < optimized_combo->upper_size;j++)
-	{
-		if(tmp->next == null_word)
-		{
-			skip = 1;
-			break;
-		}else
-			tmp = tmp->next;
-		words_in_ngram[optimized_combo->upper[j]] = strings_start + tmp->contents;
-	}
-	for(size_t j = 0;!skip && ( j <ngramsize); j++)
-	{
-		ulc_fprintf(outfile,"%U",words_in_ngram[j]);
-		if(j != (ngramsize - 1))
-			fprintf(outfile," ");
-	}
-	if(!skip)
-		fprintf(outfile,"\t%lld\n",count);
-	return;
-}
 
 Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_allocation,word* null_word)
 {
@@ -489,9 +213,29 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 			}
 		}
 
+		combinations.push_back(new_word_combo);
+		free(current_combo);
+		combo_number++;
+	}while(++combination_itr);
+
+	std::sort(combinations.begin(),combinations.end(), 
+			[&ngramsize](unsigned int* first, unsigned int* second){
+			for(unsigned int i= 0; i< ngramsize; i++)
+			{
+				if(first[i] != second[i])
+				{
+					return (first[i] - first[0]) > (second[i] - second[0]);
+				}
+			}
+			return false;
+
+			});
+
+	for(unsigned int i = 0; i<combo_number; i++)
+	{
+		optimized_combinations.push_back(optimized_combination(combinations[i],ngramsize));
 
 		stringstream new_prefix_stream("");
-
 		if(!is_pos_supplement_index)
 		{
 			new_prefix_stream<<"tmp.by";
@@ -499,32 +243,26 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 		{
 			new_prefix_stream<<"tmp.pos_supplement_index";
 		}
-		for(size_t i = 0; i<ngramsize; i++)
+		for(size_t j = 0; j<ngramsize; j++)
 		{
 			new_prefix_stream<<"_";
 			if(is_pos_supplement_index)
 			{
-				if(new_word_combo[i] == 0)
+				if((combinations[i])[j] == 0)
 					new_prefix_stream<<'i';
-				else if(new_word_combo[i] == 1)
+				else if((combinations[i])[j] == 1)
 					new_prefix_stream<<'c';
-				else if(new_word_combo[i] == 2)
+				else if((combinations[i])[j] == 2)
 					new_prefix_stream<<'l';
 			}else
 			{
-				new_prefix_stream<<(int)new_word_combo[i];
+				new_prefix_stream<<(int) (combinations[i])[j];
 			}
 		}
 
 		recursively_remove_directory(new_prefix_stream.str().c_str());
-
-		combinations.push_back(new_word_combo);
-		optimized_combinations.push_back(optimized_combination(new_word_combo,ngramsize));
 		prefixes.push_back(strdup(new_prefix_stream.str().c_str()));
-		free(current_combo);
-		combo_number++;
-
-	}while(++combination_itr);
+	}
 
 	if(combo_number != numcombos)
 	{
