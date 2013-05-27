@@ -15,6 +15,11 @@ for i in `seq 1 6`; do
 	if  $is_pos 
 	then
 		retval=$(./ngram.counting $i $1 ./reference_data/`basename $1`.${i}.d --wordsearch-index-depth=${i} --corpus-has-pos-data=yes --numbuffers=1 >/dev/null)
+		if [ ! $retval ];
+		then
+			retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --numbuffers=1 --build-pos-supplement-indexes --cache-entire-file > /dev/null);
+		fi;
+
 	else
 		retval=$(./ngram.counting $i $1 ./reference_data/`basename $1`.${i}.d --wordsearch-index-depth=${i} --numbuffers=1 >/dev/null)
 	fi;

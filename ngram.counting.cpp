@@ -36,7 +36,7 @@ static int get_next_ucs4t_from_file( const uint8_t (**ptr),const uint8_t* eof,uc
  *
  * For the non-POS case:
  * 	Any whitespace constitutes a word delimiter.
- * For the POS case (i.e. pos_buf is non-NULl):
+ * For the POS case (i.e. is_pos is true):
  * 	The word is marked as invalid if any of the following is true:
  * 				a) It starts with '<'
  * 				b) Either the word, its POS tag or its lemma is longer than the relevant values in config.h
@@ -54,8 +54,9 @@ static int getnextwordandaddit(
 		const uint8_t *eof,
 	       	uninorm_t norm,
 		Buffer* ngram_buf,
-	       	Buffer* pos_buf = NULL,
-		bool add_word_at_start = false
+		bool add_word_at_start,
+		bool is_pos,
+		bool build_pos_supplement_indexes
 		);
 
 
@@ -75,7 +76,8 @@ static void fillABuffer(
 	       	Buffer *buffer,
 		int is_rightmost_buffer,
 		unsigned int ngramsize,
-		Buffer *pos_buffer = NULL
+		bool is_pos,
+		bool build_pos_supplement_indexes
 		);
 
 /* This function generates indexes of n-grams of size ngramsize and the frequency that the n-grams occur at in the file infile_name
@@ -93,7 +95,8 @@ long long int count_ngrams(
 		unsigned int wordsearch_index_depth,
 		unsigned int num_concurrent_buffers,
 		bool cache_entire_file,
-		bool is_pos
+		bool is_pos,
+		bool build_pos_supplement_indexes
 		);
 
 
@@ -175,9 +178,10 @@ static int getnextwordandaddit(
 		const uint8_t (**f),
 		const uint8_t *eof, 
 		uninorm_t norm,
-		Buffer* ngram_buf,
-	       	Buffer* pos_buf,
-		bool add_at_start
+		Buffer* buf,
+		bool add_at_start,
+		bool is_pos,
+		bool build_pos_supplement_indexes
 		)
 {
 
@@ -203,7 +207,7 @@ static int getnextwordandaddit(
 	if(uc_is_property_white_space(character))
 	{
 		//TODO: find out whether comparing ucs4_t to a char is portable.
-		if(pos_buf && (character == '\n'))
+		if(is_pos && (character == '\n'))
 		{
 			if(current_word_part == lemma)
 			{
@@ -232,7 +236,7 @@ static int getnextwordandaddit(
 		if(!*current_word_length) //We ignore preceding whitespace.
 			continue;
 
-		if(!pos_buf) //In non-POS cases, it is enough to read in a single word.
+		if(!is_pos) //In non-POS cases, it is enough to read in a single word.
 			break;
 		else //We have reached the end of a "section"
 		{
@@ -261,7 +265,7 @@ static int getnextwordandaddit(
 		{
 			character = uc_tolower(character);
 
-		}else if(pos_buf && !*current_word_length && (character == '<')) //Ignore words starting with '<';
+		}else if(is_pos && !*current_word_length && (character == '<')) //Ignore words starting with '<';
 		{
 
 			//We do not return here, as we need to read in the whole line.
@@ -287,7 +291,7 @@ static int getnextwordandaddit(
     }	
 
 
-    if(!pos_buf)
+    if(!is_pos)
     {
     	if(inflexion_length > MAX_WORD_SIZE)
 	    return 2;
@@ -321,108 +325,138 @@ static int getnextwordandaddit(
    }
 
 
-   //At this point we have an unnormalized lowercase unicode string.
-   size_t bytes_to_allocate = MAX_WORD_SIZE + 1;
-   if(pos_buf)
-   {
-	bytes_to_allocate += MAX_CLASSIFICATION_SIZE + 1;
-	bytes_to_allocate += MAX_LEMMA_SIZE + 1;
-   }
-   uint8_t *s;
-   bytes_to_allocate *= sizeof(*s);
-   s = ngram_buf->allocate_for_string(bytes_to_allocate);
-
+   uint8_t *s = NULL;
    uint8_t *inflexion_s = NULL;
    uint8_t *classification_s = NULL;
    uint8_t *lemma_s = NULL;
 
-   if(!pos_buf)
+   if(!is_pos)
    {
+
+   	size_t bytes_to_allocate = MAX_WORD_SIZE + 1;
+   	s = buf->allocate_for_string(bytes_to_allocate);
+
 	size_t inflexion_s_length = bytes_to_allocate;
 	normalization_result = u8_normalize(norm,inflexion, inflexion_length, s, &inflexion_s_length);
 
 	if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE)) 
 	{
-		ngram_buf->rewind_string_allocation(bytes_to_allocate);
+		buf->rewind_string_allocation(bytes_to_allocate);
 		return 2;
 	}
 
 	s[inflexion_s_length] = (uint8_t) '\0';
 	inflexion_s_length++;
-	ngram_buf->rewind_string_allocation(bytes_to_allocate - inflexion_s_length);
+	buf->rewind_string_allocation(bytes_to_allocate - inflexion_s_length);
+  	if(!add_at_start)
+   	{	
+		buf->add_word(s);
+   	}else
+   	{
+		buf->add_word_at_start(s);
+   	}
    }else
    {
-	size_t classification_s_length = MAX_CLASSIFICATION_SIZE + 1;
-	normalization_result = u8_normalize(norm,classification,classification_length,s,&classification_s_length);
-	if(!normalization_result || (classification_s_length > MAX_CLASSIFICATION_SIZE))
+	if(build_pos_supplement_indexes)
 	{
-		ngram_buf->rewind_string_allocation(bytes_to_allocate);
-		return 2;
-	}
-	classification_s = pos_buf->allocate_for_string(classification_s_length + 1);
-	strncpy((char*)classification_s, (const char*)s, classification_s_length);
-	classification_s[classification_s_length] = '\0';
-	s[classification_s_length] = '|';
+		size_t classification_s_length = MAX_CLASSIFICATION_SIZE + 1;
+		classification_s = buf->allocate_for_string(classification_s_length);
+		normalization_result = u8_normalize(norm,classification,classification_length,classification_s,&classification_s_length);
+	
+		if(!normalization_result || (classification_s_length > MAX_CLASSIFICATION_SIZE))
+		{
+			buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE + 1);
+			return 2;
+		}
+		buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE - classification_s_length);
+		classification_s[classification_s_length] = '\0';
 
-	uint8_t *ptr = s + classification_s_length + 1;
+		size_t lemma_s_length = MAX_LEMMA_SIZE + 1;
+		lemma_s = buf->allocate_for_string(lemma_s_length);
+	
+		normalization_result = u8_normalize(norm,lemma,lemma_length,lemma_s, &lemma_s_length);
+		if(!normalization_result || (lemma_s_length > MAX_LEMMA_SIZE))
+		{
+			buf->rewind_string_allocation(MAX_LEMMA_SIZE + 1);
+			buf->rewind_string_allocation(classification_s_length + 1);
+			return 2;
+		}
+		buf->rewind_string_allocation(MAX_LEMMA_SIZE - lemma_s_length);
+		lemma_s[lemma_s_length] = '\0';
+	
+		size_t inflexion_s_length = MAX_WORD_SIZE + 1;
+		inflexion_s = buf->allocate_for_string(inflexion_s_length);
+		normalization_result = u8_normalize(norm,inflexion,inflexion_length,inflexion_s, &inflexion_s_length);
+		if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE))
+		{
+			buf->rewind_string_allocation(classification_s_length + 1);
+			buf->rewind_string_allocation(lemma_s_length + 1);
+			buf->rewind_string_allocation(MAX_WORD_SIZE + 1);
+			return 2;
+		}
+		buf->rewind_string_allocation(MAX_WORD_SIZE - inflexion_s_length);
+		inflexion_s[inflexion_s_length] = '\0';
 
-	size_t lemma_s_length = MAX_LEMMA_SIZE + 1;
-	normalization_result = u8_normalize(norm,lemma,lemma_length,ptr, &lemma_s_length);
-	if(!normalization_result || (lemma_s_length > MAX_LEMMA_SIZE))
+		buf->add_null_word();
+		buf->add_word(inflexion_s);
+		buf->add_word(classification_s);
+		buf->add_word(lemma_s);
+		buf->add_null_word();
+
+	}else
 	{
-		ngram_buf->rewind_string_allocation(bytes_to_allocate);
-		pos_buf->rewind_string_allocation(lemma_s_length + 1);
-		return 2;
+		s = buf->allocate_for_string(MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + MAX_WORD_SIZE + 1);
+		size_t current_length = MAX_CLASSIFICATION_SIZE + 1;
+		normalization_result = u8_normalize(norm,classification,classification_length,s, &current_length);
+		if(!normalization_result || (current_length > MAX_CLASSIFICATION_SIZE))
+		{
+			buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + MAX_WORD_SIZE + 1);
+			return 2;
+		}
+		uint8_t *ptr = s + current_length;
+		*ptr = '|';
+		ptr++;
+		current_length = MAX_LEMMA_SIZE + 1;
+		normalization_result = u8_normalize(norm,lemma,lemma_length,ptr,&current_length);
+		if(!normalization_result || (current_length > MAX_LEMMA_SIZE))
+		{
+			buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + MAX_WORD_SIZE + 1);
+			return 2;
+		}
+		ptr  += current_length;
+		*ptr = '|';
+		ptr++;
+		current_length = MAX_WORD_SIZE + 1;
+		normalization_result = u8_normalize(norm,inflexion,inflexion_length,ptr,&current_length);
+		if(!normalization_result || (current_length > MAX_CLASSIFICATION_SIZE))
+		{
+			buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + MAX_WORD_SIZE + 1);
+			return 2;
+		}
+		ptr += current_length;
+		*ptr = '\0';
+		ptr++;
+		buf->rewind_string_allocation(s + MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + MAX_WORD_SIZE + 1 - ptr);
+
+	  	if(!add_at_start)
+	   	{	
+			buf->add_word(s);
+	   	}else
+	   	{
+			buf->add_word_at_start(s);
+	   	}
 	}
-	lemma_s = pos_buf->allocate_for_string(lemma_s_length + 1);
-	strncpy((char*)lemma_s,(const char*) ptr, lemma_s_length);
-	lemma_s[lemma_s_length] = '\0';
-	ptr += lemma_s_length;
-	*ptr = '|';
-	ptr++;
-
-	size_t inflexion_s_length = MAX_WORD_SIZE + 1;
-	normalization_result = u8_normalize(norm,inflexion,inflexion_length,ptr, &inflexion_s_length);
-	if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE))
-	{
-		ngram_buf->rewind_string_allocation(bytes_to_allocate);
-		pos_buf->rewind_string_allocation(inflexion_s_length + 1);
-		pos_buf->rewind_string_allocation(inflexion_s_length + 1);
-	}
-	inflexion_s = pos_buf->allocate_for_string(inflexion_s_length + 1);
-	strncpy((char*)inflexion_s,(const char*) ptr, inflexion_s_length);
-	inflexion_s[inflexion_s_length] = '\0';
-	ptr += inflexion_s_length;
-	*ptr = '\0';
-	ptr++;
-	ngram_buf->rewind_string_allocation( bytes_to_allocate - (ptr - s));
-   }
-
-   if(!add_at_start)
-   {
-	ngram_buf->add_word(s);
-   }else
-   {
-	ngram_buf->add_word_at_start(s);
-   }
-
-   if(pos_buf)
-   {
-	pos_buf->add_null_word();
-	pos_buf->add_word(inflexion_s);
-	pos_buf->add_word(classification_s);
-	pos_buf->add_word(lemma_s);
-	pos_buf->add_null_word();
-   }
+  }
    return 1;
 }
 
 
 
-static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* eof, long long int &totalwords, uninorm_t norm, Buffer *buffer,int is_rightmost_buffer,unsigned int ngramsize,Buffer *pos_buffer/*( = NULL)*/)
+static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uint8_t* eof, long long int &totalwords, uninorm_t norm, Buffer *buffer,int is_rightmost_buffer,unsigned int ngramsize,bool is_pos,bool build_pos_supplement_indexes)
 {
 
-	if((ngramsize > 1) && (*f != mmaped_file))
+	//We get the words at the the boundary of the buffer. We don't bother adding them to the POS supplement indexes though.
+	if(!build_pos_supplement_indexes && (ngramsize > 1) && (*f != mmaped_file))
 	{
 		//We read in what we need from the previous part of the file.
 		off_t tmp_offset = *f - mmaped_file;
@@ -441,7 +475,7 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 		while(counter < (2*(ngramsize - 1)))
 		{
 			off_t prev_offset = tmp_offset;
-			adjustBoundaryToSpace(mmaped_file,tmp_offset,eof-mmaped_file, 1,pos_buffer != NULL);
+			adjustBoundaryToSpace(mmaped_file,tmp_offset,eof-mmaped_file, 1,is_pos);
 			if(!tmp_offset)
 			{
 				//We have reached the start of the file, meaning there aren't 2(ngramsize - 1) words in it.
@@ -452,8 +486,7 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 	
 			const uint8_t* tmp_filePtr = mmaped_file + tmp_offset;
 	
-			//We don't bother adding these words to the pos buffer, as they've already been added to it.
-			int res = getnextwordandaddit(&tmp_filePtr, mmaped_file + prev_offset, norm, buffer,pos_buffer,true);
+			int res = getnextwordandaddit(&tmp_filePtr, mmaped_file + prev_offset, norm, buffer,true,is_pos,0);
 			if(buffer->is_full)
 			{
 				fprintf(stderr,"This should never happen and indicates that somewhere there is  bug (Or that you are using corpora with very long words at the start and very small buffers)\n");
@@ -494,9 +527,9 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 	}
 
 
-	while(!buffer->is_full && !(pos_buffer && pos_buffer->is_full))
+	while(!buffer->is_full)
 	{
-		int res = getnextwordandaddit(f,eof,norm,buffer,pos_buffer);
+		int res = getnextwordandaddit(f,eof,norm,buffer,false,is_pos,build_pos_supplement_indexes);
 		
 		if(!res) //We've reached the end of the file.
 		{
@@ -516,30 +549,26 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 
 		}
 	}
-	if(buffer->is_full)
-		fprintf(stdout,"+");
-	else
-		fprintf(stdout,"-");
 	//Add a null word at the end so everything goes ok.
 	buffer->add_null_word();
-	if(pos_buffer)
+	if(build_pos_supplement_indexes)
 	{
-		pos_buffer->add_null_word();
-		pos_buffer->set_bottom_pointer(0);
-		pos_buffer->set_top_pointer(0);
-	}
-
-	if(is_rightmost_buffer && !buffer->is_full && !(pos_buffer && pos_buffer->is_full)) //There is nothing to be read in after this buffer.
 		buffer->set_bottom_pointer(0);
-	else //The last ngramsize - 1 words should not be starting words, because they will be starting words in the next buffer.
-		buffer->set_bottom_pointer(ngramsize-1);
+		buffer->set_top_pointer(0);
+	}else
+	{
+		if(is_rightmost_buffer && !buffer->is_full ) //There is nothing to be read in after this buffer.
+			buffer->set_bottom_pointer(0);
+		else //The last ngramsize - 1 words should not be starting words, because they will be starting words in the next buffer.
+			buffer->set_bottom_pointer(ngramsize-1);
+	}
 
 	return;
 }
 
 
 
-long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file,bool is_pos)
+long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file,bool is_pos,bool build_pos_supplement_indexes)
 {
     //Get the current time, for timing how long the function took.
     	struct timeval start_time,end_time;
@@ -564,11 +593,13 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	}
 
    //Create a new IndexCollection object representing all of the indexes we are making
-	IndexCollection *indexes = new IndexCollection(ngramsize,wordsearch_index_depth);
-	IndexCollection *pos_indexes = NULL;
-	if(is_pos)
+	IndexCollection *indexes =  NULL;
+	if(build_pos_supplement_indexes)
 	{
-		pos_indexes = new IndexCollection(3,3,true);
+		indexes = new IndexCollection(3,3,true);
+	}else
+	{
+		indexes = new IndexCollection(ngramsize,wordsearch_index_depth);
 	}
 
    //We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details on normalization forms.
@@ -617,17 +648,6 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	vector<void*> internal_buffers;
 	internal_buffers.reserve(num_concurrent_buffers);
 	size_t buffer_size = MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers;
-	size_t pos_buffer_size = 0;
-
-	vector<void*> pos_internal_buffers;
-	if(is_pos)
-	{
-		pos_internal_buffers.reserve(num_concurrent_buffers);
-		//Roughly how much memory we expect to be taking.
-		buffer_size = (((double)MEMORY_TO_USE_FOR_BUFFERS * (double)ngramsize)/((double)ngramsize + (double)4.5))/(double)num_concurrent_buffers;
-		//TODO: Think about alignment issues when allocating buffer size.
-		pos_buffer_size = (((double)MEMORY_TO_USE_FOR_BUFFERS * (double)4.5)/((double)ngramsize + (double)4.5))/(double)num_concurrent_buffers;
-	}
 
 	//We need to store at least 2*ngramsize - 1 words per buffer, so checking for 2*ngramsize buffers is sufficient.
 	if(buffer_size < (2*ngramsize*(MAX_WORD_SIZE + 1 + sizeof(word))))
@@ -645,16 +665,6 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 			exit(-1);
 		}
 		internal_buffers.push_back(cur);
-		if(is_pos)
-		{
-			void* pos_cur = malloc(pos_buffer_size);
-			if(!pos_cur)
-			{
-				fprintf(stderr,"Unable to allocate memory for buffers\n");
-				exit(-1);
-			}
-			pos_internal_buffers.push_back(pos_cur);
-		}
 	}
 
 
@@ -664,11 +674,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	for(size_t i = 0; i < num_concurrent_buffers; i++)
 	{
 		void* this_internal_buffer = internal_buffers[i];
-		void* this_pos_internal_buffer = NULL;
-		if(is_pos)
-		{
-			this_pos_internal_buffer = pos_internal_buffers[i];
-		}
+
 		//We keep separate wordcounts per thread to avoid synchronisation slowdowns.
 		long long int local_totalwords = 0;
 
@@ -700,24 +706,28 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 			//We define that here.
 			//TODO: Check whether this actually makes the program more efficient or not.
 			word local_null_word;
-			Buffer* new_buffer = new Buffer(this_internal_buffer,buffer_size,(MAX_WORD_SIZE + 1) + sizeof(word),&local_null_word);
-			Buffer* pos_new_buffer = NULL;
-
-			if(is_pos)
+			size_t maximum_single_allocation = 0;
+			if(is_pos && build_pos_supplement_indexes)
 			{
-				pos_new_buffer = new Buffer(
-						this_pos_internal_buffer,
-						pos_buffer_size,
-						MAX_WORD_SIZE + 1 + MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + 3*sizeof(word),
-						&local_null_word
-						);
-			}
+				maximum_single_allocation = MAX_WORD_SIZE + 1 + MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE +1 + 3*sizeof(word);
+			}else if(is_pos)
+			{
+				maximum_single_allocation = MAX_WORD_SIZE + 1 + MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + sizeof(word);
+			}else
+				maximum_single_allocation = MAX_WORD_SIZE + 1 + sizeof(word);
+
+			Buffer* new_buffer = new Buffer(
+					this_internal_buffer,
+					buffer_size,
+					maximum_single_allocation,
+					&local_null_word
+					);
 
 			const uint8_t* filePtr =  infile + start ;
-			fillABuffer(infile,&filePtr,infile + end,local_totalwords,norm,new_buffer,end == filesize?1:0,ngramsize,pos_new_buffer);
+			fillABuffer(infile,&filePtr,infile + end,local_totalwords,norm,new_buffer,end == filesize?1:0,ngramsize,is_pos,build_pos_supplement_indexes);
 
 			//If it didn't all fit in this buffer, tell the scheduler about what's left.
-			if(new_buffer->is_full || (is_pos && pos_new_buffer->is_full))
+			if(new_buffer->is_full)
 			{
 				off_t new_start = filePtr - infile;
 				if(new_start != end)
@@ -730,29 +740,18 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 			if(this_was_last)
 			{
 				indexes->writeEmptyLastBuffer(local_buffercount+1);
-				if(is_pos)
-					pos_indexes->writeEmptyLastBuffer(local_buffercount+1);
 			}
 
 			//At this point, after having read in all of the words, we write them to disk.
 			indexes->writeBufferToDisk(local_buffercount,0,new_buffer,&local_null_word);
-			if(is_pos)
-			{
-				pos_indexes->writeBufferToDisk(local_buffercount,0,pos_new_buffer,&local_null_word);
-			}
 
 			//Cleanup
 			delete new_buffer;
-			if(is_pos)
-			{
-				delete pos_new_buffer;
-			}
 		}
 		#pragma omp atomic
 		totalwords += local_totalwords;
 
 		free(this_internal_buffer);
-		free(this_pos_internal_buffer);
 	}
 
    //Here we do various postprocessing operations, such as moving the files to their final positions, etc...
@@ -764,34 +763,35 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
    //Throughout the code, k stands for the "merge depth".
 	int k = get_final_k();
 	indexes->copyToFinalPlace(k);
-	if(is_pos)
-	{
-		pos_indexes->copyToFinalPlace(k);
-	}
 
    //We output relevant metadata to a metadata file.
 	char* output_location = (char*) malloc(strlen("ngrams_")+  4 + strlen(".metadata")+ 1); //MARKER5
 	sprintf(output_location,"%u_grams.metadata",ngramsize);
 	remove(output_location);
-	FILE* metadata_file = fopen(output_location,"w");
-
-	fprintf(metadata_file,"Filename:\t%s\n",infile_name);
-	fprintf(metadata_file,"Numwords:\t%lld\n",totalwords);
-  	gettimeofday(&end_time,NULL);
-	fprintf(metadata_file,"Time:\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
-	fprintf(metadata_file,"MAX_WORD_SIZE:\t%d\n", MAX_WORD_SIZE);
-	fprintf(metadata_file,"MAX_CLASSIFICATION_SIZE:\t%d\n", MAX_CLASSIFICATION_SIZE);
-	fprintf(metadata_file,"MAX_LEMMA_SIZE:\t%d\n", MAX_LEMMA_SIZE);
-
-	indexes->writeMetadata(metadata_file);
-	if(is_pos)
+	if(!build_pos_supplement_indexes)
 	{
-		pos_indexes->writeMetadata(metadata_file);
+		FILE* metadata_file = fopen(output_location,"w");
+	
+		fprintf(metadata_file,"Filename:\t%s\n",infile_name);
+		fprintf(metadata_file,"Numwords:\t%lld\n",totalwords);
+	  	gettimeofday(&end_time,NULL);
+		fprintf(metadata_file,"Time:\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
+		fprintf(metadata_file,"MAX_WORD_SIZE:\t%d\n", MAX_WORD_SIZE);
+		fprintf(metadata_file,"MAX_CLASSIFICATION_SIZE:\t%d\n", MAX_CLASSIFICATION_SIZE);
+		fprintf(metadata_file,"MAX_LEMMA_SIZE:\t%d\n", MAX_LEMMA_SIZE);
+
+		indexes->writeMetadata(metadata_file);
+		fprintf(metadata_file,"isPos:\t%s\n",is_pos ? "yes":"no");
+		fclose(metadata_file);
+	}else
+	{
+		FILE* metadata_file = fopen(output_location,"a");
+		indexes->writeMetadata(metadata_file);
+		fclose(metadata_file);
 	}
-	fclose(metadata_file);
 
 
-	metadata_file = fopen(output_location,"r");
+	FILE* metadata_file = fopen(output_location,"r");
 	free(output_location);
 
     //We write the contents of the metadata file to standard output.
@@ -803,10 +803,6 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
    //Cleanup:
 	delete indexes;
-	if(is_pos)
-	{
-		delete pos_indexes;
-	}
 	fclose(metadata_file);
 	munmap(infile,filesize);
 

@@ -14,6 +14,7 @@ void print_usage(char* argv[])
     cerr<<"\t\t--cache-entire-file\t\t(Whether or not to tell the kernel to load the whole file into memory)\n";
     cerr<<"\t\t--numbuffers=b\t\t\t(Use b buffers internally, and with that at maximum b threads)\n";
     cerr<<"\t\t--corpus-has-pos-data\t\t(The corpus contains 'part of speech' information)\n";
+    cerr<<"\t\t--build-pos-supplement-indexes\t\t(Build only 'part of speech' supplement indexes)\n";
     cerr<<endl;
 }
 
@@ -70,7 +71,8 @@ int main (int argc, char* argv[])
 #endif
 
   bool cache_entire_file = false;
-  bool is_pos = false;
+  bool has_pos = false;
+  bool build_pos_supplement_indexes = false;
 
   if(argc > options_start)
   {
@@ -107,7 +109,10 @@ int main (int argc, char* argv[])
 			cache_entire_file = true;
 		}else  if(!strncmp(argv[i],"--corpus-has-pos-data", strlen("--corpus-has-pos-data")))
 		{
-			is_pos = true;
+			has_pos = true;
+		}else if(!strncmp(argv[i],"--build-pos-supplement-indexes",strlen("--build-pos-supplement-indexes")))
+		{
+			build_pos_supplement_indexes = true;
 		}else
 		{
 			cerr<<"\nInvalid option"<<argv[i]<<"\n\n";
@@ -117,7 +122,9 @@ int main (int argc, char* argv[])
 	}
   }
 
+  if(build_pos_supplement_indexes)
+	  has_pos = true;
   
-  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers,cache_entire_file,is_pos);
+  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers,cache_entire_file,has_pos,build_pos_supplement_indexes);
   return 0; 
 }

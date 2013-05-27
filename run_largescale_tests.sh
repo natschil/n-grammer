@@ -15,6 +15,10 @@ for i in `seq 1 6`; do
 	if $is_pos 
 	then
 		retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --wordsearch-index-depth=${i} --corpus-has-pos-data=yes --numbuffers=4 >/dev/null)
+		if [ ! $retval ];
+		then
+			retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --numbuffers=4 --build-pos-supplement-indexes --cache-entire-file > /dev/null);
+		fi;
 	else
 		retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --wordsearch-index-depth=${i} --cache-entire-file --numbuffers=4 >/dev/null)
 	fi;
@@ -25,7 +29,7 @@ for i in `seq 1 6`; do
 		exit 1;
 	fi;
 
-	for current_directory in $(ls -d ./tests_output/`basename $1`.${i}.d/by_*/);
+	for current_directory in $(ls -d ./tests_output/`basename $1`.${i}.d/by_*/ ./tests_output/`basename $1`.${i}.d/pos_*/);
 	do
 		filename=./tests_output/$(basename $1).$(basename $current_directory).out;
 		printf "" > ${filename}
@@ -37,7 +41,7 @@ for i in `seq 1 6`; do
 					cat   ${current_directory}/${j}.out >> $filename;
 				fi;
 		done;
-		if cmp  ./tests_output/$(basename $1).`basename $current_directory`.out ./reference_data/$(basename $1).`basename $current_directory`.out;
+		if diff  ./tests_output/$(basename $1).`basename $current_directory`.out ./reference_data/$(basename $1).`basename $current_directory`.out;
 		then
 			echo "Succeeded on try $filename";
 		else
