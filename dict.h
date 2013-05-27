@@ -14,8 +14,33 @@
 #include "searchindexcombinations.h"
 #include "words.h"
 
-class word;
-struct ngram_cmp;
+
+class Dict;
+class DictCollection;
+
+
+class DictCollection
+{
+	public:
+		DictCollection(
+				unsigned int ngramsize,
+				unsigned int buffercount,
+				vector<unsigned int*> &combinations,
+				vector<optimized_combination> &optimized_combinations,
+				vector<char*> &prefixes,
+				const word* null_word,
+				word* buffer_bottom,
+				uint8_t* strings_start
+				);
+		void writeToDisk(word* start);
+		void cleanUp(void);
+	private:
+		unsigned int ngramsize;
+		unsigned int buffercount;
+		unsigned int numcombos;
+		vector<Dict> dictionaries;
+};
+
 
 class Dict
 {

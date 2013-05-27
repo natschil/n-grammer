@@ -1,4 +1,52 @@
 #include "dict.h"
+DictCollection::DictCollection(
+				unsigned int ngramsize,
+				unsigned int buffercount,
+				vector<unsigned int*> &combinations,
+				vector<optimized_combination> &optimized_combinations,
+				vector<char*> &prefixes,
+				const word* null_word,
+				word* buffer_bottom,
+				uint8_t* strings_start
+				)
+{
+	this->ngramsize = ngramsize;
+	this->buffercount = buffercount;
+	this->numcombos = combinations.size();
+
+	for(unsigned int i = 0; i< combinations.size(); i++)
+	{
+		dictionaries.push_back(Dict(
+					ngramsize,
+				       	prefixes[i],
+					buffercount,
+					&optimized_combinations[i],
+				       	combinations[i],
+					null_word,
+					buffer_bottom,
+					strings_start
+					));
+	}
+}
+
+void DictCollection::writeToDisk(word* start)
+{
+	for(unsigned int i = 0; i< numcombos; i++)
+	{
+		dictionaries[i].writeToDisk(start);
+	}
+}
+
+void DictCollection::cleanUp(void)
+{
+	for(unsigned int i = 0; i< numcombos;i++)
+	{
+		dictionaries[i].cleanUp();
+	}
+}
+
+
+
 Dict::Dict(
 		unsigned int ngramsize,
 		const char* prefix,

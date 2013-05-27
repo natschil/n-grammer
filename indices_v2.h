@@ -123,9 +123,9 @@ class IndexCollection
 		pair<schedule_entry,int> get_next_schedule_entry();
 
 	private:
-		size_t ngramsize;
+		unsigned int ngramsize;
 
-		size_t numcombos;
+		unsigned int numcombos;
 		vector<unsigned int* >combinations;
 		vector<optimized_combination> optimized_combinations;
 		vector<char*> prefixes;

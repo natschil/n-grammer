@@ -315,40 +315,30 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		ptr->reduces_to = prev_ptr-buffer_bottom;
 	}
 
-	vector<Dict> current_ngrams;
-	current_ngrams.reserve(numcombos);
-
-	for(size_t i = 0; i < numcombos; i++)
-	{
-		current_ngrams.push_back(
-				Dict(
-					ngramsize,
-					prefixes[i],
-					buffercount,
-					&optimized_combinations[i],
-					combinations[i],
-					null_word,
-					buffer_bottom,
-					strings_start
-					)
-				);
-	}
+	DictCollection current_ngrams(
+			ngramsize,
+			buffercount,
+			combinations,
+			optimized_combinations,
+			prefixes,
+			null_word,
+			buffer_bottom,
+			strings_start
+			);
 
 	for(word* current_word = buffer_bottom; current_word != buffer_top;)
 	{
-		for(size_t i = 0; i< numcombos; i++)
-		{
-			current_ngrams[i].writeToDisk(current_word);
-		}
+		current_ngrams.writeToDisk(current_word);
 		current_word = (buffer_bottom + current_word->reduces_to) + 1;
 	}
 
 	fprintf(stdout,")");
 	fflush(stdout);
+	current_ngrams.cleanUp();
+
 	//At this point do all merging
 	for(unsigned int i = 0; i< numcombos; i++)
 	{
-		current_ngrams[i].cleanUp();
 		schedule_next_merge(0,buffercount,rightmost_run,mergeschedulers+i,prefixes[i]);
 	}
 	//We've written out the old buffer, and merged up as far as it was possible.
