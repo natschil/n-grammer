@@ -14,6 +14,7 @@ Metadata::Metadata(string &filename,string &foldername)
 	this->MAX_WORD_SIZE = 40; 
 	this->MAX_CLASSIFICATION_SIZE = 40;
 	this->posIndexesExist = false;
+	this->isPos = false;
 
 	folder_name = foldername;
 	metadata_filename = foldername + "/" + filename;
@@ -111,6 +112,14 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 			{
 				posIndexesExist = true;
 			}
+		}else if(nextline == "isPos")
+		{
+			string is_pos_str;
+			getline(metadata_file,is_pos_str);
+			if(is_pos_str == "yes")
+			{
+				isPos = true;
+			}
 		}
 
 
@@ -154,5 +163,7 @@ void Metadata::write(void)
 	}
 	if(posIndexesExist)
 		outfile<<"POSIndexes:\tyes\n";
+	if(isPos)
+		outfile<<"isPos:\tyes\n";
 	return;
 }
