@@ -83,7 +83,7 @@ int main (int argc, char* argv[])
 			cerr<<"\nInvalid option"<<argv[i]<<"\n\n";
 			print_usage(argv);
 			exit(1);
-		}else if(!strncmp(argv[i],"--wordsearch-index-depth=",strlen("--wordsearch-index-depth=")))
+		}else if(!strncmp(argv[i],"--build-wordsearch-indexes"))
 		{
 			char* ptr = argv[i] + strlen("--wordsearch-index-depth=");
 			wordsearch_index_depth = atoi(ptr);
@@ -104,13 +104,13 @@ int main (int argc, char* argv[])
 				exit(1);
 			}
 
-		}else if(!strncmp(argv[i],"--cache-entire-file",strlen("--cache-entire-file")))
+		}else if(!strncmp(argv[i],"--cache-entire-file"))
 		{
 			cache_entire_file = true;
-		}else  if(!strncmp(argv[i],"--corpus-has-pos-data", strlen("--corpus-has-pos-data")))
+		}else  if(!strncmp(argv[i],"--corpus-has-pos-data"))
 		{
 			has_pos = true;
-		}else if(!strncmp(argv[i],"--build-pos-supplement-indexes",strlen("--build-pos-supplement-indexes")))
+		}else if(!strncmp(argv[i],"--build-pos-supplement-indexes"))
 		{
 			build_pos_supplement_indexes = true;
 		}else
