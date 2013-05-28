@@ -51,10 +51,11 @@ struct word_cmp
 struct ngram_cmp 
 {
 	ngram_cmp(){};//Don't use this, it merely exists for various standard functions not to fail.
-	ngram_cmp(unsigned int ngramsize,const unsigned int* word_combination_order,const optimized_combination* optimized_combo,const word* null_word);
+	ngram_cmp(unsigned int ngramsize,const unsigned int* word_combination_order,const optimized_combination* optimized_combo,const word* null_word,unsigned int how_many_to_ignore = 1);
 	bool operator()(const word &first,const word &second);
 	private:
 	unsigned int n_gram_size;
+	unsigned int how_many_to_ignore;
 	const unsigned int *word_order;
 	const optimized_combination* optimized_combo;
 	const word* null_word;
@@ -65,6 +66,10 @@ struct ngram_cmp
  * A function for comparing two n-grams given their starting words, their order and the null-word
  */
 int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,const optimized_combination* optimized_combo, const unsigned int* word_order,const word* null_word);
+
+/*
+ */
+unsigned int howManyWordsAreEqual(const word* first,const  word* second,const word* null_word,unsigned int ngramsize,const unsigned int *combination,const optimized_combination *optimized_combo);
 
 
 

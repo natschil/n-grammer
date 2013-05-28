@@ -96,7 +96,8 @@ long long int count_ngrams(
 		unsigned int num_concurrent_buffers,
 		bool cache_entire_file,
 		bool is_pos,
-		bool build_pos_supplement_indexes
+		bool build_pos_supplement_indexes,
+		bool build_smaller_indexes
 		);
 
 
@@ -568,8 +569,9 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 
 
 
-long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file,bool is_pos,bool build_pos_supplement_indexes)
+long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file,bool is_pos,bool build_pos_supplement_indexes,bool build_smaller_indexes)
 {
+	(void) build_smaller_indexes;
     //Get the current time, for timing how long the function took.
     	struct timeval start_time,end_time;
   	gettimeofday(&start_time,NULL);
@@ -596,10 +598,30 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	IndexCollection *indexes =  NULL;
 	if(build_pos_supplement_indexes)
 	{
-		indexes = new IndexCollection(3,3,true);
+		indexes = new IndexCollection(3,3,true/*,false*/);
 	}else
 	{
-		indexes = new IndexCollection(ngramsize,wordsearch_index_depth);
+		indexes = new IndexCollection(ngramsize,wordsearch_index_depth,false/*,build_smaller_indexes*/);
+	}
+
+	int number_of_files_open_concurrently = number_of_special_combinations(ngramsize);
+	if(build_smaller_indexes)
+	{
+		for(int i = ngramsize - 1; i; i--)
+		{
+			number_of_files_open_concurrently += number_of_special_combinations(i);
+		}
+	}
+	number_of_files_open_concurrently *= num_concurrent_buffers;
+
+	if(number_of_files_open_concurrently > sysconf(_SC_OPEN_MAX))
+	{
+		fprintf(stderr, 
+				"Would need to access %d files concurrently, but can only access %d. See ulimit -n \n",
+			       	number_of_files_open_concurrently,
+				(int) sysconf( _SC_OPEN_MAX)
+		       );
+		exit(-1);
 	}
 
    //We use this to normalize the unicode text. See http://unicode.org/reports/tr15/ for details on normalization forms.

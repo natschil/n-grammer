@@ -149,7 +149,7 @@ static unsigned long long int factorial(unsigned int number)
 //See the citiations in searchindexcombinations.h for justification for this representing the number of indexes
 //needed for multi-word retrieval for n-grams.
 //As this function is only called rarely, it isn't overly optimized.
-static unsigned long long int number_of_special_combinations(unsigned int number)
+unsigned long long int number_of_special_combinations(unsigned int number)
 {
 	unsigned long long int result = factorial(number)/
 					( 
@@ -222,9 +222,9 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 			[&ngramsize](unsigned int* first, unsigned int* second){
 			for(unsigned int i= 0; i< ngramsize; i++)
 			{
-				if(first[i] != second[i])
+				if((first[i] - first[0]) != (second[i] - second[0]))
 				{
-					return (first[i] - first[0]) > (second[i] - second[0]);
+					return (first[i] - first[0]) < (second[i] - second[0]);
 				}
 			}
 			return false;
@@ -299,9 +299,37 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		ptr->flags |= NON_STARTING_WORD;
 	}
 
-	//This step will take a long time:
+	//This step will take a long time: TODO: Think about whether sorting by whole n-grams by first combo makes sense here.
 	word_cmp compare((char*) strings_start);
-	std::sort(buffer_bottom,buffer_top,compare);
+	std::sort(buffer_bottom,buffer_top,
+			[&](const word &first, const word &second) -> bool
+			{
+				const word* first_cur = &first;
+				const word* second_cur = &second;
+				for(unsigned int counter = 0;;)
+				{
+					int res = strcmp((const char*)strings_start + first_cur->contents, (const char*)strings_start + second_cur->contents);
+					if(res > 0)
+						return false;
+					else if(res)
+						return true;
+
+					if(++counter < ngramsize)
+					{
+						if(first_cur->next == null_word)
+							return (second_cur->next == null_word)?false:false;
+						else if(second_cur->next == null_word)
+							return true;
+	
+						first_cur = first_cur->next;
+						second_cur = second_cur->next;
+					}else
+						return res > 0;
+				}
+				return false;
+
+			}
+			);
 
 	//We now see which words are equal: TODO: move this into the sorting step.
 	word* prev_ptr = buffer_top-1;
@@ -326,11 +354,13 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 			strings_start
 			);
 
+	current_ngrams.writeRangeToDisk(buffer_bottom,buffer_top, null_word);
+	/*
 	for(word* current_word = buffer_bottom; current_word != buffer_top;)
 	{
-		current_ngrams.writeToDisk(current_word);
 		current_word = (buffer_bottom + current_word->reduces_to) + 1;
 	}
+	*/
 
 	fprintf(stdout,")");
 	fflush(stdout);

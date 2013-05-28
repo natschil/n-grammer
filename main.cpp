@@ -10,11 +10,12 @@ void print_usage(char* argv[])
     cerr << "Usage: " << argv[0] << " N input [outputdir = ./processing] [options]\n";
     cerr<<"\tWhere N is the size of the ngrams you want to count.\n";
     cerr<<"\tAnd options is one or many of:\n";
-    cerr<<"\t\t--wordsearch-index-depth=k\t(Split the word into k groups and build an index for each combination of these groups)\n";
+    cerr<<"\t\t--build-wordsearch-indexes\t(Build indexes for multiattribute retrieval)\n";
     cerr<<"\t\t--cache-entire-file\t\t(Whether or not to tell the kernel to load the whole file into memory)\n";
     cerr<<"\t\t--numbuffers=b\t\t\t(Use b buffers internally, and with that at maximum b threads)\n";
     cerr<<"\t\t--corpus-has-pos-data\t\t(The corpus contains 'part of speech' information)\n";
     cerr<<"\t\t--build-pos-supplement-indexes\t\t(Build only 'part of speech' supplement indexes)\n";
+  //  cerr<<"\t\t--also-build-smaller-indexes\t\t(Also build (n-1)-grams and (n-2)-grams etc..\n";
     cerr<<endl;
 }
 
@@ -73,6 +74,7 @@ int main (int argc, char* argv[])
   bool cache_entire_file = false;
   bool has_pos = false;
   bool build_pos_supplement_indexes = false;
+  bool build_smaller_indexes = true;
 
   if(argc > options_start)
   {
@@ -83,16 +85,9 @@ int main (int argc, char* argv[])
 			cerr<<"\nInvalid option"<<argv[i]<<"\n\n";
 			print_usage(argv);
 			exit(1);
-		}else if(!strncmp(argv[i],"--build-wordsearch-indexes"))
+		}else if(!strcmp(argv[i],"--build-wordsearch-indexes"))
 		{
-			char* ptr = argv[i] + strlen("--wordsearch-index-depth=");
-			wordsearch_index_depth = atoi(ptr);
-			if(!(wordsearch_index_depth > 0) || (wordsearch_index_depth > ngramsize) || (wordsearch_index_depth > MAX_INDICES))
-			{
-				cerr<<"\nInvalid parameter for --wordsearch-index-depth\n\n";
-				print_usage(argv);
-				exit(1);
-			}
+			wordsearch_index_depth = ngramsize;
 		}else if(!strncmp(argv[i],"--numbuffers=",strlen("--numbuffers=")))
 		{
 			char* ptr = argv[i] + strlen("--numbuffers=");
@@ -104,16 +99,19 @@ int main (int argc, char* argv[])
 				exit(1);
 			}
 
-		}else if(!strncmp(argv[i],"--cache-entire-file"))
+		}else if(!strcmp(argv[i],"--cache-entire-file"))
 		{
 			cache_entire_file = true;
-		}else  if(!strncmp(argv[i],"--corpus-has-pos-data"))
+		}else  if(!strcmp(argv[i],"--corpus-has-pos-data"))
 		{
 			has_pos = true;
-		}else if(!strncmp(argv[i],"--build-pos-supplement-indexes"))
+		}else if(!strcmp(argv[i],"--build-pos-supplement-indexes"))
 		{
 			build_pos_supplement_indexes = true;
-		}else
+		}/*else if(!strcmp(argv[i],"--also-build-smaller-indexes"))
+		{
+			build_smaller_indexes = true;	
+		}*/else
 		{
 			cerr<<"\nInvalid option"<<argv[i]<<"\n\n";
 			print_usage(argv);
@@ -125,6 +123,6 @@ int main (int argc, char* argv[])
   if(build_pos_supplement_indexes)
 	  has_pos = true;
   
-  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers,cache_entire_file,has_pos,build_pos_supplement_indexes);
+  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers,cache_entire_file,has_pos,build_pos_supplement_indexes,build_smaller_indexes);
   return 0; 
 }

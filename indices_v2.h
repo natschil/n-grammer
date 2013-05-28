@@ -108,6 +108,8 @@ struct schedule_entry
 	unsigned int buffercount;
 };
 
+unsigned long long int number_of_special_combinations(unsigned int number);
+
 class IndexCollection
 {
 	public:

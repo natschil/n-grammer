@@ -31,14 +31,18 @@ class DictCollection
 				const word* null_word,
 				word* buffer_bottom,
 				uint8_t* strings_start
-				);
+				) ;
 		void writeToDisk(word* start);
+		void writeRangeToDisk(word* begin, word* end,const word* null_word);
 		void cleanUp(void);
 	private:
 		unsigned int ngramsize;
 		unsigned int buffercount;
 		unsigned int numcombos;
 		vector<Dict> dictionaries;
+
+		vector<unsigned int*> &combinations;
+		vector<optimized_combination> &optimized_combinations;
 };
 
 
@@ -56,13 +60,11 @@ class Dict
 		uint8_t* strings_start
 		);
 	void cleanUp(void);
-	void writeToDisk(word* start);
 	void writeOutNGram(word* ngram_start,long long int count);
     private:
 	const optimized_combination *optimized_combo;
 	const unsigned int* word_order;
 
-	ngram_cmp cmp;
 	unsigned int ngramsize;
 	unsigned int buffercount;
 	const char* prefix;

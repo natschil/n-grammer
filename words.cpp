@@ -38,18 +38,16 @@ bool word_cmp::operator()(const word &first, const word &second)
 	return strcmp(strings_start + first.contents, strings_start + second.contents) < 0;
 }
 
-ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int* word_order,const optimized_combination *optimized_combo,const word* null_word)
+ngram_cmp::ngram_cmp(unsigned int ngramsize,const unsigned int* word_order,const optimized_combination *optimized_combo,const word* null_word,unsigned int how_many_to_ignore)
 {
 	n_gram_size = ngramsize;
 	this->word_order = word_order;
 	this->optimized_combo = optimized_combo;
 	this->null_word = null_word;
+	this->how_many_to_ignore = how_many_to_ignore;
 }
 
-/*
- *This function compares two n-grams where the first word of the n-gram is the same.
- */
-int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,const optimized_combination* optimized_combo, const unsigned int* word_order,const word* null_word)
+int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,const optimized_combination* optimized_combo, const unsigned int* word_order,const word* null_word,unsigned int how_many_to_ignore)
 {
 	int min_found = 0;
 	int max_found = 0;
@@ -60,10 +58,13 @@ int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,cons
 	const word* min_found_w2 = second;
 
 	//MARKER5
-	int cache[64];
-	cache[0] = 0;
+	int cache[64] = {0};
+	if(!how_many_to_ignore)
+	{
+		cache[0] = first->reduces_to - second->reduces_to;
+	}
 
-	for(size_t i = 1; i<n_gram_size;i++)
+	for(size_t i = how_many_to_ignore; i<n_gram_size;i++)
 	{
 		int relative_position = word_order[i] - word_order[0];
 		if(relative_position >= 0)
@@ -75,8 +76,18 @@ int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,cons
 					if(max_found_w1->next != null_word)
 					{
 						max_found_w1 = max_found_w1->next;
+
 					}else
-						return (max_found_w2->next == null_word) ? 0 : 1;
+					{
+						while(j++ < relative_position)
+						{
+							if(max_found_w2->next != null_word)
+								max_found_w2 = max_found_w2->next;
+							else
+								return 0;
+						}
+						return 1;
+					}
 
 					if(max_found_w2->next !=  null_word)
 					{
@@ -103,7 +114,16 @@ int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,cons
 					{
 						min_found_w1 = min_found_w1->prev;
 					}else
-						return (min_found_w2->prev == null_word) ? 0 : 1;
+					{
+						while(j++ < -relative_position)
+						{
+							if(min_found_w2->prev != null_word)
+								min_found_w2 = min_found_w2->prev;
+							else
+								return 0;
+						}
+						return 1;
+					}
 
 					if(min_found_w2->prev != null_word)
 					{
@@ -125,7 +145,102 @@ int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,cons
 	return 0;
 }
 
+unsigned int howManyWordsAreEqual(const word* first,const  word* second,const word* null_word,unsigned int n_gram_size,const unsigned int *word_order,const optimized_combination *optimized_combo)
+{
+	int min_found = 0;
+	int max_found = 0;
+
+	const word* max_found_w1 = first;
+	const word* max_found_w2 = second;
+	const word* min_found_w1 = first;
+	const word* min_found_w2 = second;
+
+	//MARKER5
+	int cache[64];
+	cache[0] = first->reduces_to - second->reduces_to;
+
+	for(size_t i = 0; i<n_gram_size;i++)
+	{
+		int relative_position = word_order[i] - word_order[0];
+		if(relative_position >= 0)
+		{
+			if(relative_position > max_found)
+			{
+				for(int j = max_found; j < relative_position;j++)
+				{
+					if(max_found_w1->next != null_word)
+					{
+						max_found_w1 = max_found_w1->next;
+
+					}else
+					{
+						while(j++ < relative_position)
+						{
+							if(max_found_w2->next != null_word)
+								max_found_w2 = max_found_w2->next;
+							else
+								return i + 1;
+						}
+						return i;
+					}
+
+					if(max_found_w2->next !=  null_word)
+					{
+						max_found_w2 = max_found_w2->next;
+					}else
+						return  i;
+
+					cache[optimized_combo->upper[j + 1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
+				}
+				max_found = relative_position;
+			}
+			if(cache[i] == 0)
+				continue;
+			else 
+				return i;
+			
+		}else
+		{
+			if(-relative_position > min_found)
+			{
+				for(int j = min_found;j < -relative_position ;j++)
+				{
+					if(min_found_w1->prev != null_word)
+					{
+						min_found_w1 = min_found_w1->prev;
+					}else
+					{
+						while(j++ < -relative_position)
+						{
+							if(min_found_w2->prev != null_word)
+								min_found_w2 = min_found_w2->prev;
+							else
+								return  i + 1;
+						}
+						return i;
+					}
+
+					if(min_found_w2->prev != null_word)
+					{
+						min_found_w2 = min_found_w2->prev;
+					}else
+						return  i;
+
+					cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
+				}
+				min_found = -relative_position ;
+			}
+			if(cache[i] == 0)
+				continue;
+			else
+				return i;
+		}	
+	}
+
+	return n_gram_size;
+}
+
 bool ngram_cmp::operator()(const word &first,const word &second)
 {
-	return ngramcmp(n_gram_size,&first,&second,optimized_combo, word_order,null_word) < 0;
+	return ngramcmp(n_gram_size,&first,&second,optimized_combo, word_order,null_word,how_many_to_ignore) < 0;
 }
