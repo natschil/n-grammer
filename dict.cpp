@@ -114,7 +114,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 				equal_words_to_next_combination = (current_combo + 2 > numcombos )?
 	       				0: shared_equal_words_matrix[numcombos*current_combo + (current_combo + 1)];
 
-			}else if(equal_words != ngramsize)
+			}else if(equal_words < ngramsize )
 			{
 				//We've reached the end of a group of n-grams where the first few words are the same
 				//We update where we will start the subsequent time we backtrack.
@@ -128,7 +128,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 				unsigned int new_combo = current_combo;
 				while(new_combo)
 				{
-					int to_prev = shared_equal_words_matrix[numcombos*current_combo + (new_combo - 1)];
+					unsigned int to_prev = shared_equal_words_matrix[numcombos*current_combo + (new_combo - 1)];
 					if(equal_words < to_prev)
 					{
 						new_combo--;
