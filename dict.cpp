@@ -110,7 +110,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 			{
 				//We've reached the end of a group of n-grams where the first few words are the same
 				//We update where we will start the subsequent time we backtrack.
-				for(size_t i = equal_words; i <ngramsize ; i++)
+				for(size_t i = equal_words; i < ngramsize  ; i++)
 				{
 					beginnings_stack[i + 1] = current_word_ptr;
 				}
@@ -125,17 +125,19 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 					{
 						new_combo--;
 					}else
+					{
 						break;
+					}
 				}
+
 				current_combo = new_combo;
 				equal_words_to_next_combination = (current_combo + 2 > numcombos )?
-	       			0: howManyWordsAreEqualInCombination(combinations[current_combo],combinations[current_combo+1],ngramsize);
+	       				0: howManyWordsAreEqualInCombination(combinations[current_combo],combinations[current_combo+1],ngramsize);
 			}
+
+			if(current_word_ptr == end)
+				break;
 		}
-
-		if(current_word_ptr == end)
-			break;
-
 
 		if(!(current_word_ptr->flags & NON_STARTING_WORD))
 		{
