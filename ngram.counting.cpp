@@ -676,6 +676,10 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	{
 		fprintf(stderr, "Buffers are too small\n");
 		exit(-1);
+	}else if(buffer_size > ( 1 << 32))
+	{
+		buffer_size = 1 << 32;
+		fprintf(stderr,"Making buffers smaller for addressability reasons");
 	}
 
 	for(size_t i = 0; i<num_concurrent_buffers;i++)

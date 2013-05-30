@@ -21,8 +21,8 @@ class word
 {
     public:
 	word* prev;
-	uint64_t contents;
-	uint64_t reduces_to;
+	uint32_t contents;
+	uint32_t reduces_to;
 	uint8_t flags;
 	word* next;
  	//The following functions are required so the structure of the doubly linked list is preserved throughout sorting.

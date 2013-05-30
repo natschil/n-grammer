@@ -63,7 +63,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 
 	size_t current_combo = 0;
 	long long wordcount = 0;
-	int equal_words_to_next_combination;
+	unsigned int equal_words_to_next_combination;
 
 	equal_words_to_next_combination = (current_combo + 2 > numcombos)?
 	       	0: shared_equal_words_matrix[numcombos*current_combo + (current_combo + 1)];
@@ -71,7 +71,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 	//Iterate over all words.
 	for(word* current_word_ptr = begin; ; current_word_ptr++)
 	{
-		int equal_words; //The number of words that are equal under this ordering to the last n-gram encountered.
+		unsigned int equal_words; //The number of words that are equal under this ordering to the last n-gram encountered.
 		if(current_word_ptr == end)
 			equal_words = 0;
 		else
@@ -85,7 +85,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 					);
 
 		//If not all words were equal.
-		if(equal_words < (int)ngramsize)
+		if(equal_words < ngramsize)
 		{
 			//wordcount could be 0 if all words in the range have the NON_STARTING_WORD flag set.
 			if(wordcount)
@@ -94,7 +94,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 
 			//If fewever words were equal than the number of equal words that the next combination has
 			//This means that we can write out the next combination now.
-			if((int)equal_words < equal_words_to_next_combination)
+			if(equal_words < equal_words_to_next_combination)
 			{
 				//Increase the combination, and sort it.
 				current_combo++;
@@ -114,7 +114,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 				equal_words_to_next_combination = (current_combo + 2 > numcombos )?
 	       				0: shared_equal_words_matrix[numcombos*current_combo + (current_combo + 1)];
 
-			}else 
+			}else if(equal_words != ngramsize)
 			{
 				//We've reached the end of a group of n-grams where the first few words are the same
 				//We update where we will start the subsequent time we backtrack.
