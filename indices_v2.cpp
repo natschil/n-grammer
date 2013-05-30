@@ -354,13 +354,11 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 			strings_start
 			);
 
-	current_ngrams.writeRangeToDisk(buffer_bottom,buffer_top, null_word);
-	/*
 	for(word* current_word = buffer_bottom; current_word != buffer_top;)
 	{
+		current_ngrams.writeRangeToDisk(current_word,buffer_bottom + current_word->reduces_to + 1, null_word);
 		current_word = (buffer_bottom + current_word->reduces_to) + 1;
 	}
-	*/
 
 	fprintf(stdout,")");
 	fflush(stdout);

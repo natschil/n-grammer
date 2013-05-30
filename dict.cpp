@@ -46,12 +46,19 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 {
 	//beginnings_stack[i] holds a pointer to where reading should start if i words are equal to the previous combination
 	
-	vector<word*> beginnings_stack;
-	beginnings_stack.resize(ngramsize + 1);
+	word* beginnings_stack[ngramsize + 1];
 
 	for(size_t i = 0; i < ngramsize + 1; i++)
 	{
 		beginnings_stack[i] = begin;
+	}
+	unsigned int shared_equal_words_matrix[numcombos*numcombos];
+	for(size_t i = 0; i < numcombos; i++)
+	{
+		for(size_t j = 0; j < numcombos; j++)
+		{
+			shared_equal_words_matrix[numcombos*i + j] = howManyWordsAreEqualInCombination(combinations[i],combinations[j],ngramsize);
+		}
 	}
 
 	size_t current_combo = 0;
@@ -59,7 +66,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 	int equal_words_to_next_combination;
 
 	equal_words_to_next_combination = (current_combo + 2 > numcombos)?
-	       	0: howManyWordsAreEqualInCombination(combinations[current_combo],combinations[current_combo+1],ngramsize);
+	       	0: shared_equal_words_matrix[numcombos*current_combo + (current_combo + 1)];
 
 	//Iterate over all words.
 	for(word* current_word_ptr = begin; ; current_word_ptr++)
@@ -103,8 +110,9 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 					beginnings_stack[i] = current_word_ptr;
 				}
 
+
 				equal_words_to_next_combination = (current_combo + 2 > numcombos )?
-	       			0: howManyWordsAreEqualInCombination(combinations[current_combo],combinations[current_combo+1],ngramsize);
+	       				0: shared_equal_words_matrix[numcombos*current_combo + (current_combo + 1)];
 
 			}else 
 			{
@@ -116,11 +124,11 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 				}
 
 				//We go back to the last combination that has the current number of equal words
-				// words equal to this one.
+				// words equal to or larger than the current one
 				unsigned int new_combo = current_combo;
 				while(new_combo)
 				{
-					int to_prev = howManyWordsAreEqualInCombination(combinations[current_combo],combinations[new_combo - 1],ngramsize);
+					int to_prev = shared_equal_words_matrix[numcombos*current_combo + (new_combo - 1)];
 					if(equal_words < to_prev)
 					{
 						new_combo--;
@@ -132,7 +140,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 
 				current_combo = new_combo;
 				equal_words_to_next_combination = (current_combo + 2 > numcombos )?
-	       				0: howManyWordsAreEqualInCombination(combinations[current_combo],combinations[current_combo+1],ngramsize);
+	       				0: shared_equal_words_matrix[numcombos*current_combo + (current_combo + 1)];
 			}
 
 			if(current_word_ptr == end)
