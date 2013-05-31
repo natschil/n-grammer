@@ -14,6 +14,8 @@
 #include <string.h>
 #include <algorithm>
 
+#include "config.h"
+
 using namespace std;
 class Metadata
 {

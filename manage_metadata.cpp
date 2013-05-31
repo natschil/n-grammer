@@ -30,8 +30,16 @@ Metadata::Metadata(string &filename,string &foldername)
 upper_loop: while(getline(metadata_file,nextline,':'))
 	{
 		metadata_file.get();
-
-		if(nextline ==	"Numwords")
+		if(nextline == "Version")
+		{
+			int version;
+			metadata_file >> version;
+			if(version != NGRAM_COUNTER_VERSION)
+			{
+				cerr<<"The output file was generated with version %d, but this analysis program can only read files\
+					of version %d. \n";
+			}
+		} else if(nextline == "Numwords")
 		{
 			metadata_file >> num_words;
 		}else if(nextline == "Time")
@@ -132,6 +140,7 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 void Metadata::write(void)
 {
 	ofstream outfile(metadata_filename.c_str());	
+	outfile<<"Version:\t"<<NGRAM_COUNTER_VERSION<<"\n";
 	outfile<<"Filename:\t"<<file_name<<"\n";
 	outfile<<"Numwords:\t"<<num_words<<"\n";
 	outfile<<"Time:\t"<<time_taken<<"\n";
