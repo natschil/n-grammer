@@ -23,7 +23,7 @@ static void adjustBoundaryToSpace(const uint8_t* mmaped_file, off_t &offset_to_a
  */
 static int get_next_ucs4t_from_file( const uint8_t (**ptr),const uint8_t* eof,ucs4_t *character);
 
-/* Adds the next string from *f to the relevant buffers. Note that it does *NOT* add a null_word on invalid words.
+/* Adds the next string from *f to the relevant buffers, including adding null words where this needs to be done.
  * The string is normalized using norm
  *
  * The following transformations of the input string(s) from the file also take place:
@@ -44,6 +44,7 @@ static int get_next_ucs4t_from_file( const uint8_t (**ptr),const uint8_t* eof,uc
  * 					NOTE: "efg \n" counts as 2 sections due to the trailing space but leading spaces are ignored.
  *
  * The word is added to the start of the buffer if add_word_at_start is set to true. If this is a case, remember to call Buffer::advance_to first.
+ * totalwords is incremented whenever 1 is returned, and a "." is written to stdout whenever (totalwords % 1000000) == 0
  *
  * Returns 2 if there was a subsequent word in f and it was valid.
  * Returns 1 if there was a subsequent word in f, but it was not valid (i.e. too long, poor pos formatting or ---END.OF.DOCUMENT---).
@@ -56,7 +57,8 @@ static int getnextwordandaddit(
 		Buffer* ngram_buf,
 		bool add_word_at_start,
 		bool is_pos,
-		bool build_pos_supplement_indexes
+		bool build_pos_supplement_indexes,
+		long long &totalwords
 		);
 
 
@@ -191,7 +193,8 @@ static int getnextwordandaddit(
 		Buffer* buf,
 		bool add_at_start,
 		bool is_pos,
-		bool build_pos_supplement_indexes
+		bool build_pos_supplement_indexes,
+		long long &totalwords
 		)
 {
 
@@ -228,7 +231,11 @@ static int getnextwordandaddit(
 						( classification_length > (MAX_CLASSIFICATION_SIZE))
 					)
 			{
-				
+				if(add_at_start)
+				{
+					buf->add_null_word_at_start();
+				}else	
+					buf->add_null_word();
 				return 2;
 			}else  //We've reached a newline too early, but none of the words in it are set to be ignored.
 			{
@@ -304,7 +311,13 @@ static int getnextwordandaddit(
     if(!is_pos)
     {
     	if(inflexion_length > MAX_WORD_SIZE)
-	    return 2;
+	{
+		if(add_at_start)
+			buf->add_null_word_at_start();
+		else
+			buf->add_null_word();
+		return 2;
+	}
     	if(!inflexion_length)
 	    return 0;
 
@@ -313,7 +326,13 @@ static int getnextwordandaddit(
     {
 	    //If any of the word parts were set to be ignored
 	    if((inflexion_length > MAX_WORD_SIZE) || (classification_length > MAX_CLASSIFICATION_SIZE)|| (lemma_length > MAX_LEMMA_SIZE))
-		   return 2;
+	    {
+		    if(add_at_start)
+			    buf->add_null_word_at_start();
+		    else
+			    buf->add_null_word();
+		    return 2;
+	    }
 
             //If the file ended before reaching a lemma.
 	    if(current_word_part != lemma)
@@ -331,7 +350,11 @@ static int getnextwordandaddit(
     //---END.OF.DOCUMENT--- becomes END.OF.DOCUMENT--- because preceding hyphens are ignored.
    if(!strcmp((const char*) inflexion,"END.OF.DOCUMENT---")) 
    {
-	return 2;
+	   if(add_at_start)
+		   buf->add_null_word_at_start();
+	   else
+		   buf->add_null_word();
+	   return 2;
    }
 
 
@@ -352,6 +375,10 @@ static int getnextwordandaddit(
 	if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE)) 
 	{
 		buf->rewind_string_allocation(bytes_to_allocate);
+		if(add_at_start)
+			buf->add_null_word_at_start();
+		else
+			buf->add_null_word();
 		return 2;
 	}
 
@@ -376,6 +403,10 @@ static int getnextwordandaddit(
 		if(!normalization_result || (classification_s_length > MAX_CLASSIFICATION_SIZE))
 		{
 			buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE + 1);
+			if(add_at_start)
+				buf->add_null_word_at_start();
+			else
+				buf->add_null_word();
 			return 2;
 		}
 		buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE - classification_s_length);
@@ -389,6 +420,10 @@ static int getnextwordandaddit(
 		{
 			buf->rewind_string_allocation(MAX_LEMMA_SIZE + 1);
 			buf->rewind_string_allocation(classification_s_length + 1);
+			if(add_at_start)
+				buf->add_null_word_at_start();
+			else
+				buf->add_null_word();
 			return 2;
 		}
 		buf->rewind_string_allocation(MAX_LEMMA_SIZE - lemma_s_length);
@@ -402,6 +437,10 @@ static int getnextwordandaddit(
 			buf->rewind_string_allocation(classification_s_length + 1);
 			buf->rewind_string_allocation(lemma_s_length + 1);
 			buf->rewind_string_allocation(MAX_WORD_SIZE + 1);
+			if(add_at_start)
+				buf->add_null_word_at_start();
+			else
+				buf->add_null_word();
 			return 2;
 		}
 		buf->rewind_string_allocation(MAX_WORD_SIZE - inflexion_s_length);
@@ -421,6 +460,10 @@ static int getnextwordandaddit(
 		if(!normalization_result || (current_length > MAX_CLASSIFICATION_SIZE))
 		{
 			buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + MAX_WORD_SIZE + 1);
+			if(add_at_start)
+				buf->add_null_word_at_start();
+			else
+				buf->add_null_word();
 			return 2;
 		}
 		uint8_t *ptr = s + current_length;
@@ -431,6 +474,10 @@ static int getnextwordandaddit(
 		if(!normalization_result || (current_length > MAX_LEMMA_SIZE))
 		{
 			buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + MAX_WORD_SIZE + 1);
+			if(add_at_start)
+				buf->add_null_word_at_start();
+			else
+				buf->add_null_word();
 			return 2;
 		}
 		ptr  += current_length;
@@ -441,6 +488,10 @@ static int getnextwordandaddit(
 		if(!normalization_result || (current_length > MAX_CLASSIFICATION_SIZE))
 		{
 			buf->rewind_string_allocation(MAX_CLASSIFICATION_SIZE + 1 + MAX_LEMMA_SIZE + 1 + MAX_WORD_SIZE + 1);
+			if(add_at_start)
+				buf->add_null_word_at_start();
+			else
+				buf->add_null_word();
 			return 2;
 		}
 		ptr += current_length;
@@ -457,6 +508,13 @@ static int getnextwordandaddit(
 	   	}
 	}
   }
+   totalwords++;
+   if((totalwords % 1000000) == 0)
+  {
+	  fprintf(stdout,".");
+	  fflush(stdout);
+  }
+
    return 1;
 }
 
@@ -477,7 +535,7 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 	
 		//Keep track of how many words at the start of the buffer have been read in.
 		//Note that we ignore any words read in here, because they were counted and read in by the previous buffer already.
-		unsigned int counter = 0;
+		long long int counter = 0;
 
 		int first = 1;
 		int first_was_null = 0;
@@ -496,7 +554,7 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 	
 			const uint8_t* tmp_filePtr = mmaped_file + tmp_offset;
 	
-			int res = getnextwordandaddit(&tmp_filePtr, mmaped_file + prev_offset, norm, buffer,true,is_pos,0);
+			int res = getnextwordandaddit(&tmp_filePtr, mmaped_file + prev_offset, norm, buffer,true,is_pos,0,counter);
 			if(buffer->is_full)
 			{
 				fprintf(stderr,"This should never happen and indicates that somewhere there is  bug (Or that you are using corpora with very long words at the start and very small buffers)\n");
@@ -509,12 +567,10 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 				continue;
 			break;
 			case 1: 
-				counter++;
 			break;
 			case 2:
 				if(first)
 					first_was_null = 1;
-				buffer->add_null_word_at_start();
 			break;
 			}
 			first = 0;
@@ -542,25 +598,10 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 	while(!buffer->is_full)
 	{
 
-		uint8_t res = getnextwordandaddit(f,eof,norm,buffer,false,is_pos,build_pos_supplement_indexes);
+		uint8_t res = getnextwordandaddit(f,eof,norm,buffer,false,is_pos,build_pos_supplement_indexes,totalwords);
 
 		if(!res)
 			break;//We've reached the end of the file
-		switch(res)
-		{
-		case 1: //We've added a word
-			totalwords++;
-			if((totalwords % 1000000) == 0)
-			{
-				fprintf(stdout,".");
-				fflush(stdout);;
-			}
-		break;
-		case 2: //We need to add a null word.
-			buffer->add_null_word();
-		break;
-		}
-
 	}
 	//Add a null word at the end so everything goes ok.
 	buffer->add_null_word();
