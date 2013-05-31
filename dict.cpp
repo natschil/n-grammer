@@ -137,10 +137,13 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 						break;
 					}
 				}
-
-				current_combo = new_combo;
-				equal_words_to_next_combination = (current_combo + 2 > numcombos )?
-	       				0: shared_equal_words_matrix[numcombos*current_combo + (current_combo + 1)];
+				if(new_combo < current_combo)
+				{
+					current_combo = new_combo;
+	
+					equal_words_to_next_combination = (current_combo + 2 > numcombos )?
+		       				0: shared_equal_words_matrix[numcombos*current_combo + (current_combo + 1)];
+				}
 			}
 
 			if(current_word_ptr == end)
