@@ -239,7 +239,7 @@ static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* outpu
 		off_t output_end = out_cur + inputsize - in_cur ;
 		if(ftruncate(out_fd, output_end))
 		{
-			fprintf(stderr,"merge: Unable to ftruncute(2) output file");
+			perror("merge: Unable to ftruncute(2) output file:");
 			exit(-1);
 		}
 
@@ -249,13 +249,13 @@ static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* outpu
 		void* input_map = mmap(NULL, inputsize - input_offset_start , PROT_READ, MAP_SHARED, in_fd,  input_offset_start);
 		if(input_map == (void*) -1)
 		{
-			fprintf(stderr, "merge: Unable to mmap input file\n");
+			perror( "merge: Unable to mmap input file:");
 			exit(-1);
 		}
 
 		if(madvise(input_map, inputsize - input_offset_start, MADV_SEQUENTIAL))
 		{
-			fprintf(stderr,"Madvise failed\n");
+			perror("merge: Madvise failed:");
 		}
 	
 		off_t output_offset_start = sysconf(_SC_PAGESIZE) * (out_cur / sysconf(_SC_PAGESIZE));
@@ -264,7 +264,7 @@ static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* outpu
 		if(output_map == (void*) -1)
 		{
 			munmap(input_map,inputsize-input_offset_start);
-			fprintf(stderr,"merge: Unable to mmap output file");
+			perror("merge: Unable to mmap output file:");
 			exit(-1);
 		}
 	
