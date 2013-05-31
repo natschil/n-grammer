@@ -492,7 +492,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 	this->combinations.reserve(numcombos);
 	this->optimized_combinations.reserve(numcombos);
 	this->prefixes.reserve(numcombos);
-	this->mergeschedulers = (uint8_t (*)[MAX_K][MAX_BUFFERS]) calloc(sizeof(*this->mergeschedulers), numcombos);
+	this->mergeschedulers = (uint8_t (*)[2*MAX_BUFFERS-1]) calloc(sizeof(*this->mergeschedulers), numcombos);
 
 	this->buffercounter = 0;
 	this->num_being_read = 0;

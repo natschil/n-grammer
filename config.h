@@ -5,6 +5,10 @@
 
 /* Options for core n-gram counter*/
 
+	#ifndef NGRAM_COUNTER_VERSION
+		#define NGRAM_COUNTER_VERSION 1
+	#endif
+
 	//The number of bytes to use per word. Any words larger than this are ignored.
 	#ifndef MAX_WORD_SIZE
 		#define MAX_WORD_SIZE 40
@@ -52,15 +56,9 @@
 	#endif
 
 /*Options for the merger*/
-	//Note that when changing the values below, change them so that  MAX_K = log2(MAX_BUFFERS) + 1
-	//The MAX_BUFFERS option gives the maximum number of total buffers that will be used
-	//Search for MARKER8 for places in the code that depend on on MAX_BUFFERS being less than 9999
+	//Note that when changing the values below, change them so that MAX_BUFFERS is a power of 2
 	#ifndef MAX_BUFFERS
 		#define MAX_BUFFERS  2048
 	#endif
-	#ifndef MAX_K
-		#define MAX_K 12
-	#endif
-
 
 #endif

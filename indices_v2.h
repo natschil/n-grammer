@@ -131,7 +131,7 @@ class IndexCollection
 		vector<optimized_combination> optimized_combinations;
 		vector<char*> prefixes;
 
-		uint8_t (*mergeschedulers)[MAX_K][MAX_BUFFERS]; //For merging 
+		uint8_t (*mergeschedulers)[2*MAX_BUFFERS - 1]; //For merging 
 		stack<schedule_entry> unread_ranges;
 		int num_being_read;
 		int buffercounter;

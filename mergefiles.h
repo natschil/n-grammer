@@ -35,7 +35,7 @@ void init_merger(int new_max_ngram_string_length);
 //Call this function with k,n referring to an n-gram collection that already exists.
 //i.e. when the n-th non-last buffer has been written to disk, call schedule_next_merge(0,n,0)
 //When the n-th buffer is also the last buffer, call schedule_next_merge(0,n,1)
-void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char* prefix);
+void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[2*MAX_BUFFERS - 1],const char* prefix);
 
 //Merges files in_first with in_second in way useful for the ngram counter.
 //See merge_files.c for an example program.

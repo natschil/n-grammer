@@ -5,9 +5,9 @@
 /*Function declarations of functions found in this file*/
 
 void init_merger(int new_max_ngram_string_length);
-void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char* prefix);
+void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[2*MAX_BUFFERS - 1],const char* prefix);
 int get_final_k();
-static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char* prefix);
+static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[2*MAX_BUFFERS - 1],const char* prefix);
 static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* output);
 int merge_files(FILE* in_first,off_t first_size, FILE* in_second,off_t second_size, FILE* out,int max_ngram_string_length);
 
@@ -29,7 +29,7 @@ void init_merger(int new_max_ngram_string_length)
 //Call this function with k,n referring to an n-gram collection that already exists.
 //i.e. when the n-th nonterminal buffer has been written to disk, call schedule_next_merge(0,n,0)
 //When the n-th buffer is also the last buffer, call schedule_next_merge(0,n,1)
-void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char* prefix)
+void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_table)[2*MAX_BUFFERS - 1],const char* prefix)
 {
 	if(n > MAX_BUFFERS)
 	{
@@ -77,8 +77,8 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 		#pragma omp flush
 		if(k > max_k)
 			max_k = k;
-		if(!(run_next_merge = (*scheduling_table)[k][n]))
-			(*scheduling_table)[k][other_n] = rightmost_run ? 2 : 1;
+		if(!(run_next_merge = (*scheduling_table)[2*MAX_BUFFERS-(MAX_BUFFERS/(1 << k))+n]))
+			(*scheduling_table)[2*MAX_BUFFERS-(MAX_BUFFERS/(1<<k)) + other_n] = rightmost_run ? 2 : 1;
 		#pragma omp flush
 	}
 
@@ -100,7 +100,7 @@ int get_final_k()
 	return max_k;
 }
 
-static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[MAX_K][MAX_BUFFERS],const char* prefix)
+static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[2*MAX_BUFFERS-1],const char* prefix)
 {
 	int other_n = (n && (n % 2)) ? n - 1: n+1;
 	int final_n = ((n && (n % 2)) ? other_n : n) / 2;  //I.e. take the even one, divide by two
