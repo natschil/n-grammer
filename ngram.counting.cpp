@@ -494,17 +494,19 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 				exit(-1);
 			}
 	
-			if(res == 0)//This means there was no word there, meaning we need to go back further to get to a word.
+			switch(res)
 			{
+			case 0:  //This means there was no word there, meaning we need to go back further to get a word.
 				continue;
-			}else if(res == 2)
-			{
+			break;
+			case 1: 
+				counter++;
+			break;
+			case 2:
 				if(first)
 					first_was_null = 1;
 				buffer->add_null_word_at_start();
-			}else
-			{
-				counter++;
+			break;
 			}
 			first = 0;
 		}
@@ -530,25 +532,26 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 
 	while(!buffer->is_full)
 	{
-		int res = getnextwordandaddit(f,eof,norm,buffer,false,is_pos,build_pos_supplement_indexes);
-		
-		if(!res) //We've reached the end of the file.
-		{
-			break;
-		}else if(res == 2) //The word should not be counted as a word.
-		{
-			buffer->add_null_word();
-		}else
-		{
-			totalwords++;
 
-			if((totalwords % 1000000 == 0))
+		uint8_t res = getnextwordandaddit(f,eof,norm,buffer,false,is_pos,build_pos_supplement_indexes);
+
+		if(!res)
+			break;//We've reached the end of the file
+		switch(res)
+		{
+		case 1: //We've added a word
+			totalwords++;
+			if((totalwords % 1000000) == 0)
 			{
 				fprintf(stdout,".");
-				fflush(stdout);
+				fflush(stdout);;
 			}
-
+		break;
+		case 2: //We need to add a null word.
+			buffer->add_null_word();
+		break;
 		}
+
 	}
 	//Add a null word at the end so everything goes ok.
 	buffer->add_null_word();
