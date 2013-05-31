@@ -27,7 +27,6 @@ using namespace std;
 #include "searchindexcombinations.h"
 #include "mergefiles.h"
 #include "util.h"
-#include "dict.h"
 #include "words.h"
 
 
