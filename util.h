@@ -15,6 +15,8 @@
 extern "C" {
 #endif
 
+/* This function does approximately what rm -r does, but only for directories.
+ */
 void recursively_remove_directory(const char* directory_name);
 
 #ifdef __cplusplus

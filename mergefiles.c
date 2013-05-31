@@ -196,9 +196,9 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 	}
 
 	sprintf(dirbuf,"%s/%d_%d",prefix,k,n);
-	remove(dirbuf);
+	recursively_remove_directory(dirbuf);
 	sprintf(dirbuf,"%s/%d_%d",prefix,k,other_n);
-	remove(dirbuf);
+	recursively_remove_directory(dirbuf);
 	free(dirbuf);
 
 	schedule_next_merge(final_k,final_n,rightmost_run,scheduling_table,prefix);

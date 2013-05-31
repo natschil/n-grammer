@@ -136,7 +136,6 @@ word* Buffer::words_buffer_bottom()
 
 class Dict;
 class DictCollection;
-
 class DictCollection
 {
 	public:
@@ -631,22 +630,22 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 				for(unsigned int counter = 0;;)
 				{
 					int res = strcmp((const char*)strings_start + first_cur->contents, (const char*)strings_start + second_cur->contents);
-					if(res > 0)
-						return false;
-					else if(res)
+					if(res < 0)
 						return true;
+					else if(res)
+						return false;
 
 					if(++counter < ngramsize)
 					{
 						if(first_cur->next == null_word)
-							return (second_cur->next == null_word)?false:false;
+							return false;
 						else if(second_cur->next == null_word)
 							return true;
 	
 						first_cur = first_cur->next;
 						second_cur = second_cur->next;
 					}else
-						return res > 0;
+						return res < 0;
 				}
 				return false;
 

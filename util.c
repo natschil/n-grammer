@@ -4,6 +4,7 @@ static int callback_function(const char* filepath,const struct stat *ignore_one,
 	(void) ignore_one;
 	(void) ignore_two;
 	(void) ignore_three;
+
 	remove(filepath);
 	return 0;
 }

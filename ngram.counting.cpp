@@ -61,11 +61,17 @@ static int getnextwordandaddit(
 
 
 /* This function fills the Buffer specified by *buffer with words from the region of memory starting at mmaped_file and ending at *eof. It reads
- * from the memory at *f and updates *f so that it points to after the end of the last word read in.
+ * from this memory at *f and updates *f so that the latter points to after the end of the last word read in.
  * totalwords is set to the number of words read in.
  * The words are normalized using norm.
+ * The words are written into buffer, and enough words are written into buffer that all n-grams and permutations of n-grams starting with
+ * the word at *f are written into the buffer. This means that some words from before *f are written into the buffer. These words, 
+ * along with words at the end of the buffer have the NON_STARTING_WORD bit set in the word flags.
  * The argument is_rightmost_buffer should be set to 1 if eof is the actual end of the mmaped file, i.e. there are no buffers
  * that start after this buffer.
+ * is_pos determines whether or not the file has part of speech information for every word.
+ * build_pos_supplement_indexes should be set if only part of speech supplement indexes should be created. These supplement indexes
+ * are simply indexes by classification (i.e. nn or np etc..), lemma and the word which are used for searching.
  */
 static void fillABuffer(
 		const uint8_t* mmaped_file,
@@ -80,13 +86,17 @@ static void fillABuffer(
 		bool build_pos_supplement_indexes
 		);
 
-/* This function generates indexes of n-grams of size ngramsize and the frequency that the n-grams occur at in the file infile_name
+/* This function generates indexes of n-grams (of size ngramsize) and the frequency at which they occur from the file infile_name.
+ * These indexes are written into the directory outdir.
  * Setting wordsearch_index_depth to anything except for 1 or ngramsize is depricated
  * 	Setting it to 1 generates only one index, in which words are in the order as they are in the text.
  * 	Setting it to ngramsize generates ngramsize choose floor(ngramsize/2) indexes, allowing for any
  * 		combination of words (or lack of thereof) to be searched for.
- * 	cache_entire_file indicates whether we should tell the OS to cache the entire file or not.
- * 	The file is read concurrently from num_concurrent_buffers chunks of the file at a time.
+ * The file is read concurrently from num_concurrent_buffers chunks of the file at a time.
+ * cache_entire_file indicates whether we should tell the OS to cache the entire file or not.
+ * is_pos should be set if the file contains part of speech data for each word.
+ * build_pos_supplement_indexes sets whether or not part of speech supplement indexes should only be built. (See above documentation for
+ * the parameter of the same name in the function fillABuffer)
  */
 long long int count_ngrams(
 		unsigned int ngramsize,
@@ -101,7 +111,6 @@ long long int count_ngrams(
 		);
 
 
-/*Function definitions*/
 
 static void adjustBoundaryToSpace(const uint8_t* mmaped_file, off_t &offset_to_adjust,off_t file_size,unsigned int num_spaces,bool is_pos)
 {
