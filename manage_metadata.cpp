@@ -120,6 +120,7 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 			{
 				posIndexesExist = true;
 			}
+			metadata_file.unget();//Because we swallowed the newline character which the line below was supposed to swallow
 		}else if(nextline == "isPos")
 		{
 			string is_pos_str;
@@ -128,6 +129,7 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 			{
 				isPos = true;
 			}
+			metadata_file.unget();//Because we swallowed the newline character which the line below was supposed to swallow
 		}
 
 

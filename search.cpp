@@ -281,7 +281,7 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	}
 
 	//We know that all of the metadatas are for the same file, and that there is at least one metadata.
-	bool is_pos = (metadatas.begin()->second).posIndexesExist;
+	bool is_pos = (metadatas.begin()->second).isPos;
 
 	string search_string = arguments[0];
 	if(is_pos)
@@ -339,6 +339,11 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 		exit(-1);
 	}
 	Metadata &relevant_metadata = metadatas[ngramsize];
+	if(is_pos && !relevant_metadata.posIndexesExist)
+	{
+		cerr<<"search: No POS supplement indexes seem to exist";
+		exit(-1);
+	}
 
 	//We do a simple and unefficient search for the index that matches with the relevant permutation of known and unknown strings
 	vector<unsigned int> search_index_to_use;	
