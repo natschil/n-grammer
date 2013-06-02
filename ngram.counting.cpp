@@ -851,7 +851,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	{
 		FILE* metadata_file = fopen(output_location,"w");
 	
-		fprintf(metadata_file,"Version;\t%d\n", (int) NGRAM_COUNTER_VERSION);
+		fprintf(metadata_file,"Version:\t%d\n", (int) NGRAM_COUNTER_VERSION);
 		fprintf(metadata_file,"Filename:\t%s\n",infile_name);
 		fprintf(metadata_file,"Numwords:\t%lld\n",totalwords);
 	  	gettimeofday(&end_time,NULL);
