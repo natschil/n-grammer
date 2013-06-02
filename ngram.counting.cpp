@@ -844,11 +844,11 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	indexes->copyToFinalPlace(k);
 
    //We output relevant metadata to a metadata file.
-	char* output_location = (char*) malloc(strlen("ngrams_")+  4 + strlen(".metadata")+ 1); //MARKER5
+	char* output_location = (char*) malloc( 4 + strlen("_grams.metadata")+ 1); //MARKER5
 	sprintf(output_location,"%u_grams.metadata",ngramsize);
-	remove(output_location);
 	if(!build_pos_supplement_indexes)
 	{
+		remove(output_location);
 		FILE* metadata_file = fopen(output_location,"w");
 	
 		fprintf(metadata_file,"Version:\t%d\n", (int) NGRAM_COUNTER_VERSION);
@@ -865,9 +865,57 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 		fclose(metadata_file);
 	}else
 	{
-		FILE* metadata_file = fopen(output_location,"a");
-		indexes->writeMetadata(metadata_file);
-		fclose(metadata_file);
+		//TODO: fix the following to not rely on a GNU-specific function
+		char* absolute_cwd = get_current_dir_name();
+		DIR* output_directory = opendir(absolute_cwd);
+		free(absolute_cwd);
+		if(!output_directory)
+		{
+			fprintf(stderr,"Could not open the current working directory, this should never happen\n");
+			exit(-1);
+		}
+		bool wrote_to_a_file = false;
+		struct dirent *current_entry;
+		while((current_entry = readdir(output_directory)))
+		{
+			char* filename_ptr = current_entry->d_name;
+			while(isdigit(*filename_ptr))
+				filename_ptr++;
+			if(!strcmp(filename_ptr,"_grams.metadata")) //We don't need to prepend the current working directory.
+			{
+				strcpy(output_location,current_entry->d_name);
+				FILE* metadata_file = fopen(output_location,"a+");
+				if(!metadata_file)
+				{
+					fprintf(stderr,"Could not open file %s to write metadata\n",output_location);
+					exit(-1);
+				}
+				char* current_line = (char*)malloc(100);
+				size_t current_line_size = 100;
+				while(getline(&current_line,&current_line_size,metadata_file)>0)
+				{
+					if(!strncmp(current_line,"Filename:\t",strlen("Filename:\t")))
+					{
+						char* ptr = current_line + strlen("Filename:\t");
+						*(ptr + strlen(ptr) - 1) = '\0'; //Remove trailing newline
+						if(!strcmp(ptr,infile_name))
+						{
+							wrote_to_a_file = true;
+							indexes->writeMetadata(metadata_file);
+							break;
+						}
+					}
+				}
+				free(current_line);
+				fclose(metadata_file);
+			}
+		}
+		closedir(output_directory);
+		if(!wrote_to_a_file)
+		{
+			fprintf(stderr, "POS Supplement indexes were generated fine, but no non-pos indexes were found\n");
+			exit(-1);
+		}
 	}
 
 
