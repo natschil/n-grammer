@@ -629,7 +629,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
     	struct timeval start_time,end_time;
   	gettimeofday(&start_time,NULL);
     //Initialize the local to read in UTF-8
-	setlocale(LC_CTYPE,"en_US.UTF-8");
+	setlocale(LC_CTYPE,".UTF-8");
 
    //Open the input file, and get its size
 	int fd = open(infile_name,O_RDONLY);
@@ -723,6 +723,10 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	vector<void*> internal_buffers;
 	size_t buffer_size = MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers;
 
+   //Align the buffer_size to the nearest 64 bits
+	buffer_size >>= 6;
+	buffer_size <<= 6;	
+
 	//We need to store at least 2*ngramsize - 1 words per buffer, so checking for 2*ngramsize buffers is sufficient.
 	if(buffer_size < (2*ngramsize*(MAX_WORD_SIZE + 1 + sizeof(word))))
 	{
@@ -733,6 +737,7 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 		buffer_size = 1ll << 32;
 		fprintf(stderr,"Making buffers smaller for addressability reasons");
 	}
+
 
 	long long int totalwords = 0;
    //Now we actually read in the file.
@@ -829,6 +834,8 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
 		if(!first)
 			free(this_internal_buffer);
+		fprintf(stdout,"-");
+		fflush(stdout);
 	}
 
    //Here we do various postprocessing operations, such as moving the files to their final positions, etc...
