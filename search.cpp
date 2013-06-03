@@ -341,7 +341,7 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	Metadata &relevant_metadata = metadatas[ngramsize];
 	if(is_pos && !relevant_metadata.posIndexesExist)
 	{
-		cerr<<"search: No POS supplement indexes seem to exist";
+		cerr<<"search: No POS supplement indexes seem to exist\n";
 		exit(-1);
 	}
 
