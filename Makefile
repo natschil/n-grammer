@@ -11,7 +11,7 @@ TARGET = ngram.counting
 OBJS = ngram.counting.o main.o  mergefiles.o searchindexcombinations.o indices_v2.o util.o words.o
 MERGER = merger
 
-MERGER_OBJS = mergefiles.o merge_files.o
+MERGER_OBJS = mergefiles.o merge_files.o util.o
 
 default: $(TARGET) $(MERGER)
 $(TARGET): $(OBJS)
