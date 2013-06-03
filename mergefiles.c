@@ -74,12 +74,10 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 	//TODO: Do this with openmp locks instead.
 	#pragma omp critical(merge_scheduler)
 	{
-		#pragma omp flush
 		if(k > max_k)
 			max_k = k;
 		if(!(run_next_merge = (*scheduling_table)[2*MAX_BUFFERS-(MAX_BUFFERS/(1 << k))+n]))
 			(*scheduling_table)[2*MAX_BUFFERS-(MAX_BUFFERS/(1<<k)) + other_n] = rightmost_run ? 2 : 1;
-		#pragma omp flush
 	}
 
 	if(run_next_merge)
