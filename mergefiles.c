@@ -344,7 +344,7 @@ getbothfiles:
 				second_number = strtoll(ptr2+1,&endptr,10);
 				if(*endptr != '\n')
 				{
-					fprintf(stderr,"Input file is wrongly formatted\n");
+					fprintf(stderr,"Input file is wrongly formatted: %.10s\n",ptr2);
 					free(buf);
 					free(buf2);
 					return -1;

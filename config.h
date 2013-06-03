@@ -40,7 +40,11 @@
 	
 
 	#ifndef MEMORY_TO_USE_FOR_BUFFERS
+<<<<<<< Updated upstream
 		#define MEMORY_TO_USE_FOR_BUFFERS (800ll*1024ll*1024ll)
+=======
+		#define MEMORY_TO_USE_FOR_BUFFERS (5ll*1024ll*1024ll*1024ll)
+>>>>>>> Stashed changes
 	#endif
 
 /*Options for Indices*/
