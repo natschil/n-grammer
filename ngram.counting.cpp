@@ -721,7 +721,6 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 
    //We allocate the necessary memory for the buffers in advance, so that we don't run out of memory at some random point in time.
 	vector<void*> internal_buffers;
-	internal_buffers.reserve(num_concurrent_buffers);
 	size_t buffer_size = MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers;
 
 	//We need to store at least 2*ngramsize - 1 words per buffer, so checking for 2*ngramsize buffers is sufficient.
@@ -735,24 +734,22 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 		fprintf(stderr,"Making buffers smaller for addressability reasons");
 	}
 
-	for(size_t i = 0; i<num_concurrent_buffers;i++)
-	{
-		void* cur = malloc(buffer_size);
-		if(!cur)
-		{
-			fprintf(stderr,"Unable to allocate memory for buffers\n");
-			exit(-1);
-		}
-		internal_buffers.push_back(cur);
-	}
-
-
 	long long int totalwords = 0;
    //Now we actually read in the file.
-	#pragma omp parallel for
+   	bool first = true;
+	void* this_internal_buffer = NULL;
+	#pragma omp parallel for firstprivate(first,this_internal_buffer)
 	for(size_t i = 0; i < num_concurrent_buffers; i++)
 	{
-		void* this_internal_buffer = internal_buffers[i];
+		if(first)
+		{
+			this_internal_buffer = malloc(buffer_size);
+			if(!this_internal_buffer)
+			{
+				fprintf(stderr,"Unable to allocate memory for buffers\n");
+				exit(-1);
+			}
+		}
 
 		//We keep separate wordcounts per thread to avoid synchronisation slowdowns.
 		long long int local_totalwords = 0;
@@ -830,7 +827,8 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 		#pragma omp atomic
 		totalwords += local_totalwords;
 
-		free(this_internal_buffer);
+		if(!first)
+			free(this_internal_buffer);
 	}
 
    //Here we do various postprocessing operations, such as moving the files to their final positions, etc...

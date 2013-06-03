@@ -737,9 +737,7 @@ void IndexCollection::add_range_to_schedule(off_t start, off_t end)
 
 	#pragma omp critical(buffer_scheduling)
 	{
-		#pragma omp flush
 		unread_ranges.push(new_entry);
-		#pragma omp flush
 	}
 }
 bool IndexCollection::mark_the_fact_that_a_range_has_been_read_in()
@@ -747,14 +745,12 @@ bool IndexCollection::mark_the_fact_that_a_range_has_been_read_in()
 	bool was_last = false;
 	#pragma omp critical(buffer_scheduling)
 	{
-		#pragma omp flush
 		num_being_read--;
 		if(!num_being_read && unread_ranges.empty())
 		{
 			was_last =true; 
 			
 		}
-		#pragma omp flush
 	}
 	return was_last;
 }
@@ -775,7 +771,6 @@ pair<schedule_entry,int> IndexCollection::get_next_schedule_entry()
 
 	#pragma omp critical(buffer_scheduling)
 	{
-		#pragma omp flush
 		if(!unread_ranges.empty())
 		{
 			schedule_entry top = unread_ranges.top();
@@ -788,7 +783,6 @@ pair<schedule_entry,int> IndexCollection::get_next_schedule_entry()
 		{
 			result.second = 0;
 		}
-		#pragma omp flush
 	}
 	return result;
 }
