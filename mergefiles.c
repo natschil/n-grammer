@@ -157,6 +157,14 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 		FILE* firstfile = fopen(buf, "r");
 		FILE* secondfile = fopen(buf2, "r");
 		FILE* outputfile = fopen(output, "w+");
+		int outputfile_fd = fileno(outputfile);
+		//Note that we can call posix_fallocate here fine without worrying about the output file becoming too large
+		//because we know that the output file is at least as big as the larger input file
+		if(posix_fallocate(outputfile_fd,0,firstfile_st.st_size > secondfile_st.st_size? firstfile_st.st_size: secondfile_st.st_size))
+		{
+			fprintf(stderr,"Unable to posix_fallocate() output file");
+			exit(-1);
+		}
 		if(!firstfile)
 		{
 			fprintf(stderr, "Unable to open %s for reading\n", buf);
