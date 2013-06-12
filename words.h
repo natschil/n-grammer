@@ -51,7 +51,7 @@ struct word_cmp
 struct ngram_cmp 
 {
 	ngram_cmp(){};//Don't use this, it merely exists for various standard functions not to fail.
-	ngram_cmp(unsigned int ngramsize,const unsigned int* word_combination_order,const optimized_combination* optimized_combo,const word* null_word,unsigned int how_many_to_ignore = 1);
+	ngram_cmp(unsigned int ngramsize,const unsigned int* word_combination_order,const optimized_combination* optimized_combo,const word* null_word,unsigned int how_many_to_ignore);
 	bool operator()(const word &first,const word &second);
 	private:
 	unsigned int n_gram_size;
@@ -59,17 +59,134 @@ struct ngram_cmp
 	const unsigned int *word_order;
 	const optimized_combination* optimized_combo;
 	const word* null_word;
+	const char* strings_start;
 };
+
+
+unsigned int howManyWordsAreEqual(const word* first,const  word* second,const word* null_word,unsigned int ngramsize,const unsigned int *combination,const optimized_combination *optimized_combo);
 
 
 /*
  * A function for comparing two n-grams given their starting words, their order and the null-word
+ * If reduces_to_is_set is true, it uses the reduces_to field for word comparisons, otherwise it uses strcmp.
+ * Note that strings_start should only be set if reduces_to_is_set is false, and that it's value is ignored if it is true.
  */
-int ngramcmp(unsigned int n_gram_size,const word *first, const word *second,const optimized_combination* optimized_combo, const unsigned int* word_order,const word* null_word);
+template <bool reduces_to_is_set>
+int ngramcmp(
+		unsigned int n_gram_size,
+		const word *first,
+	       	const word *second,
+		const optimized_combination* optimized_combo, 
+		const unsigned int* word_order,
+		const word* null_word,
+		unsigned int how_many_to_ignore,
+		const char* strings_start
+		)
+{
+	int min_found = 0;
+	int max_found = 0;
 
-/*
- */
-unsigned int howManyWordsAreEqual(const word* first,const  word* second,const word* null_word,unsigned int ngramsize,const unsigned int *combination,const optimized_combination *optimized_combo);
+	const word* max_found_w1 = first;
+	const word* max_found_w2 = second;
+	const word* min_found_w1 = first;
+	const word* min_found_w2 = second;
+
+	//MARKER5
+	int cache[64] = {0};
+	if(!how_many_to_ignore)
+	{
+		if(reduces_to_is_set)
+			cache[0] = first->reduces_to - second->reduces_to;
+		else
+			cache[0] = strcmp(strings_start + first->contents,strings_start + second->contents);
+	}
+
+	for(size_t i = how_many_to_ignore; i<n_gram_size;i++)
+	{
+		int relative_position = word_order[i] - word_order[0];
+		if(relative_position >= 0)
+		{
+			if(relative_position > max_found)
+			{
+				for(int j = max_found; j < relative_position;j++)
+				{
+					if(max_found_w1->next != null_word)
+					{
+						max_found_w1 = max_found_w1->next;
+
+					}else
+					{
+						while(j++ < relative_position)
+						{
+							if(max_found_w2->next != null_word)
+								max_found_w2 = max_found_w2->next;
+							else
+								return 0;
+						}
+						return 1;
+					}
+
+					if(max_found_w2->next !=  null_word)
+					{
+						max_found_w2 = max_found_w2->next;
+					}else
+						return  -1;
+
+					if(reduces_to_is_set)
+						cache[optimized_combo->upper[j + 1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
+					else
+						cache[optimized_combo->upper[j + 1]] = strcmp(strings_start + max_found_w1->contents,strings_start+ max_found_w2->contents);
+				}
+				max_found = relative_position;
+			}
+			if(cache[i] == 0)
+				continue;
+			else 
+				return cache[i];
+			
+		}else
+		{
+			if(-relative_position > min_found)
+			{
+				for(int j = min_found;j < -relative_position ;j++)
+				{
+					if(min_found_w1->prev != null_word)
+					{
+						min_found_w1 = min_found_w1->prev;
+					}else
+					{
+						while(j++ < -relative_position)
+						{
+							if(min_found_w2->prev != null_word)
+								min_found_w2 = min_found_w2->prev;
+							else
+								return 0;
+						}
+						return 1;
+					}
+
+					if(min_found_w2->prev != null_word)
+					{
+						min_found_w2 = min_found_w2->prev;
+					}else
+						return  -1;
+
+					if(reduces_to_is_set)
+						cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
+					else
+						cache[optimized_combo->lower[j]] = strcmp(strings_start +min_found_w1->contents,strings_start +min_found_w2->contents);
+				}
+				min_found = -relative_position ;
+			}
+			if(cache[i] == 0)
+				continue;
+			else
+				return cache[i];
+		}	
+	}
+
+	return 0;
+}
 
 
 

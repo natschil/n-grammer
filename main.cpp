@@ -11,6 +11,7 @@ void print_usage(char* argv[])
     cerr<<"\tWhere N is the size of the ngrams you want to count.\n";
     cerr<<"\tAnd options is one or many of:\n";
     cerr<<"\t\t--build-wordsearch-indexes\t(Build indexes for multiattribute retrieval)\n";
+    cerr<<"\t\t--build-wordsearch-index=n\t(Build only the n-th index for multiatttribute retrieval\n";
     cerr<<"\t\t--cache-entire-file\t\t(Whether or not to tell the kernel to load the whole file into memory)\n";
     cerr<<"\t\t--numbuffers=b\t\t\t(Use b buffers internally, and with that at maximum b threads)\n";
     cerr<<"\t\t--corpus-has-pos-data\t\t(The corpus contains 'part of speech' information)\n";
@@ -63,7 +64,7 @@ int main (int argc, char* argv[])
 	  outdir = "./processing";
 
  //Some default options:
- unsigned int wordsearch_index_depth = 1;
+ bool build_all_wordsearch_indexes = false;
  unsigned int numbuffers;
 #ifdef _OPENMP
  numbuffers = omp_get_num_procs();
@@ -75,6 +76,7 @@ int main (int argc, char* argv[])
   bool has_pos = false;
   bool build_pos_supplement_indexes = false;
   bool build_smaller_indexes = true;
+  int single_wordsearch_index_to_build = -1;
 
   if(argc > options_start)
   {
@@ -87,7 +89,22 @@ int main (int argc, char* argv[])
 			exit(1);
 		}else if(!strcmp(argv[i],"--build-wordsearch-indexes"))
 		{
-			wordsearch_index_depth = ngramsize;
+			build_all_wordsearch_indexes = true;
+
+		}else if(!strncmp(argv[i],"--build-wordsearch-index=",strlen("--build-wordsearch-index=")))
+		{
+			char* ptr = argv[i] + strlen("--build-wordsearch-index=");
+			char* endptr;
+			long int index_number = strtol(ptr,&endptr,10);
+			if(*ptr && !*endptr && (index_number>= 0))
+			{
+				single_wordsearch_index_to_build = index_number;
+			}else
+			{
+				cerr<<"Invalid or nonexistent input for --build-wordsearch-index"<<endl;
+				print_usage(argv);
+				exit(-1);
+			}
 		}else if(!strncmp(argv[i],"--numbuffers=",strlen("--numbuffers=")))
 		{
 			char* ptr = argv[i] + strlen("--numbuffers=");
@@ -123,6 +140,17 @@ int main (int argc, char* argv[])
   if(build_pos_supplement_indexes)
 	  has_pos = true;
   
-  count_ngrams(ngramsize,filename,outdir,(unsigned int) wordsearch_index_depth,numbuffers,cache_entire_file,has_pos,build_pos_supplement_indexes,build_smaller_indexes);
+  count_ngrams(
+		  ngramsize,
+		  filename,
+		  outdir,
+		  build_all_wordsearch_indexes,
+		  numbuffers,
+		  cache_entire_file,
+		  has_pos,
+		  build_pos_supplement_indexes,
+		  build_smaller_indexes,
+		  single_wordsearch_index_to_build
+		  );
   return 0; 
 }

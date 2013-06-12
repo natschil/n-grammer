@@ -484,10 +484,16 @@ unsigned long long int number_of_special_combinations(unsigned int number)
 	return result;	
 }
 
-IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_index_upto,bool is_pos_supplement_index)
+IndexCollection::IndexCollection(unsigned int ngramsize,bool build_all_wordsearch_indexes,bool is_pos_supplement_index,int single_wordsearch_index_to_build)
 {
 	this->ngramsize = ngramsize;
-	this->numcombos = number_of_special_combinations(wordsearch_index_upto);
+	this->numcombos = ((single_wordsearch_index_to_build >= 0) || !build_all_wordsearch_indexes) ? 1 : number_of_special_combinations(ngramsize);
+	if(single_wordsearch_index_to_build >= (int)number_of_special_combinations(ngramsize))
+	{
+		fprintf(stderr,"Invalid value for --build-wordsearch-index\n");
+		exit(-1);
+	}
+
 	this->combinations.reserve(numcombos);
 	this->optimized_combinations.reserve(numcombos);
 	this->prefixes.reserve(numcombos);
@@ -503,39 +509,26 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 		exit(-1);
 	}
 
-	if(wordsearch_index_upto != 1)
-	{
-		 fprintf(stderr, "Generating %d indices\n",(int) numcombos);
-	}
+	fprintf(stderr, "Generating %d indices\n",(int) numcombos);
 
-
-	CombinationIterator combination_itr(wordsearch_index_upto);
+	CombinationIterator combination_itr(ngramsize);
 	size_t combo_number = 0;
 	do
 	{
  		unsigned int* current_combo = *combination_itr;		 
-		unsigned int* new_word_combo = (unsigned int*) malloc(ngramsize * sizeof(new_word_combo));
+		unsigned int* new_word_combo = (unsigned int*) malloc(ngramsize * sizeof(*new_word_combo));
 
 
-	 	size_t j = 0;
-		for(size_t i = 0; i < wordsearch_index_upto;i++)
-		{
-			if(current_combo[i] != (wordsearch_index_upto - 1))
-			{
-				new_word_combo[j] = current_combo[i];
-				j++;
-			}else
-			{
-				for(size_t k = wordsearch_index_upto - 1; k < ngramsize; k++)
-				{
-					new_word_combo[j] = (int) k;		
-					j++;
-				}
-			}
-		}
-
-		combinations.push_back(new_word_combo);
+		memcpy(new_word_combo, current_combo,sizeof(*current_combo) * ngramsize);
 		free(current_combo);
+		if(build_all_wordsearch_indexes && (single_wordsearch_index_to_build < 0))
+			combinations.push_back(new_word_combo);
+		else if((combo_number == 0) && (single_wordsearch_index_to_build < 0))
+			combinations.push_back(new_word_combo);
+		else if(single_wordsearch_index_to_build == (int)combo_number)
+			combinations.push_back(new_word_combo);
+		else
+			free(new_word_combo);
 		combo_number++;
 	}while(++combination_itr);
 
@@ -552,7 +545,7 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 
 			});
 
-	for(unsigned int i = 0; i<combo_number; i++)
+	for(unsigned int i = 0; i<numcombos; i++)
 	{
 		optimized_combinations.push_back(optimized_combination(combinations[i],ngramsize));
 
@@ -584,12 +577,6 @@ IndexCollection::IndexCollection(unsigned int ngramsize,unsigned int wordsearch_
 		recursively_remove_directory(new_prefix_stream.str().c_str());
 		prefixes.push_back(strdup(new_prefix_stream.str().c_str()));
 	}
-
-	if(combo_number != numcombos)
-	{
-		fprintf(stderr,"There is an bug in index calculating\n");
-		exit(-1);
-	}
 }
 
 IndexCollection::~IndexCollection()
@@ -620,39 +607,70 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		ptr->flags |= NON_STARTING_WORD;
 	}
 
-	//This step will take a long time: TODO: Think about whether sorting by whole n-grams by first combo makes sense here.
+	//We sort the buffer by the first combination in our list of combinations...
 	word_cmp compare((char*) strings_start);
-	std::sort(buffer_bottom,buffer_top,
-			[&](const word &first, const word &second) -> bool
-			{
-				const word* first_cur = &first;
-				const word* second_cur = &second;
-				for(unsigned int counter = 0;;)
-				{
-					int res = strcmp((const char*)strings_start + first_cur->contents, (const char*)strings_start + second_cur->contents);
-					if(res < 0)
-						return true;
-					else if(res)
-						return false;
 
-					if(++counter < ngramsize)
-					{
-						if(first_cur->next == null_word)
-							return false;
-						else if(second_cur->next == null_word)
-							return true;
+
+	const optimized_combination* first_optimized_combination = &(optimized_combinations[0]);
+	unsigned int* first_combination = combinations[0];
+
+
+	bool first_combo_is_in_order = true;
+	for(size_t i = 0; i< ngramsize ; i++)
+		if(first_combination[i] != i)
+			first_combo_is_in_order = false;
+
+	//In the majority of cases, the first combination is the combination 0_1_2_3_etc.. which we can significantly optimize for.
+	if(first_combo_is_in_order)
+	{
+		std::sort(buffer_bottom,buffer_top,
+ 			[&](const word &first, const word &second) -> bool
+                        	{
+                        	        const word* first_cur = &first;
+                        	        const word* second_cur = &second;
+                        	        for(unsigned int counter = 0;;)
+                        	        {
+                        	                int res = strcmp((const char*)strings_start + first_cur->contents, (const char*)strings_start + second_cur->contents);
+                        	                if(res < 0)
+                        	                        return true;
+                        	                else if(res)
+                        	                        return false;
 	
-						first_cur = first_cur->next;
-						second_cur = second_cur->next;
-					}else
-						return res < 0;
+	                                        if(++counter < ngramsize)
+	                                        {
+	                                                if(first_cur->next == null_word)
+	                                                        return false;
+	                                                else if(second_cur->next == null_word)
+	                                                        return true;
+	
+	                                                first_cur = first_cur->next;
+	                                                second_cur = second_cur->next;
+	                                        }else
+	                                                return res < 0;
+	                                }
+	                                return false;
 				}
-				return false;
-
-			}
 			);
-
-	//We now see which words are equal: TODO: move this into the sorting step.
+	}else
+	{
+		std::sort(buffer_bottom,buffer_top,
+				[&](const word &first, const word &second) -> bool
+				{
+					return ngramcmp<false>(
+						ngramsize,
+						&first,
+						&second,
+						first_optimized_combination,
+						first_combination,
+						null_word,
+						0,
+						(const char*)strings_start
+						) < 0;
+				}
+			);
+	}
+	
+		//We now see which words are equal: TODO: move this into the sorting step.
 	word* prev_ptr = buffer_top-1;
 
 	for(word* ptr = buffer_top-1; ptr >= buffer_bottom; ptr--)

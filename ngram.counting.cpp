@@ -104,12 +104,13 @@ long long int count_ngrams(
 		unsigned int ngramsize,
 		const char* infile_name,
 		const char* outdir,
-		unsigned int wordsearch_index_depth,
+		bool build_all_wordsearch_indexes,
 		unsigned int num_concurrent_buffers,
 		bool cache_entire_file,
 		bool is_pos,
 		bool build_pos_supplement_indexes,
-		bool build_smaller_indexes
+		bool build_smaller_indexes,
+		int single_wordsearch_index_to_build
 		);
 
 
@@ -622,7 +623,18 @@ static void fillABuffer(const uint8_t* mmaped_file,const uint8_t (**f),const uin
 
 
 
-long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file,bool is_pos,bool build_pos_supplement_indexes,bool build_smaller_indexes)
+long long int count_ngrams(
+		unsigned int ngramsize,
+		const char* infile_name,
+		const char* outdir,
+		bool build_all_wordsearch_indexes,
+		unsigned int num_concurrent_buffers,
+		bool cache_entire_file,
+		bool is_pos,
+		bool build_pos_supplement_indexes,
+		bool build_smaller_indexes,
+		int single_wordsearch_index_to_build
+		)
 {
 	(void) build_smaller_indexes;
     //Get the current time, for timing how long the function took.
@@ -651,10 +663,10 @@ long long int count_ngrams(unsigned int ngramsize,const char* infile_name ,const
 	IndexCollection *indexes =  NULL;
 	if(build_pos_supplement_indexes)
 	{
-		indexes = new IndexCollection(3,3,true/*,false*/);
+		indexes = new IndexCollection(3,true,true,single_wordsearch_index_to_build);
 	}else
 	{
-		indexes = new IndexCollection(ngramsize,wordsearch_index_depth,false/*,build_smaller_indexes*/);
+		indexes = new IndexCollection(ngramsize,build_all_wordsearch_indexes,false,single_wordsearch_index_to_build);
 	}
 
 	int number_of_files_open_concurrently = number_of_special_combinations(ngramsize);

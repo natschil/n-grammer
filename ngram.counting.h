@@ -28,5 +28,16 @@
 #include "mergefiles.h"
 #include "indices_v2.h"
 
-long long int count_ngrams(unsigned int ngramsize,const char* infile_name,const char* outdir,unsigned int wordsearch_index_depth,unsigned int num_concurrent_buffers,bool cache_entire_file,bool is_pos,bool build_pos_supplement_indexes,bool build_smaller_indexes);
+long long int count_ngrams(
+		unsigned int ngramsize,
+		const char* infile_name,
+		const char* outdir,
+		bool build_all_wordsearch_indexes,
+		unsigned int num_concurrent_buffers,
+		bool cache_entire_file,
+		bool is_pos,
+		bool build_pos_supplement_indexes,
+		bool build_smaller_indexes,
+		int single_wordsearch_index_to_build
+		);
 #endif
