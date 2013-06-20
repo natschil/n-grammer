@@ -871,11 +871,11 @@ long long int count_ngrams(
 	sprintf(output_location,"%u_grams.metadata",ngramsize);
 
 	//So that we can pass references.
-	string output_location_s(output_location);
-	string current_dir_s("./");
 
 	gettimeofday(&end_time,NULL);
-	Metadata metadata_file(output_location_s, current_dir_s,true);
+	string metadata_filename = string("./") + string(output_location);
+	Metadata metadata_file(metadata_filename);
+
 	//Note that if single_wordsearch_index_to_build doesn't need to be set. 
 	//
 	if((metadata_file.file_name == string(infile_name)) && ((single_wordsearch_index_to_build > 0) || build_pos_supplement_indexes))
@@ -892,7 +892,7 @@ long long int count_ngrams(
 		metadata_file.max_word_size = MAX_WORD_SIZE;
 		metadata_file.max_classification_size = MAX_CLASSIFICATION_SIZE;
 		metadata_file.max_lemma_size = MAX_LEMMA_SIZE;
-		metadata_file.isPos = is_pos;
+		metadata_file.is_pos = is_pos;
 
 		indexes->writeMetadata(metadata_file);
 	}

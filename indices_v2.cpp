@@ -758,7 +758,7 @@ void IndexCollection::writeMetadata(Metadata &metadata_file)
 		}
 	}else
 	{
-		metadata_file.posIndexesExist = true;
+		metadata_file.pos_supplement_indexes_exist = true;
 	}
 	return;
 }

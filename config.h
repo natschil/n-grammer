@@ -5,10 +5,6 @@
 
 /* Options for core n-gram counter*/
 
-	#ifndef NGRAM_COUNTER_VERSION
-		#define NGRAM_COUNTER_VERSION 2
-	#endif
-
 	//The number of bytes to use per word. Any words larger than this are ignored.
 	#ifndef MAX_WORD_SIZE
 		#define MAX_WORD_SIZE 40
