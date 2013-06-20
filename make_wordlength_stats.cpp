@@ -36,7 +36,7 @@ void make_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 	string out_filename = relevant_metadata.folder_name +string("/"	) + arguments[0] + string("_grams_wordlength_stats");
 
 
-	long long int *table = (long long int*) calloc(ngram_size * (relevant_metadata.MAX_WORD_SIZE + 2),sizeof(*table));
+	long long int *table = (long long int*) calloc(ngram_size * (relevant_metadata.max_word_size + 2),sizeof(*table));
 
 	//The first pass of a distribution sort.
 	const char* filename_c_str = filename.c_str();
@@ -79,7 +79,7 @@ void make_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 		cerr<<"Could not open output file for reading"<<endl;
 		exit(-1);
 	}
-	for(unsigned long long int i = 1; i < ngram_size * (relevant_metadata.MAX_WORD_SIZE + 2); i++)
+	for(unsigned long long int i = 1; i < ngram_size * (relevant_metadata.max_word_size + 2); i++)
 	{
 		fprintf(outfile, "%16llX\t%16llx\n",i,table[i]); 
 	}

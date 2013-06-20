@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
 			{
 				string filename(current_entry->d_name);
 				string foldername(argv[1]);
-				metadatas[atoi(current_entry->d_name)] = Metadata(filename,foldername);
+				metadatas[atoi(current_entry->d_name)] = Metadata(filename,foldername,false);
 			}catch(int i)
 			{
 			}

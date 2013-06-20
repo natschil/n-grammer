@@ -5,26 +5,77 @@ using namespace std;
 
 //Returns 1 on success
 //0 on failure
-Metadata::Metadata(string &filename,string &foldername)
+Metadata::Metadata(string &filename,string &foldername,bool fileMayNotExist)
 {
 	num_words = 0;
 	time_taken = 0;
 	max_frequency = 0;
-	this->MAX_LEMMA_SIZE = 40;
-	this->MAX_WORD_SIZE = 40; 
-	this->MAX_CLASSIFICATION_SIZE = 40;
+	this->max_word_size = 40; 
+	this->max_lemma_size = 40;
+	this->max_classification_size = 40;
 	this->posIndexesExist = false;
 	this->isPos = false;
-
-	folder_name = foldername;
-	metadata_filename = foldername + "/" + filename;
-	wordlength_stats_exist = 0;
+	this->wordlength_stats_exist = 0;
+	this->folder_name = foldername;
+	this->metadata_filename = foldername + "/" + filename;
 
 	ifstream metadata_file(metadata_filename.c_str(),ios::in);
 	if(!metadata_file)
 	{
-		cerr<<"File "<<metadata_filename<<" does not exists"<<endl;
-		throw 0;
+		if(!fileMayNotExist)
+		{
+			cerr<<"File "<<metadata_filename<<" does not exists"<<endl;
+			throw 0;
+		}else
+			return;
+	}
+	string firstline;
+	if(getline(metadata_file,firstline))
+	{
+		//The first line should something like: N-Gram-Counter-Version: 2
+		const char* header_str ="N-Gram-Counter-Version:\t";
+		if(firstline.substr(0,strlen(header_str)) == string(header_str))
+		{
+			int version_number = 0;
+			version_number = atoi(firstline.substr(strlen(header_str), firstline.length() - strlen(header_str)).c_str());
+			if(!version_number)
+			{
+				if(!fileMayNotExist)
+				{
+					cerr<<"Could not read valid version number from file"<<metadata_filename<<endl;
+					throw 0;
+				}else
+					return;
+			}
+			if(version_number != NGRAM_COUNTER_VERSION)
+			{
+				if(!fileMayNotExist)
+				{
+					cerr<<"Version number of file "<<metadata_filename
+						<<" differs from version number of this program, ignoring it"
+						<<endl;
+					throw 0;
+				}else
+					return;
+			}
+
+		}else
+		{
+			if(!fileMayNotExist)
+			{
+				cerr<<"The file "<<metadata_filename<<"seems to exist but is invalid metadata"<<endl;
+				throw 0;
+			}else
+				return;
+		}
+	}else //The file was empty
+	{
+		if(!fileMayNotExist)
+		{
+			cerr<<"File "<<metadata_filename<<" is empty"<<endl;
+			throw 0;
+		}else
+			return;	
 	}
 	string nextline;
 upper_loop: while(getline(metadata_file,nextline,':'))
@@ -105,13 +156,13 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 			metadata_file.unget();
 		}else if(nextline == "MAX_WORD_SIZE")
 		{
-			metadata_file>>MAX_WORD_SIZE;
+			metadata_file>>max_word_size;
 		}else if(nextline == "MAX_CLASSIFICATION_SIZE")
 		{
-			metadata_file>>MAX_CLASSIFICATION_SIZE;
+			metadata_file>>max_classification_size;
 		}else if(nextline == "MAX_LEMMA_SIZE")
 		{
-			metadata_file>>MAX_LEMMA_SIZE;
+			metadata_file>>max_lemma_size;
 		}else if(nextline == "POSIndexes")
 		{
 			string pos_indexes_exist_str;
@@ -147,9 +198,9 @@ void Metadata::write(void)
 	outfile<<"Numwords:\t"<<num_words<<"\n";
 	outfile<<"Time:\t"<<time_taken<<"\n";
 	outfile<<"MaxFrequency:\t"<<max_frequency<<"\n";
-	outfile<<"MAX_WORD_SIZE:\t"<<MAX_WORD_SIZE<<"\n";
-	outfile<<"MAX_CLASSIFICATION_SIZE:\t"<<MAX_CLASSIFICATION_SIZE<<"\n";
-	outfile<<"MAX_LEMMA_SIZE:\t"<<MAX_CLASSIFICATION_SIZE<<"\n";
+	outfile<<"MAX_WORD_SIZE:\t"<<max_word_size<<"\n";
+	outfile<<"MAX_CLASSIFICATION_SIZE:\t"<<max_classification_size<<"\n";
+	outfile<<"MAX_LEMMA_SIZE:\t"<<max_lemma_size<<"\n";
 	if(wordlength_stats_exist)
 		outfile<<"WordlengthStatsExist:\tyes\n";
 	outfile<<"Indexes:"<<"\n";

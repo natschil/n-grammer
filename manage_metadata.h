@@ -21,7 +21,7 @@ class Metadata
 {
 	public:
 		Metadata(){};//Do not use
-		Metadata(string &filename,string &foldername);
+		Metadata(string &filename,string &foldername,bool fileMayNotExist);
 		void write();
 
 		set<vector<unsigned int> > indices;
@@ -37,9 +37,9 @@ class Metadata
 		string metadata_filename;
 		string folder_name;
 
-		int MAX_WORD_SIZE;
-		int MAX_CLASSIFICATION_SIZE;
-		int MAX_LEMMA_SIZE;
+		int max_word_size;
+		int max_classification_size;
+		int max_lemma_size;
 };
 
 
