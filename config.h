@@ -6,7 +6,7 @@
 /* Options for core n-gram counter*/
 
 	#ifndef NGRAM_COUNTER_VERSION
-		#define NGRAM_COUNTER_VERSION 1
+		#define NGRAM_COUNTER_VERSION 2
 	#endif
 
 	//The number of bytes to use per word. Any words larger than this are ignored.
@@ -40,7 +40,7 @@
 	
 
 	#ifndef MEMORY_TO_USE_FOR_BUFFERS
-		#define MEMORY_TO_USE_FOR_BUFFERS (5ll*1024ll*1024ll*1024ll)
+		#define MEMORY_TO_USE_FOR_BUFFERS (800ll*1024ll*1024ll)
 	#endif
 
 /*Options for Indices*/

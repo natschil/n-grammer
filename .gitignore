@@ -19,3 +19,7 @@ very_tiny.6.output
 very_tiny.7.output
 very_tiny.8.output
 very_tiny.9.output
+*.[oa]
+merger
+ngram\.counting
+

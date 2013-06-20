@@ -863,92 +863,49 @@ long long int count_ngrams(
    //We output relevant metadata to a metadata file.
 	char* output_location = (char*) malloc( 4 + strlen("_grams.metadata")+ 1); //MARKER5
 	sprintf(output_location,"%u_grams.metadata",ngramsize);
-	if(!build_pos_supplement_indexes)
-	{
-		remove(output_location);
-		FILE* metadata_file = fopen(output_location,"w");
-	
-		fprintf(metadata_file,"Version:\t%d\n", (int) NGRAM_COUNTER_VERSION);
-		fprintf(metadata_file,"Filename:\t%s\n",infile_name);
-		fprintf(metadata_file,"Numwords:\t%lld\n",totalwords);
-	  	gettimeofday(&end_time,NULL);
-		fprintf(metadata_file,"Time:\t%d\n",(int)(end_time.tv_sec - start_time.tv_sec));
-		fprintf(metadata_file,"MAX_WORD_SIZE:\t%d\n", MAX_WORD_SIZE);
-		fprintf(metadata_file,"MAX_CLASSIFICATION_SIZE:\t%d\n", MAX_CLASSIFICATION_SIZE);
-		fprintf(metadata_file,"MAX_LEMMA_SIZE:\t%d\n", MAX_LEMMA_SIZE);
 
+	//So that we can pass references.
+	string output_location_s(output_location);
+	string current_dir_s("./");
+
+	gettimeofday(&end_time,NULL);
+	Metadata metadata_file(output_location_s, current_dir_s,true);
+	//Note that if single_wordsearch_index_to_build doesn't need to be set. 
+	//
+	if((metadata_file.file_name == string(infile_name)) && ((single_wordsearch_index_to_build > 0) || build_pos_supplement_indexes))
+	{
 		indexes->writeMetadata(metadata_file);
-		fprintf(metadata_file,"isPos:\t%s\n",is_pos ? "yes":"no");
-		fclose(metadata_file);
+		//Append the amount of time taken for this operation.
+		metadata_file.time_taken += (int)(end_time.tv_sec - start_time.tv_sec);
 	}else
 	{
-		//TODO: fix the following to not rely on a GNU-specific function
-		char* absolute_cwd = get_current_dir_name();
-		DIR* output_directory = opendir(absolute_cwd);
-		free(absolute_cwd);
-		if(!output_directory)
-		{
-			fprintf(stderr,"Could not open the current working directory, this should never happen\n");
-			exit(-1);
-		}
-		bool wrote_to_a_file = false;
-		struct dirent *current_entry;
-		while((current_entry = readdir(output_directory)))
-		{
-			char* filename_ptr = current_entry->d_name;
-			while(isdigit(*filename_ptr))
-				filename_ptr++;
-			if(!strcmp(filename_ptr,"_grams.metadata")) //We don't need to prepend the current working directory.
-			{
-				strcpy(output_location,current_entry->d_name);
-				FILE* metadata_file = fopen(output_location,"a+");
-				if(!metadata_file)
-				{
-					fprintf(stderr,"Could not open file %s to write metadata\n",output_location);
-					exit(-1);
-				}
-				char* current_line = (char*)malloc(100);
-				size_t current_line_size = 100;
-				while(getline(&current_line,&current_line_size,metadata_file)>0)
-				{
-					if(!strncmp(current_line,"Filename:\t",strlen("Filename:\t")))
-					{
-						char* ptr = current_line + strlen("Filename:\t");
-						*(ptr + strlen(ptr) - 1) = '\0'; //Remove trailing newline
-						if(!strcmp(ptr,infile_name))
-						{
-							wrote_to_a_file = true;
-							indexes->writeMetadata(metadata_file);
-							break;
-						}
-					}
-				}
-				free(current_line);
-				fclose(metadata_file);
-			}
-		}
-		closedir(output_directory);
-		if(!wrote_to_a_file)
-		{
-			fprintf(stderr, "POS Supplement indexes were generated fine, but no non-pos indexes were found\n");
-			exit(-1);
-		}
+		metadata_file.file_name = string(infile_name);
+		metadata_file.num_words = totalwords;
+		
+		metadata_file.time_taken = (int)(end_time.tv_sec - start_time.tv_sec);
+		metadata_file.max_word_size = MAX_WORD_SIZE;
+		metadata_file.max_classification_size = MAX_CLASSIFICATION_SIZE;
+		metadata_file.max_lemma_size = MAX_LEMMA_SIZE;
+		metadata_file.isPos = is_pos;
+
+		indexes->writeMetadata(metadata_file);
+		metadata_file.write();
 	}
+	
 
-
-	FILE* metadata_file = fopen(output_location,"r");
+	FILE* metadata_file_f = fopen(output_location,"r");
 	free(output_location);
 
     //We write the contents of the metadata file to standard output.
 	int c;
-	while((c = fgetc(metadata_file)) != EOF)
+	while((c = fgetc(metadata_file_f)) != EOF)
 	{
 		fputc(c,stdout);
 	};
 
    //Cleanup:
 	delete indexes;
-	fclose(metadata_file);
+	fclose(metadata_file_f);
 	munmap(infile,filesize);
 
 	return totalwords;

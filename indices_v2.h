@@ -28,6 +28,7 @@ using namespace std;
 #include "mergefiles.h"
 #include "util.h"
 #include "words.h"
+#include "manage_metadata.h"
 
 
 
@@ -115,7 +116,7 @@ class IndexCollection
 		IndexCollection(unsigned int ngramsize,bool build_all_wordsearch_indexes,bool is_pos_supplement_index,int single_wordsearch_index_to_build);
 		~IndexCollection();
 		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write,word* null_word);
-		void writeMetadata(FILE* metadata_file);
+		void writeMetadata(Metadata &metadata_file);
 		void copyToFinalPlace(int k);
 
 		void add_range_to_schedule(off_t start, off_t end);

@@ -8,7 +8,7 @@ FLAGS = -Wall -Wno-pointer-arith -g -O3 -fopenmp -Wextra -D NDEBUG -march=native
 CFLAGS = -Wall -g -O3 -fopenmp -Wextra -D NDEBUG -march=native  -I/usr/include  -D_FILE_OFFSET_BITS=64
 
 TARGET = ngram.counting
-OBJS = ngram.counting.o main.o  mergefiles.o searchindexcombinations.o indices_v2.o util.o words.o
+OBJS = ngram.counting.o main.o  mergefiles.o searchindexcombinations.o indices_v2.o util.o words.o manage_metadata.o
 MERGER = merger
 
 MERGER_OBJS = mergefiles.o merge_files.o util.o

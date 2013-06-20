@@ -713,18 +713,23 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	return;
 }
 
-void IndexCollection::writeMetadata(FILE* metadata_file)
+void IndexCollection::writeMetadata(Metadata &metadata_file)
 {
+		
 	if(!is_pos_supplement_index)
 	{
-		fprintf(metadata_file,"Indexes:\n");
 		for(size_t i = 0; i< numcombos;i++)
 		{
-			fprintf(metadata_file,"\t%s\n",prefixes[i] + 4);//To remove the preceding "tmp.".
+			vector<unsigned int> current_index;
+			for(size_t j = 0; j< ngramsize; j++)
+			{
+				current_index.push_back((combinations[i])[j]);
+			}
+			metadata_file.indices.insert(current_index);
 		}
 	}else
 	{
-		fprintf(metadata_file, "POSIndexes:\tyes\n");
+		metadata_file.posIndexesExist = true;
 	}
 	return;
 }
