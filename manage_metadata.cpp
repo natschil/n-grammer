@@ -2,6 +2,7 @@
 using namespace std;
 
 
+const char* header_str ="N-Gram-Counter-Version:\t";
 
 //Returns 1 on success
 //0 on failure
@@ -18,10 +19,12 @@ Metadata::Metadata(string &filename,string &foldername,bool fileMayNotExist)
 	this->wordlength_stats_exist = 0;
 	this->folder_name = foldername;
 	this->metadata_filename = foldername + "/" + filename;
+	this->fileExistsAlready = true;
 
 	ifstream metadata_file(metadata_filename.c_str(),ios::in);
 	if(!metadata_file)
 	{
+		this->fileExistsAlready = false;
 		if(!fileMayNotExist)
 		{
 			cerr<<"File "<<metadata_filename<<" does not exists"<<endl;
@@ -33,13 +36,14 @@ Metadata::Metadata(string &filename,string &foldername,bool fileMayNotExist)
 	if(getline(metadata_file,firstline))
 	{
 		//The first line should something like: N-Gram-Counter-Version: 2
-		const char* header_str ="N-Gram-Counter-Version:\t";
 		if(firstline.substr(0,strlen(header_str)) == string(header_str))
 		{
 			int version_number = 0;
 			version_number = atoi(firstline.substr(strlen(header_str), firstline.length() - strlen(header_str)).c_str());
 			if(!version_number)
 			{
+
+				this->fileExistsAlready = false;
 				if(!fileMayNotExist)
 				{
 					cerr<<"Could not read valid version number from file"<<metadata_filename<<endl;
@@ -49,6 +53,7 @@ Metadata::Metadata(string &filename,string &foldername,bool fileMayNotExist)
 			}
 			if(version_number != NGRAM_COUNTER_VERSION)
 			{
+				this->fileExistsAlready = false;
 				if(!fileMayNotExist)
 				{
 					cerr<<"Version number of file "<<metadata_filename
@@ -61,6 +66,8 @@ Metadata::Metadata(string &filename,string &foldername,bool fileMayNotExist)
 
 		}else
 		{
+			this->fileExistsAlready = false;
+
 			if(!fileMayNotExist)
 			{
 				cerr<<"The file "<<metadata_filename<<"seems to exist but is invalid metadata"<<endl;
@@ -70,6 +77,7 @@ Metadata::Metadata(string &filename,string &foldername,bool fileMayNotExist)
 		}
 	}else //The file was empty
 	{
+		this->fileExistsAlready = false;
 		if(!fileMayNotExist)
 		{
 			cerr<<"File "<<metadata_filename<<" is empty"<<endl;
@@ -193,11 +201,12 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 void Metadata::write(void)
 {
 	ofstream outfile(metadata_filename.c_str());	
-	outfile<<"Version:\t"<<NGRAM_COUNTER_VERSION<<"\n";
+	outfile<<header_str<<NGRAM_COUNTER_VERSION<<"\n";
 	outfile<<"Filename:\t"<<file_name<<"\n";
 	outfile<<"Numwords:\t"<<num_words<<"\n";
 	outfile<<"Time:\t"<<time_taken<<"\n";
-	outfile<<"MaxFrequency:\t"<<max_frequency<<"\n";
+	if(max_frequency)
+		outfile<<"MaxFrequency:\t"<<max_frequency<<"\n";
 	outfile<<"MAX_WORD_SIZE:\t"<<max_word_size<<"\n";
 	outfile<<"MAX_CLASSIFICATION_SIZE:\t"<<max_classification_size<<"\n";
 	outfile<<"MAX_LEMMA_SIZE:\t"<<max_lemma_size<<"\n";
@@ -213,7 +222,8 @@ void Metadata::write(void)
 		}
 		outfile<<"\n";
 	}
-	outfile<<"InvertedIndexes:\n";
+	if(inverted_indices.begin() != inverted_indices.end())
+		outfile<<"InvertedIndexes:\n";
 	for(set<vector<unsigned int> >::iterator i = inverted_indices.begin(); i != inverted_indices.end(); i++)
 	{
 		outfile<<"\tinverted_by";

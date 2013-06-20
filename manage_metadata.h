@@ -24,22 +24,26 @@ class Metadata
 		Metadata(string &filename,string &foldername,bool fileMayNotExist);
 		void write();
 
-		set<vector<unsigned int> > indices;
-		bool isPos;
-		bool posIndexesExist;
-		set<vector<unsigned int> > inverted_indices;
-		bool wordlength_stats_exist;
 
-		unsigned long long num_words;
-		unsigned int time_taken;
-		unsigned int max_frequency;
 		string file_name;
-		string metadata_filename;
-		string folder_name;
-
+		long long num_words;
+		int time_taken;
 		int max_word_size;
 		int max_classification_size;
 		int max_lemma_size;
+		set<vector<unsigned int> > indices;
+		bool posIndexesExist;
+		bool isPos;
+
+
+		set<vector<unsigned int> > inverted_indices;
+		bool wordlength_stats_exist;
+		unsigned int max_frequency;
+		string folder_name;
+		string metadata_filename;
+
+
+		bool fileExistsAlready;
 };
 
 
