@@ -52,14 +52,10 @@ int main(int argc, char* argv[])
 			if(strncmp(ptr,"_grams.metadata",strlen("_grams.metadata")))
 				continue;
 
-			try
-			{
-				string filename(current_entry->d_name);
-				string foldername(argv[1]);
-				metadatas[atoi(current_entry->d_name)] = Metadata(filename,foldername,false);
-			}catch(int i)
-			{
-			}
+			string metadata_filename = string(argv[1]) + string("/") + string(current_entry->d_name);
+			Metadata new_metadata(metadata_filename);
+			if(new_metadata.file_exists_already)
+				metadatas.insert(pair<int,Metadata>(atoi(current_entry->d_name),new_metadata));
 		}
 	}
 	closedir(processing_folder);

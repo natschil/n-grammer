@@ -20,14 +20,20 @@ void view_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 		exit(-1);
 	}
 
-	Metadata &relevant_metadata = metadatas[ngram_size];
+	auto relevant_metadata_itr = metadatas.find(ngram_size);
+	if(relevant_metadata_itr == metadatas.end())
+	{
+		cerr<<"Unable to find metadata for n-gram collection of size " <<ngram_size;
+		exit(-1);
+	}
+	Metadata &relevant_metadata = relevant_metadata_itr->second;
 	if(!relevant_metadata.wordlength_stats_exist)
 	{
 		cerr<<"view_wordlength_stats: No wordlength statistics exist for "<<ngram_size<<"-grams, to generate them, use make_wordlength_stats"<<endl;
 		exit(-1);
 	}
 
-	string filename = relevant_metadata.folder_name +string("/"	) + arguments[0] + string("_grams_wordlength_stats");
+	string filename = relevant_metadata.output_folder_name +string("/") + arguments[0] + string("_grams_wordlength_stats");
 
 	FILE* outfile = fopen(filename.c_str(),"r");
 	char buffer[16 + 1 + 16 + 1 + 1];

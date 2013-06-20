@@ -14,13 +14,14 @@ void make_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 	}
 
 	size_t ngram_size = atoi(arguments[0].c_str());
-	if(!ngram_size || (metadatas.find(ngram_size) == metadatas.end()))
+	auto relevant_metadata_itr = metadatas.find(ngram_size);
+	if(!ngram_size || (relevant_metadata_itr == metadatas.end()))
 	{
 		cerr<<"make_wordlength_stats: Either invalid argument, or there doesn't exist a "<<ngram_size<<"_grams.metadata file"<<endl;
 		exit(-1);
 	}
 
-	Metadata &relevant_metadata = metadatas[ngram_size];
+	Metadata &relevant_metadata = relevant_metadata_itr->second;
 	if(relevant_metadata.indices.begin() == relevant_metadata.indices.end())
 	{
 		cerr<<"No indexes found for "<<ngram_size<<"-grams"<<endl;
@@ -32,8 +33,8 @@ void make_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 		index_as_string_stream << "_";
 		index_as_string_stream << (*relevant_metadata.indices.begin())[i];
 	}
-	string filename = relevant_metadata.folder_name + string("/") + string("by") + index_as_string_stream.str() + string("/0.out"); 
-	string out_filename = relevant_metadata.folder_name +string("/"	) + arguments[0] + string("_grams_wordlength_stats");
+	string filename = relevant_metadata.output_folder_name + string("/") + string("by") + index_as_string_stream.str() + string("/0.out"); 
+	string out_filename = relevant_metadata.output_folder_name +string("/"	) + arguments[0] + string("_grams_wordlength_stats");
 
 
 	long long int *table = (long long int*) calloc(ngram_size * (relevant_metadata.max_word_size + 2),sizeof(*table));

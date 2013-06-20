@@ -1,7 +1,4 @@
 //(c) 2013 Nathanael Schilling
 //This file contains various configuration options for the n-gram analysis prgram
+//It currently contains no options because the options that it used to contain have been moved elsewhere.
 
-
-#ifndef NGRAM_COUNTER_VERSION
-	#define NGRAM_COUNTER_VERSION 1
-#endif

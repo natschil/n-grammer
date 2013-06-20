@@ -102,12 +102,13 @@ void search_inverted_index(map<unsigned int,Metadata> &metadatas,vector<string> 
 		exit(-1);
 	}
 
-	if(metadatas.find(ngramsize) == metadatas.end())
+	auto relevant_metadata_itr = metadatas.find(ngramsize);
+	if(relevant_metadata_itr == metadatas.end())
 	{
 		cerr<<"search_inverted_index: No metadata for "<<ngramsize<<"-grams found"<<endl;
 		exit(-1);
 	}
-	Metadata &relevant_metadata = metadatas[ngramsize];
+	Metadata &relevant_metadata = relevant_metadata_itr->second;
 	vector<unsigned int> what_were_looking_for;
 	string filename = string("by");
 	stringstream filename_stream(filename);
@@ -127,10 +128,10 @@ void search_inverted_index(map<unsigned int,Metadata> &metadatas,vector<string> 
 		exit(-1);
 	}
 
-	string folder_name = relevant_metadata.folder_name + "/" +  filename;
+	string folder_name = relevant_metadata.output_folder_name + "/" +  filename;
 	off_t *offsets = offsets_table(folder_name);
 
-	ifstream inverted_index_file((relevant_metadata.folder_name + string("/inverted_") + filename).c_str(),ios::in);
+	ifstream inverted_index_file((relevant_metadata.output_folder_name + string("/inverted_") + filename).c_str(),ios::in);
 	if(!inverted_index_file)
 	{
 		cerr<<"search_inverted_index:"<<"Unable to open index file inverted_"<<filename<<endl;

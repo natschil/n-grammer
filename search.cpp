@@ -281,7 +281,7 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	}
 
 	//We know that all of the metadatas are for the same file, and that there is at least one metadata.
-	bool is_pos = (metadatas.begin()->second).isPos;
+	bool is_pos = (metadatas.begin()->second).is_pos;
 
 	string search_string = arguments[0];
 	if(is_pos)
@@ -333,13 +333,14 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	}
 
 	//We check if we have metadata for the index of that n-gram size
-	if(metadatas.find(ngramsize) == metadatas.end())
+	auto relevant_metadata_itr = metadatas.find(ngramsize);
+	if(relevant_metadata_itr == metadatas.end())
 	{
 		cerr<<"search: Unable to find metadata for ngrams of size "<<ngramsize<<endl;
 		exit(-1);
 	}
-	Metadata &relevant_metadata = metadatas[ngramsize];
-	if(is_pos && !relevant_metadata.posIndexesExist)
+	Metadata &relevant_metadata = relevant_metadata_itr->second;
+	if(is_pos && !relevant_metadata.pos_supplement_indexes_exist)
 	{
 		cerr<<"search: No POS supplement indexes seem to exist\n";
 		exit(-1);
@@ -418,7 +419,7 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 
 	if(is_pos)
 	{
-		flesh_partially_known_words(all_search_strings,relevant_metadata.folder_name);
+		flesh_partially_known_words(all_search_strings,relevant_metadata.output_folder_name);
 		for(size_t i = 0; i<all_search_strings.size(); i++)
 		{
 			string &this_search_string = all_search_strings[i];
@@ -427,7 +428,7 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 		}
 	}
 	//We make a string which has the filename of the index:
-	string index_filename = relevant_metadata.folder_name + "/by";
+	string index_filename = relevant_metadata.output_folder_name + "/by";
 	stringstream index_filename_stream(index_filename);
 	index_filename_stream.seekp(0, std::ios::end);
 	for(size_t i = 0; i< search_index_to_use.size(); i++)

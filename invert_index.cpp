@@ -81,15 +81,19 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	//Something like 0_1_2_3 as an argument has three '_' characters and therefore refers to a 4-gram index.
 	size_t ngram_size = (std::count(arguments[0].begin(), arguments[0].end(), '_') + 1);
 	//See whether we have indexes for that ngram size or not.
-	if(metadatas.find(ngram_size) == metadatas.end())
+	
+	
+	auto relevant_metadata_itr = metadatas.find(ngram_size);
+	if(relevant_metadata_itr == metadatas.end())
 	{
 		cerr<<"invert_index: Either the argument is invalid, or there doesn't exist a "<<ngram_size<<"_grams.metadata file"<<endl;
 		exit(-1);
 	}
 
-	Metadata &relevant_metadata = metadatas[ngram_size];
-	string foldername = relevant_metadata.folder_name + string("/") + string("by_") + arguments[0];
-	string out_filename = relevant_metadata.folder_name +string("/"	)+  string("inverted_by_") + arguments[0];
+	Metadata &relevant_metadata = relevant_metadata_itr->second;
+
+	string foldername = relevant_metadata.output_folder_name + string("/") + string("by_") + arguments[0];
+	string out_filename = relevant_metadata.output_folder_name + string("/")+  string("inverted_by_") + arguments[0];
 
 	DIR* argument_folder = opendir(foldername.c_str());
 	if(!argument_folder)
