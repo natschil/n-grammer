@@ -110,7 +110,8 @@ long long int count_ngrams(
 		bool is_pos,
 		bool build_pos_supplement_indexes,
 		bool build_smaller_indexes,
-		int single_wordsearch_index_to_build
+		int single_wordsearch_index_to_build,
+		int wordsearch_indexes_howmany
 		);
 
 
@@ -633,7 +634,8 @@ long long int count_ngrams(
 		bool is_pos,
 		bool build_pos_supplement_indexes,
 		bool build_smaller_indexes,
-		int single_wordsearch_index_to_build
+		int single_wordsearch_index_to_build,
+		int wordsearch_indexes_howmany
 		)
 {
 	(void) build_smaller_indexes;
@@ -663,10 +665,15 @@ long long int count_ngrams(
 	IndexCollection *indexes =  NULL;
 	if(build_pos_supplement_indexes)
 	{
-		indexes = new IndexCollection(3,true,true,single_wordsearch_index_to_build);
+		indexes = new IndexCollection(3,true,true,-1,-1);
 	}else
 	{
-		indexes = new IndexCollection(ngramsize,build_all_wordsearch_indexes,false,single_wordsearch_index_to_build);
+		indexes = new IndexCollection(ngramsize,
+				build_all_wordsearch_indexes,
+				false,
+				single_wordsearch_index_to_build,
+				wordsearch_indexes_howmany
+				);
 	}
 
 	int number_of_files_open_concurrently = number_of_special_combinations(ngramsize);
@@ -844,8 +851,7 @@ long long int count_ngrams(
 		#pragma omp atomic
 		totalwords += local_totalwords;
 
-		if(!first)
-			free(this_internal_buffer);
+		free(this_internal_buffer);
 		fprintf(stdout,"-");
 		fflush(stdout);
 	}
@@ -889,8 +895,8 @@ long long int count_ngrams(
 		metadata_file.isPos = is_pos;
 
 		indexes->writeMetadata(metadata_file);
-		metadata_file.write();
 	}
+	metadata_file.write();
 	
 
 	FILE* metadata_file_f = fopen(output_location,"r");

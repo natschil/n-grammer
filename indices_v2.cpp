@@ -383,7 +383,7 @@ Dict::Dict(
 
 	if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
 	{
-		fprintf(stderr, "Unable to create directory %s",prefix);
+		fprintf(stderr, "Unable to create directory %s\n",prefix);
 	}
 
 	stringstream buf("");
@@ -391,7 +391,7 @@ Dict::Dict(
 
 	if(mkdir(buf.str().c_str(),S_IRUSR | S_IWUSR | S_IXUSR ) && (errno !=  EEXIST))
 	{
-		fprintf(stderr,"Unable to create directory %s",buf.str().c_str());
+		fprintf(stderr,"Unable to create directory %s\n",buf.str().c_str());
 		exit(-1);
 	}
 	buf<<"/0.out";
@@ -399,7 +399,7 @@ Dict::Dict(
 	outfile = fopen(buf.str().c_str(),"a");
 	if(!outfile)
 	{
-		fprintf(stderr,"Unable to open file %s", buf.str().c_str());
+		fprintf(stderr,"Unable to open file %s\n", buf.str().c_str());
 		exit(-1);
 	}
 }
@@ -484,15 +484,43 @@ unsigned long long int number_of_special_combinations(unsigned int number)
 	return result;	
 }
 
-IndexCollection::IndexCollection(unsigned int ngramsize,bool build_all_wordsearch_indexes,bool is_pos_supplement_index,int single_wordsearch_index_to_build)
+IndexCollection::IndexCollection(
+		unsigned int ngramsize,
+		bool build_all_wordsearch_indexes,
+		bool is_pos_supplement_index,
+		int single_wordsearch_index_to_build,
+		int wordsearch_indexes_howmany
+		)
 {
 	this->ngramsize = ngramsize;
-	this->numcombos = ((single_wordsearch_index_to_build >= 0) || !build_all_wordsearch_indexes) ? 1 : number_of_special_combinations(ngramsize);
-	if(single_wordsearch_index_to_build >= (int)number_of_special_combinations(ngramsize))
+
+
+
+	if(build_all_wordsearch_indexes)
 	{
-		fprintf(stderr,"Invalid value for --build-wordsearch-index\n");
-		exit(-1);
+		this->numcombos = number_of_special_combinations(ngramsize);
+	}else 
+	{
+		if(single_wordsearch_index_to_build + wordsearch_indexes_howmany > (int) number_of_special_combinations(ngramsize))
+		{
+			wordsearch_indexes_howmany = (int) number_of_special_combinations(ngramsize) - single_wordsearch_index_to_build;
+			if(!wordsearch_indexes_howmany)
+			{
+				fprintf(stderr,"No indexes produces with these params, exiting\n");
+				exit(-1);
+			}
+		}
+
+		if(wordsearch_indexes_howmany > 0)
+		{
+			this->numcombos = wordsearch_indexes_howmany;
+		}else
+		{
+			this->numcombos = 1;
+		}
 	}
+	
+
 
 	this->combinations.reserve(numcombos);
 	this->optimized_combinations.reserve(numcombos);
@@ -518,14 +546,15 @@ IndexCollection::IndexCollection(unsigned int ngramsize,bool build_all_wordsearc
  		unsigned int* current_combo = *combination_itr;		 
 		unsigned int* new_word_combo = (unsigned int*) malloc(ngramsize * sizeof(*new_word_combo));
 
-
 		memcpy(new_word_combo, current_combo,sizeof(*current_combo) * ngramsize);
 		free(current_combo);
-		if(build_all_wordsearch_indexes && (single_wordsearch_index_to_build < 0))
+
+		if(build_all_wordsearch_indexes)
 			combinations.push_back(new_word_combo);
-		else if((combo_number == 0) && (single_wordsearch_index_to_build < 0))
-			combinations.push_back(new_word_combo);
-		else if(single_wordsearch_index_to_build == (int)combo_number)
+		else if(
+				(int)combo_number < (single_wordsearch_index_to_build + wordsearch_indexes_howmany ) &&
+		      		(single_wordsearch_index_to_build <= (int) combo_number)
+		      )
 			combinations.push_back(new_word_combo);
 		else
 			free(new_word_combo);

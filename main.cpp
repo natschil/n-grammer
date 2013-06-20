@@ -11,7 +11,8 @@ void print_usage(char* argv[])
     cerr<<"\tWhere N is the size of the ngrams you want to count.\n";
     cerr<<"\tAnd options is one or many of:\n";
     cerr<<"\t\t--build-wordsearch-indexes\t(Build indexes for multiattribute retrieval)\n";
-    cerr<<"\t\t--build-wordsearch-index=n\t(Build only the n-th index for multiatttribute retrieval\n";
+    cerr<<"\t\t--build-wordsearch-index=n\t(Build the n-th index for multiatttribute retrieval\n";
+    cerr<<"\t\t--build-wordsearch-indexes-howmany=d\t(Build d indexes at a time, starting from the n-th index (see above))\n";
     cerr<<"\t\t--cache-entire-file\t\t(Whether or not to tell the kernel to load the whole file into memory)\n";
     cerr<<"\t\t--numbuffers=b\t\t\t(Use b buffers internally, and with that at maximum b threads)\n";
     cerr<<"\t\t--corpus-has-pos-data\t\t(The corpus contains 'part of speech' information)\n";
@@ -64,7 +65,6 @@ int main (int argc, char* argv[])
 	  outdir = "./processing";
 
  //Some default options:
- bool build_all_wordsearch_indexes = false;
  unsigned int numbuffers;
 #ifdef _OPENMP
  numbuffers = omp_get_num_procs();
@@ -75,8 +75,12 @@ int main (int argc, char* argv[])
   bool cache_entire_file = false;
   bool has_pos = false;
   bool build_pos_supplement_indexes = false;
-  bool build_smaller_indexes = true;
+
+  bool build_all_wordsearch_indexes = false;
   int single_wordsearch_index_to_build = -1;
+  int wordsearch_indexes_howmany = -1;
+
+  bool build_smaller_indexes = false;
 
   if(argc > options_start)
   {
@@ -105,6 +109,18 @@ int main (int argc, char* argv[])
 				print_usage(argv);
 				exit(-1);
 			}
+		}else if(!strncmp(argv[i],"--build-wordsearch-indexes-howmany=",strlen("--build-wordsearch-indexes-howmany=")))
+		{
+			char* ptr = argv[i] + strlen("--build-wordsearch-indexes-howmany=");
+			char* endptr;
+			wordsearch_indexes_howmany = strtol(ptr, &endptr,10);
+			if(!(*ptr && !*endptr && wordsearch_indexes_howmany > 0))
+			{
+				cerr<<"Invalid or nonexistent parameter for --build-wordsearch-indexes-howmany"<<endl;
+				print_usage(argv);
+				exit(-1);
+			}
+					
 		}else if(!strncmp(argv[i],"--numbuffers=",strlen("--numbuffers=")))
 		{
 			char* ptr = argv[i] + strlen("--numbuffers=");
@@ -137,9 +153,38 @@ int main (int argc, char* argv[])
 	}
   }
 
+  //Some small checks to catch out simple errors.
   if(build_pos_supplement_indexes)
 	  has_pos = true;
-  
+
+  if(build_all_wordsearch_indexes)
+  {
+  	if(wordsearch_indexes_howmany > 0)
+  	{
+		cerr<<"Please set either --build-wordsearch-indexes or --build-wordsearch-indexes-howmany but not both"<<endl;
+		print_usage(argv);
+		exit(-1);
+	}
+	  
+	if(single_wordsearch_index_to_build>0)
+	{
+		cerr<<"Please set either --build-wordsearch-indexes or --build-wordsearch-index=n but not both"<<endl;
+		print_usage(argv);
+		exit(-1);
+	}
+  }else
+  {
+  	//Insert defaut values where no values have been set.
+	if((wordsearch_indexes_howmany < 0 ) && (single_wordsearch_index_to_build < 0))
+	{
+		single_wordsearch_index_to_build = 0;
+		wordsearch_indexes_howmany = 1;
+	}else if((wordsearch_indexes_howmany > 0) && (single_wordsearch_index_to_build < 0))
+		single_wordsearch_index_to_build = 0;
+	else if((single_wordsearch_index_to_build >= 0) && (wordsearch_indexes_howmany < 0))
+		  wordsearch_indexes_howmany = 1;
+  }
+	  
   count_ngrams(
 		  ngramsize,
 		  filename,
@@ -150,7 +195,8 @@ int main (int argc, char* argv[])
 		  has_pos,
 		  build_pos_supplement_indexes,
 		  build_smaller_indexes,
-		  single_wordsearch_index_to_build
+		  single_wordsearch_index_to_build,
+		  wordsearch_indexes_howmany
 		  );
   return 0; 
 }

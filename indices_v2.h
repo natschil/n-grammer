@@ -113,7 +113,16 @@ unsigned long long int number_of_special_combinations(unsigned int number);
 class IndexCollection
 {
 	public:
-		IndexCollection(unsigned int ngramsize,bool build_all_wordsearch_indexes,bool is_pos_supplement_index,int single_wordsearch_index_to_build);
+		//Note that when calling this function:
+		//(build_all_wordsearch_indexes == true) iff ((single_wordsearch_index_to_build < 0) && (wordsearch_indexes_howmany < 0))
+		//Also, (single_wordsearch_index_to_build < 0) iff (wordsearch_indexes_howmany < 0)
+		IndexCollection(
+				unsigned int ngramsize,
+				bool build_all_wordsearch_indexes,
+				bool is_pos_supplement_index,
+				int single_wordsearch_index_to_build,
+				int wordsearch_indexes_howmany
+				);
 		~IndexCollection();
 		void writeBufferToDisk(unsigned int buffercount,unsigned int rightmost_run,Buffer* buffer_to_write,word* null_word);
 		void writeMetadata(Metadata &metadata_file);
