@@ -1,5 +1,5 @@
 /*(c) Nathanael Schilling 2013
- * This file contains functions for efficiently building "inverted indexes" from
+ * This file contains functions for efficiently building inverted indexes (by frequency) from
  * the output files of ngram.counting
  */
 #ifndef NGRAM_ANALYIS_INVERTED_INDEX_H
@@ -21,6 +21,5 @@
 #include "manage_metadata.h"
 
 void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &arguments);
-
 
 #endif
