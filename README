@@ -1,0 +1,111 @@
+ngram.counting
+
+	The ngram.counting program is a program for generating indexes of n-grams present in a corpus to
+	the frequency at which they occur. It is designed for use with large UTF-8 corpora which do not necessarily
+	need to fit into the available RAM and is able to create indexes for use with corpora that have part of speech
+	information for every word. It creates "Combined Indexes" which allow for searching for n-grams by arbitary
+	combinations of words in the n-gram, i.e. searching for "* and planets" should be possible to find frequency information on
+	n-grams like "stars and planets" or "asteroids and planets" (where * means any word).
+
+Invocation
+
+	ngram.counting N path_to_corpus [output_directory = ./processing] Options
+
+		Where N is 2 for 2-grams, and 3 for 3-grams etc..
+		Where path_to_corpus is the path to the corpus to analyze
+		It is recommended that a separate output_directory is maintained for each corpus being analyzed, as this is required by 
+		the functions in the ngram.analysis program.
+
+			Options is one or many of: (more documentation on various options below)
+				--build-wordsearch-indexes	(Build indexes for multiattribute retrieval)
+				--build-wordsearch-index=n	(Build the n-th index for multiatttribute retrieval
+				--build-wordsearch-indexes-howmany=d	(Build d indexes at a time, starting from the n-th index (see above))
+				--cache-entire-file		(Whether or not to tell the kernel to load the whole file into memory)
+				--numbuffers=b			(Use b buffers internally, and with that at maximum b threads)
+				--corpus-has-pos-data		(The corpus contains 'part of speech' information)
+				--build-pos-supplement-indexes		(Build only 'part of speech' supplement indexes)
+Output
+	The n-gram counter outputs both data and metadata into the output directory.
+   Data
+	For every index created, the n-gram counter creates a folder starting with "by_" and ending with a string of numbers
+	separated by underscores. These numbers show the permutation of the n-gram that the index uses. For example, there could
+	be an index of 3-grams where the first word is first,the second word is third and the third word is second.
+	This index would be called by_0_2_1. Each index directory currently contains a single file (called 0.out) which is a newline
+	separated list of <n-gram><tab><frequency> where n-gram is the n-gram in question, with all words separated by spaces, tab is the
+	tab character and frequency is the frequency of the n-grams (in base ten). The indexes are in the UTF-8 encoding.
+	Note that all words are normalized in the following way:
+	
+     Word Normalization Rules
+	  For non-POS corpora:
+		All preceding whitespace is ignored, and any whitespace that has the unicode whitespace property is treated as a word boundary.
+		Anything that does not have the unicode alphabetic property is ignored, unless it is a hyphen or (a diacritic that is not part of
+		the UC Modifier,Symbol Unicode General Category), in which case it is only ignored if it is before the first alphabetic character
+		of a word. Alphabetic characacters are lowercased on a per-character basis By these rules, "--X-r...ay" becomes "x-ray".
+		Words longer than MAX_WORD_SIZE (in config.h) utf8 code units or that begin with hyphens and end in the 
+		string ("END.OF.DOCUMENT---") are treated as null words. This means that if long_foo is a word that is too long,
+		counting n-grams in a corpus containing only "foo long_foo bar" will *not* find the n-gram "foo bar", and searching for
+		"foo * bar" will not yield any results. Including a null word anywhere in the corpus has the same result as splitting the
+		corpus into two independent corpora at the location of the null word, running the n-gram counter twice and concatenating
+		the results. 
+		Finally, if a word is not a null word it is normalized by NFKD normalization. If this normalization makes the word longer 
+		than MAX_WORD_SIZE utf8 code units, then the word is treated as a null word (see above).
+	For POS corpora
+		The n-gram counter can also deal with corpora that have POS information where each word takes the following form:
+		word type lemma\n. Normalization is done in the same way for each "piece"(i.e. word,type or lemma) of the line as
+		descibed above, except that the configuration values MAX_LEMMA_SIZE and MAX_CLASSIFICATION_SIZE have the same relevance
+		for the maximum length of the lemma and type of the word as MAX_WORD_SIZE has for the word part.
+		Note that for POS corpora, newlines only are treated as line delimiters, and any 
+		lines that do not contain three parts separated by whitespace are treated in the following way:
+			If any of the first two parts is too long or start with a '<' (see below), the word
+				is treated as null word.
+			Else, the line is ignored. This means that words consisting of only punctuation are ignored, but that
+			words with parts longer than the maximum sizes are correctly treated as null words.
+
+		Any lines beginning in '<' are treated as null words due to the use of xml tags within POS corpora.
+		NFKD normalization is applied on a per-part basis with the same rules as for non-POS corpora (see above).
+  Metadata
+	Every output_directory will contain a file called <N>_grams.metadata that contains information about the nature of the indexes, etc
+	created. If this file already exists, and the corpus filename is equivalent to the one being processed, then this file is merely
+	updated as new indexes are created. This file is what is output at the end of running the n-gram counter.
+
+Options
+
+	Options for building indexes suitable for multiattribute searches. (i.e wildcard searching).
+		Use (--build-wordsearch-indexes) xor (--build-wordsearch-index=n or --build-wordsearch-index-howmany=d).
+		Giving no options is equivalent to setting --build-wordsearch-index=0 and --build-wordsearch-indexes-howmany=1.
+
+		--build-wordsearch-indexes   
+				Builds all wordsearch-indexes needed. This builds N choose floor(N/2) indexes, so use with care
+				for large N.
+
+		--build-wordsearch-index=n
+				Builds, start at the n'th wordsearch index, d (see below) wordsearch indexes.
+				Defaults to 0 if only --build-wordsearch-indexes-howmany=d is set.
+		--build-wordsearch-indexes-howmany=d
+				Build d wordsearch indexes, starting at the n'th one (see above).
+				Defaults to 1 if only --build-wordsearch-index=n is set.
+
+	Options for POS corpora
+	
+		--corpus-has-pos-data
+			This option needs to be included when the corpus is a POS corpus.
+
+		--build-pos-supplement-indexes
+			POS corpora are only searchable when POS supplement indexes exist. These are basically indexes of the 
+			POS tags to word and to lemma (and vice versa).
+			This options runs the n-gram counter to *only* generate POS indexes.
+
+	Additional Options
+		--cache-entire-file
+			Tells the kernel to cache the entire file to memory (Using madvise() and its MADV_WILLNEED flag).
+		--numbuffers=b
+                  	Use b buffers internally, and with that at maximum b threads.
+
+Configuration options specifiable at compile-time:
+	The config.h file contains various other optiosn for precisely specifying various other options, such as the
+	memory used by the n-gram counter.
+
+	See there for documentation on the various options.
+
+
+
