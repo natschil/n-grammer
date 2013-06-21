@@ -1,0 +1,15 @@
+N-Gram-Counter-Version:	2
+Filename:	./corpora/very_tiny
+Numwords:	206
+Time:	0
+MAX_WORD_SIZE:	40
+MAX_CLASSIFICATION_SIZE:	40
+MAX_LEMMA_SIZE:	40
+Indexes:
+	by_0_1
+	by_1_0
+InvertedIndexes:
+	inverted_by_0_1
+	inverted_by_1_0
+MaxFrequency:	9
+WordlengthStatsExist:	yes
