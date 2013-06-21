@@ -50,6 +50,7 @@ search
 	search has a worst case complexity of O(log(N)), where N is the size of the n-gram index.
 
 make_wordlength_stats
+	This function takes as a single argument the number n.
 	This function goes through the file by_0_1_2_ ..._n and creates a table of n-gram length.
 	(in utf8 code-units) to frequency of n-grams that n-gram length occuring in the corpus.
 	The single argument for this function is the relevant value of n.
