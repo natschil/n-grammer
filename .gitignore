@@ -1,0 +1,4 @@
+*.[oa]
+/ngram.analysis
+/tests_output/
+
