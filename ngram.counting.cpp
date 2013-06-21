@@ -711,7 +711,7 @@ long long int count_ngrams(
 	if(cache_entire_file)
 	{
 		fprintf(stderr,"Telling the kernel to cache the file...\n");
-		if(madvise(infile,filesize,MADV_WILLNEED))
+		if(posix_madvise(infile,filesize,POSIX_MADV_WILLNEED))
 		{
 			fprintf(stderr, "Unable to madvise with MADV_WILLNEED for file\n");
 			exit(-1);
@@ -794,7 +794,7 @@ long long int count_ngrams(
 			{
 				//madvise needs page alignment..
 				off_t page_start = (start/sysconf(_SC_PAGESIZE)) * sysconf(_SC_PAGESIZE);
-				if(madvise(infile + page_start, end - page_start, MADV_SEQUENTIAL))
+				if(posix_madvise(infile + page_start, end - page_start, POSIX_MADV_SEQUENTIAL))
 				{
 					fprintf(stderr, "madvise failed\n");
 					exit(-1);

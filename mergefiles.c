@@ -259,7 +259,7 @@ static void copy_rest_of_file_to_output(FILE* input,off_t inputsize, FILE* outpu
 			exit(-1);
 		}
 
-		if(madvise(input_map, inputsize - input_offset_start, MADV_SEQUENTIAL))
+		if(posix_madvise(input_map, inputsize - input_offset_start, POSIX_MADV_SEQUENTIAL))
 		{
 			perror("merge: Madvise failed:");
 		}
