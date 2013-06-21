@@ -100,6 +100,60 @@ for my $i (1 .. 8)
 		say "Succeeded at testing wordlength stats  for $i-grams";
 	}
 
+	#Test the searching functions.
+	my @search_strings_non_pos_first = (
+		"",
+		"this",
+		"this is",
+	       	"this is an",
+	       	"this is an example",
+		"this is an example of",
+		"this is an example of a",
+		"this is an example of a sentence",
+		"this is an example of a sentence that"
+	);
+
+	my @search_strings_non_pos_second = (
+		"",
+		"this",
+		"this *",
+	       	"this * an",
+	       	"this * * example",
+		"this is * * of",
+		"* is an example * a",
+		"this is * * * a sentence",
+		"this * an * of * sentence *"
+	);
+	unless($reference_metadata->{"isPos"})
+	{
+		if( system(
+				"./ngram.analysis $tests_dir search ".
+					"\"$search_strings_non_pos_first[${i}]\" > ${tests_dir}/${i}_grams_search_out 2>/dev/null"
+				))
+		{
+			die "Running search failed for $i-grams";
+		}
+		if( system(
+				"./ngram.analysis $tests_dir search " .
+					"\"$search_strings_non_pos_second[${i}]\" > ${tests_dir}/${i}_grams_search_out 2>/dev/null"
+				))
+		{
+			die "Running search failed for $i-grams";
+		}
+
+		if(compare(${tests_dir}.$i."_grams_search_out",${reference_dir}.$i."_grams_search_out"))
+		{
+			die "Search produced wrong results";
+		
+		}
+
+		say "Succeeded in testing search for $i-grams";
+	
+	}
+
+
+
+
 
 }
 #Test some 

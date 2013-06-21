@@ -53,4 +53,52 @@ for my $i (1 .. 8)
 	{
 		say "Generated reference data for view_wordlenth_stats for $i-grams";
 	}
+
+	my @search_strings_non_pos_first = (
+		"",
+		"this",
+		"this is",
+	       	"this is an",
+	       	"this is an example",
+		"this is an example of",
+		"this is an example of a",
+		"this is an example of a sentence",
+		"this is an example of a sentence that"
+	);
+
+	my @search_strings_non_pos_second = (
+		"",
+		"this",
+		"this *",
+	       	"this * an",
+	       	"this * * example",
+		"this is * * of",
+		"* is an example * a",
+		"this is * * * a sentence",
+		"this * an * of * sentence *"
+	);
+
+
+
+	unless($current_metadata->{"isPos"})	
+	{
+		if( system(
+				"./ngram.analysis $processing_dir search ".
+					"\"$search_strings_non_pos_first[${i}]\" > ${processing_dir}/${i}_grams_search_out 2>/dev/null"
+				))
+		{
+			die "search failed for $i-grams";
+		}
+		if( system(
+				"./ngram.analysis $processing_dir search " .
+					"\"$search_strings_non_pos_second[${i}]\" > ${processing_dir}/${i}_grams_search_out 2>/dev/null"
+				))
+		{
+			die "search failed for $i-grams";
+		}
+		say "Generated search reference data for $i-grams";
+	}else
+	{
+
+	}
 }
