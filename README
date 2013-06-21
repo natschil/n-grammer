@@ -29,13 +29,11 @@ invert_index
 	to be created.
 
 get_top
-	get_top is the counterpart to invert_index. It displays the top m words of the 
-	inverted index specified, where m is the second argument to invert_index. The first
-	argument to invert_index is the the n-gram number. Currently get_top only supports
-	outputting from indexes like 0 or 0_1 or 0_1_2 or 0_1_2_3 etc..
+	Invocation: get_top n m
+	get_top is the counterpart to invert_index. It displays the m most frequent n-grams.
 
 	For example, to get the 10 most frequent 2-grams, run get_top 2 10
-	after having run invert_index 0_1
+	 (after having run invert_index 0_1 at some point previously)
 
 	get_top has a complexity of O(1).
 
