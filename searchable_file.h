@@ -25,7 +25,7 @@ using namespace std;
 class searchable_file
 {
 	public:
-		searchable_file(string filename,bool is_pos=false);
+		searchable_file(string &filename,bool is_pos=false);
 		~searchable_file();
 		void search(string &search_str,vector<string> &results,string &filter); 
 

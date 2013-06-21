@@ -1,6 +1,6 @@
-#include "search_a_file.h"
+#include "searchable_file.h"
 
-searchable_file::searchable_file(string index_filename,bool is_pos)
+searchable_file::searchable_file(string &index_filename,bool is_pos)
 {
 	this->is_pos = is_pos;
 	//Let's open the file,get its size, and then mmap it.

@@ -134,9 +134,12 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 {
 
 	//At first, we open the pos indexes
-	searchable_file *c_l_i = new searchable_file(foldername + "/pos_supplement_index_c_l_i/0.out");
-	searchable_file *l_i_c = new searchable_file(foldername + "/pos_supplement_index_l_i_c/0.out");
-	searchable_file *i_c_l = new searchable_file(foldername + "/pos_supplement_index_i_c_l/0.out");
+	string current_filename(foldername + "/pos_supplement_index_c_l_i/0.out");
+	searchable_file *c_l_i = new searchable_file(current_filename);
+	current_filename = foldername + "/pos_supplement_index_l_i_c/0.out";
+	searchable_file *l_i_c = new searchable_file(current_filename);
+	current_filename = foldername + "/pos_supplement_index_i_c_l/0.out";
+	searchable_file *i_c_l = new searchable_file(current_filename);
 
 	//We do a simple breadth-first expanding of the relevant words...
 	while(1)

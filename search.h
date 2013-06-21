@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #include "manage_metadata.h"
-#include "search_a_file.h"
+#include "searchable_file.h"
 
 using namespace std;
 void do_search( map<unsigned int,Metadata> &metadatas,vector<string> arguments);
