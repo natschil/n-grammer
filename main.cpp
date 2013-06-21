@@ -14,7 +14,7 @@
 #include "manage_metadata.h"
 #include "invert_index.h"
 #include "search.h"
-#include "view_inversion.h"
+#include "get_top.h"
 #include "make_wordlength_stats.h"
 #include "view_wordlength_stats.h"
 
