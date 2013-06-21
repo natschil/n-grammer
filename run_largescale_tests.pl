@@ -128,22 +128,29 @@ for my $i (1 .. 8)
 	{
 		if( system(
 				"./ngram.analysis $tests_dir search ".
-					"\"$search_strings_non_pos_first[${i}]\" > ${tests_dir}/${i}_grams_search_out 2>/dev/null"
+					"\"$search_strings_non_pos_first[${i}]\" > ${tests_dir}/${i}_grams_search_first_out 2>/dev/null"
 				))
 		{
 			die "Running search failed for $i-grams";
 		}
+		if(compare(${tests_dir}.$i."_grams_search_first_out",${reference_dir}.$i."_grams_search_first_out"))
+		{
+			die "Search (without wildcards) produced wrong results";
+		
+		}
+
 		if( system(
 				"./ngram.analysis $tests_dir search " .
-					"\"$search_strings_non_pos_second[${i}]\" > ${tests_dir}/${i}_grams_search_out 2>/dev/null"
+					"\"$search_strings_non_pos_second[${i}]\" > ${tests_dir}/${i}_grams_search_second_out 2>/dev/null"
 				))
 		{
 			die "Running search failed for $i-grams";
 		}
 
-		if(compare(${tests_dir}.$i."_grams_search_out",${reference_dir}.$i."_grams_search_out"))
+		if(compare(${tests_dir}.$i."_grams_search_second_out",${reference_dir}.$i."_grams_search_second_out"))
+
 		{
-			die "Search produced wrong results";
+			die "Search (with wildcards) produced wrong results";
 		
 		}
 

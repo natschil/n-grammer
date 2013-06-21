@@ -84,14 +84,14 @@ for my $i (1 .. 8)
 	{
 		if( system(
 				"./ngram.analysis $processing_dir search ".
-					"\"$search_strings_non_pos_first[${i}]\" > ${processing_dir}/${i}_grams_search_out 2>/dev/null"
+					"\"$search_strings_non_pos_first[${i}]\" > ${processing_dir}/${i}_grams_search_first_out 2>/dev/null"
 				))
 		{
 			die "search failed for $i-grams";
 		}
 		if( system(
 				"./ngram.analysis $processing_dir search " .
-					"\"$search_strings_non_pos_second[${i}]\" > ${processing_dir}/${i}_grams_search_out 2>/dev/null"
+					"\"$search_strings_non_pos_second[${i}]\" > ${processing_dir}/${i}_grams_search_second_out 2>/dev/null"
 				))
 		{
 			die "search failed for $i-grams";
