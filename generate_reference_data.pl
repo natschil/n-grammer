@@ -28,6 +28,16 @@ for my $i (1 .. 8)
 			say "Generated inverted index reference data for index $current_index_name";
 		}
 	}
+
+	if(system("./ngram.analysis $processing_dir get_top $i 200 > ${processing_dir}/${i}_grams_get_top_out 2>/dev/null"))
+	{
+		die "get_top failed for $i-grams";
+	}else
+	{
+		say "Generated reference data for get_top for $i-grams";
+	}
+
+
 	if(system("./ngram.analysis $processing_dir make_wordlength_stats $i"))
 	{
 		die "make_wordlength_stats failed for $i-grams";

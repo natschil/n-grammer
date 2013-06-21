@@ -55,6 +55,22 @@ for my $i (1 .. 8)
 
 	say "Succeeded in testing indexes of $i-grams";
 
+	#Test get_top
+	if(system("./ngram.analysis $tests_dir get_top $i 200 > ${tests_dir}/${i}_grams_get_top_out 2>/dev/null"))
+	{
+		say "Failed to make get_top for $i-grams";
+		exit(-1);
+	}	
+
+	if(compare($tests_dir.$i."_grams_get_top_out", $reference_dir.$i."_grams_get_top_out"))
+	{
+		say "Failed test for get_top for $i-grams";
+		exit(-1);
+	}else
+	{
+		say "Succeeded test for get_top for $i-grams";
+	}
+
 	#Test the wordlength stat generation and reading.
 	unless($reference_metadata->{"isPos"})
 	{
@@ -83,6 +99,7 @@ for my $i (1 .. 8)
 
 		say "Succeeded at testing wordlength stats  for $i-grams";
 	}
+
 
 }
 #Test some 
