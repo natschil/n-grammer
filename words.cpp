@@ -71,26 +71,15 @@ unsigned int howManyWordsAreEqual(const word* first,const  word* second,const wo
 			{
 				for(int j = max_found; j < relative_position;j++)
 				{
-					if(max_found_w1->next != null_word)
+					if(max_found_w1 != null_word)
 					{
 						max_found_w1 = max_found_w1->next;
-						if(max_found_w2->next != null_word)
-						{
-							max_found_w2 = max_found_w2->next;
-							cache[optimized_combo->upper[j+1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
-						}else
-						{
-							//As null word should go after anything else.		
-							cache[optimized_combo->upper[j + 1]] = -1;	
-						}
-					}else if(max_found_w2->next != null_word)
+					}
+					if(max_found_w2 != null_word)
 					{
 						max_found_w2 = max_found_w2->next;
-						cache[optimized_combo->upper[j+1]] = 1;
-					}else
-					{
-						cache[optimized_combo->upper[j+1]] = 0;
 					}
+					cache[optimized_combo->upper[j+1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
 				}
 				max_found = relative_position;
 			}
@@ -105,25 +94,15 @@ unsigned int howManyWordsAreEqual(const word* first,const  word* second,const wo
 			{
 				for(int j = min_found;j < -relative_position;j++)
 				{
-					if(min_found_w1->prev != null_word)
+					if(min_found_w1 != null_word)
 					{
 						min_found_w1 = min_found_w1->prev;
-						if(min_found_w2->prev != null_word)
-						{
-							min_found_w2 = min_found_w2->prev;
-							cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
-						}else
-						{
-							cache[optimized_combo->lower[j]] = -1;
-						}
-					}else if(min_found_w2->prev != null_word)
+					}
+					if(min_found_w2 != null_word)
 					{
 						min_found_w2 = min_found_w2->prev;
-						cache[optimized_combo->lower[j]] = 1;
-					}else
-					{
-						cache[optimized_combo->lower[j]] = 0;
 					}
+					cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
 				}
 				min_found = -relative_position ;
 			}

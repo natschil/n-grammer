@@ -6,7 +6,7 @@ Buffer::Buffer(void* internal_buffer, size_t buffer_size,size_t maximum_single_a
 	this->internal_buffer = internal_buffer;
 	this->is_full = false;
 	this->buffer_size = buffer_size;
-	this->maximum_single_allocation = maximum_single_allocation;
+	this->maximum_single_allocation = maximum_single_allocation + sizeof(word) + strlen("$");
 
 	//Set the pointers so that they indicate the buffer is empty.
 	this->words_bottom_internal = buffer_size;
@@ -450,6 +450,7 @@ void Dict::writeOutNGram(word* ngram_start,long long int count)
 			fprintf(outfile," ");
 	}
 	fprintf(outfile,"\t%lld\n",count);
+	
 	return;
 }
 
@@ -622,11 +623,9 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 {
 	fprintf(stdout,"(");
 	fflush(stdout);
-	word* buffer_bottom = buffer_to_write->words_buffer_bottom();
-	word* buffer_top = buffer_to_write->words_buffer_top();
-	uint8_t* strings_start = buffer_to_write->strings_start();
 
-	for(word* ptr = buffer_bottom; ptr < buffer_to_write->words_bottom(); ptr++)
+
+	for(word* ptr = buffer_to_write->words_buffer_bottom(); ptr < buffer_to_write->words_bottom(); ptr++)
 	{
 		ptr->flags |= NON_STARTING_WORD;
 	}
@@ -635,14 +634,34 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	{
 		ptr->flags |= NON_STARTING_WORD;
 	}
+	
+	//We add a special last word which is only a $. This is so we can later set the null word's reduces_to field to something sane.
+	buffer_to_write->add_null_word();
+	uint8_t* dollar_sign_string = buffer_to_write->allocate_for_string(strlen("$") + 1);
+	strcpy((char*) dollar_sign_string,"$");
+	buffer_to_write->add_word(dollar_sign_string);
+	buffer_to_write->words_buffer_bottom()->flags |= NON_STARTING_WORD;
+	buffer_to_write->add_null_word();
+	null_word->contents = dollar_sign_string - buffer_to_write->strings_start();
+	//We also create a word which we can later use std::lower_bound() to search for to find the original dollar sign word after sorting.
+	word dollar_sign_reference_word;
+	dollar_sign_reference_word.next = NULL;
+	dollar_sign_reference_word.prev = NULL;
+	dollar_sign_reference_word.reduces_to = 0;
+	dollar_sign_reference_word.contents = null_word->contents;
+	dollar_sign_reference_word.flags = 0;
 
-	//We sort the buffer by the first combination in our list of combinations...
-	word_cmp compare((char*) strings_start);
 
 
-	const optimized_combination* first_optimized_combination = &(optimized_combinations[0]);
+	//Some variables we use quite a lot:
+	word* buffer_bottom = buffer_to_write->words_buffer_bottom();
+	word* buffer_top = buffer_to_write->words_buffer_top();
+	uint8_t* strings_start = buffer_to_write->strings_start();
+
+
+
+
 	unsigned int* first_combination = combinations[0];
-
 
 	bool first_combo_is_in_order = true;
 	for(size_t i = 0; i< ngramsize ; i++)
@@ -668,12 +687,12 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	                                        if(++counter < ngramsize)
 	                                        {
 	                                                if(first_cur->next == null_word)
-	                                                        return false;
-	                                                else if(second_cur->next == null_word)
-	                                                        return true;
+								return false;
+							else if(second_cur->next == null_word)
+								return true;
+							first_cur = first_cur->next;
+							second_cur = second_cur->next;
 	
-	                                                first_cur = first_cur->next;
-	                                                second_cur = second_cur->next;
 	                                        }else
 	                                                return res < 0;
 	                                }
@@ -682,6 +701,8 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 			);
 	}else
 	{
+
+		const optimized_combination* first_optimized_combination = &(optimized_combinations[0]);
 		std::sort(buffer_bottom,buffer_top,
 				[&](const word &first, const word &second) -> bool
 				{
@@ -710,6 +731,22 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		}
 		ptr->reduces_to = prev_ptr-buffer_bottom;
 	}
+	
+	/*
+	word* dollar_sign_after_sorting = lower_bound(buffer_bottom, buffer_top,dollar_sign_reference_word,
+			[&](const word &first, const word &second) -> bool
+			{
+				return strcmp((const char*) strings_start + first.contents, (const char*) strings_start + second.contents) < 0;
+			}
+			);
+	if(dollar_sign_after_sorting == buffer_top)
+	{
+		fprintf(stderr, "Poor, poor programming\n");
+		exit(-1);
+	}
+	*/
+	null_word->reduces_to = INT_MAX;
+
 
 	DictCollection current_ngrams(
 			ngramsize,
