@@ -418,16 +418,16 @@ void Dict::writeOutNGram(word* ngram_start,long long int count)
 	//MARKER5
 	const uint8_t *words_in_ngram[64];
 	word* tmp = ngram_start;
-	int skip = 0;
 	for(size_t j = 0; j < optimized_combo->lower_size; j++)
 	{
 		if(tmp->prev == null_word)
 		{
-			skip = 1;
-			break;
+			words_in_ngram[optimized_combo->lower[j]] = (const uint8_t*)"$";
 		}else
+		{
 			tmp = tmp->prev;
-		words_in_ngram[optimized_combo->lower[j]] = strings_start + tmp->contents;
+			words_in_ngram[optimized_combo->lower[j]] = strings_start + tmp->contents;
+		}
 	}
 
 	tmp = ngram_start;
@@ -436,20 +436,20 @@ void Dict::writeOutNGram(word* ngram_start,long long int count)
 	{
 		if(tmp->next == null_word)
 		{
-			skip = 1;
-			break;
+			words_in_ngram[optimized_combo->upper[j]] = (const uint8_t*) "$";
 		}else
+		{
 			tmp = tmp->next;
-		words_in_ngram[optimized_combo->upper[j]] = strings_start + tmp->contents;
+			words_in_ngram[optimized_combo->upper[j]] = strings_start + tmp->contents;
+		}
 	}
-	for(size_t j = 0;!skip && ( j <ngramsize); j++)
+	for(size_t j = 0; j <ngramsize; j++)
 	{
 		ulc_fprintf(outfile,"%U",words_in_ngram[j]);
 		if(j != (ngramsize - 1))
 			fprintf(outfile," ");
 	}
-	if(!skip)
-		fprintf(outfile,"\t%lld\n",count);
+	fprintf(outfile,"\t%lld\n",count);
 	return;
 }
 

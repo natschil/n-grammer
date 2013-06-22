@@ -23,7 +23,7 @@
  * allows us to identify it as valid n-gram counter metadata. 
  */
 #ifndef NGRAM_COUNTER_OUTPUT_FORMAT_VERSION
-	#define NGRAM_COUNTER_OUTPUT_FORMAT_VERSION 2
+	#define NGRAM_COUNTER_OUTPUT_FORMAT_VERSION 3
 #endif
 
 using namespace std;
