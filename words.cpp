@@ -74,26 +74,23 @@ unsigned int howManyWordsAreEqual(const word* first,const  word* second,const wo
 					if(max_found_w1->next != null_word)
 					{
 						max_found_w1 = max_found_w1->next;
-
-					}else
-					{
-						while(j++ < relative_position)
+						if(max_found_w2->next != null_word)
 						{
-							if(max_found_w2->next != null_word)
-								max_found_w2 = max_found_w2->next;
-							else
-								return i + 1;
+							max_found_w2 = max_found_w2->next;
+							cache[optimized_combo->upper[j+1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
+						}else
+						{
+							//As null word should go after anything else.		
+							cache[optimized_combo->upper[j + 1]] = -1;	
 						}
-						return i;
-					}
-
-					if(max_found_w2->next !=  null_word)
+					}else if(max_found_w2->next != null_word)
 					{
 						max_found_w2 = max_found_w2->next;
+						cache[optimized_combo->upper[j+1]] = 1;
 					}else
-						return  i;
-
-					cache[optimized_combo->upper[j + 1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
+					{
+						cache[optimized_combo->upper[j+1]] = 0;
+					}
 				}
 				max_found = relative_position;
 			}
@@ -106,30 +103,27 @@ unsigned int howManyWordsAreEqual(const word* first,const  word* second,const wo
 		{
 			if(-relative_position > min_found)
 			{
-				for(int j = min_found;j < -relative_position ;j++)
+				for(int j = min_found;j < -relative_position;j++)
 				{
 					if(min_found_w1->prev != null_word)
 					{
 						min_found_w1 = min_found_w1->prev;
-					}else
-					{
-						while(j++ < -relative_position)
+						if(min_found_w2->prev != null_word)
 						{
-							if(min_found_w2->prev != null_word)
-								min_found_w2 = min_found_w2->prev;
-							else
-								return  i + 1;
+							min_found_w2 = min_found_w2->prev;
+							cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
+						}else
+						{
+							cache[optimized_combo->lower[j]] = -1;
 						}
-						return i;
-					}
-
-					if(min_found_w2->prev != null_word)
+					}else if(min_found_w2->prev != null_word)
 					{
 						min_found_w2 = min_found_w2->prev;
+						cache[optimized_combo->lower[j]] = 1;
 					}else
-						return  i;
-
-					cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
+					{
+						cache[optimized_combo->lower[j]] = 0;
+					}
 				}
 				min_found = -relative_position ;
 			}

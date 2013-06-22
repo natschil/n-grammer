@@ -113,29 +113,27 @@ int ngramcmp(
 					if(max_found_w1->next != null_word)
 					{
 						max_found_w1 = max_found_w1->next;
-
-					}else
-					{
-						while(j++ < relative_position)
+						if(max_found_w2->next != null_word)
 						{
-							if(max_found_w2->next != null_word)
-								max_found_w2 = max_found_w2->next;
+							max_found_w2 = max_found_w2->next;
+							if(reduces_to_is_set)
+								cache[optimized_combo->upper[j+1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
 							else
-								return 0;
-						}
-						return 1;
-					}
+								cache[optimized_combo->upper[j+1]] = strcmp(strings_start +max_found_w1->contents,strings_start +max_found_w2->contents);
 
-					if(max_found_w2->next !=  null_word)
+						}else
+						{
+							cache[optimized_combo->upper[j+1]] = -1;
+						}
+
+					}else if(max_found_w2->next != null_word)
 					{
 						max_found_w2 = max_found_w2->next;
+						cache[optimized_combo->upper[j+1]] = 1;
 					}else
-						return  -1;
-
-					if(reduces_to_is_set)
-						cache[optimized_combo->upper[j + 1]] = max_found_w1->reduces_to - max_found_w2->reduces_to;
-					else
-						cache[optimized_combo->upper[j + 1]] = strcmp(strings_start + max_found_w1->contents,strings_start+ max_found_w2->contents);
+					{
+						cache[optimized_combo->upper[j+1]] = 0;
+					}
 				}
 				max_found = relative_position;
 			}
@@ -153,28 +151,25 @@ int ngramcmp(
 					if(min_found_w1->prev != null_word)
 					{
 						min_found_w1 = min_found_w1->prev;
-					}else
-					{
-						while(j++ < -relative_position)
+						if(min_found_w2->prev != null_word)
 						{
-							if(min_found_w2->prev != null_word)
-								min_found_w2 = min_found_w2->prev;
+							min_found_w2 = min_found_w2->prev;
+							if(reduces_to_is_set)
+								cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
 							else
-								return 0;
+								cache[optimized_combo->lower[j]] = strcmp(strings_start +min_found_w1->contents,strings_start +min_found_w2->contents);
+						}else
+						{
+							cache[optimized_combo->lower[j]] = -1;
 						}
-						return 1;
-					}
-
-					if(min_found_w2->prev != null_word)
+					}else if(min_found_w2->prev != null_word)
 					{
-						min_found_w2 = min_found_w2->prev;
+						min_found_w2 = min_found_w2->next;
+						cache[optimized_combo->lower[j]] = 1;
 					}else
-						return  -1;
-
-					if(reduces_to_is_set)
-						cache[optimized_combo->lower[j]] = min_found_w1->reduces_to - min_found_w2->reduces_to;
-					else
-						cache[optimized_combo->lower[j]] = strcmp(strings_start +min_found_w1->contents,strings_start +min_found_w2->contents);
+					{
+						cache[optimized_combo->lower[j]] = 0;
+					}
 				}
 				min_found = -relative_position ;
 			}
