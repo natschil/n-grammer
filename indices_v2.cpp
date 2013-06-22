@@ -732,20 +732,18 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 		ptr->reduces_to = prev_ptr-buffer_bottom;
 	}
 	
-	/*
 	word* dollar_sign_after_sorting = lower_bound(buffer_bottom, buffer_top,dollar_sign_reference_word,
 			[&](const word &first, const word &second) -> bool
 			{
 				return strcmp((const char*) strings_start + first.contents, (const char*) strings_start + second.contents) < 0;
 			}
 			);
-	if(dollar_sign_after_sorting == buffer_top)
+	if((dollar_sign_after_sorting == buffer_top) || (strcmp((const char*) strings_start + dollar_sign_after_sorting->contents,"$")))
 	{
 		fprintf(stderr, "Poor, poor programming\n");
 		exit(-1);
 	}
-	*/
-	null_word->reduces_to = INT_MAX;
+	null_word->reduces_to = dollar_sign_after_sorting->reduces_to;
 
 
 	DictCollection current_ngrams(
