@@ -79,7 +79,7 @@ static void writeOutAddress(off_t address, off_t* offsets, string foldername,lon
 
 
 
-void search_inverted_index(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
+void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 {
 	//This function takes two arguments. The first is the n-gram number, and the second is the number of results to display.
 	if(arguments.size() != 2)
@@ -87,15 +87,14 @@ void search_inverted_index(map<unsigned int,Metadata> &metadatas,vector<string> 
 		cerr<<"search_inverted_index: Please give two arguments, where the first is the number of words in the n-gram and the second is the number of results to display."<<endl;
 		exit(-1);
 	}
-	char* endptr;
-	unsigned int ngramsize = strtol(arguments[0].c_str(), &endptr,10);
+	unsigned int ngramsize = atoi(arguments[0].c_str());
 	if(!ngramsize)
 	{
-		cerr<<"search_inverted_index: Please give a valid number for the n-gram size as the first argument."<<endl;
+		cerr<<"search_inverted_index: Please give a valid non-zero number for the n-gram size as the first argument."<<endl;
 		exit(-1);
 	}
 
-	unsigned int num_to_display = strtol(arguments[1].c_str(), &endptr,10);
+	unsigned int num_to_display = atoi(arguments[1].c_str());
 	if(!num_to_display)
 	{
 		cerr<<"search_inverted_index: Please give a valid number for the n of n-gram that you want to search for as the second argument." <<endl;
@@ -108,6 +107,7 @@ void search_inverted_index(map<unsigned int,Metadata> &metadatas,vector<string> 
 		cerr<<"search_inverted_index: No metadata for "<<ngramsize<<"-grams found"<<endl;
 		exit(-1);
 	}
+
 	Metadata &relevant_metadata = relevant_metadata_itr->second;
 	vector<unsigned int> what_were_looking_for;
 	string filename = string("by");

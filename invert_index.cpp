@@ -142,9 +142,8 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 
 	long long int *table = (long long int*) calloc(relevant_metadata.max_frequency + 1,sizeof(*table));
 
-	//The first pass of a distribution sort.
+	//We use a type of counting sort
 	string filename  = foldername + string("/0.out");
-
 	//A buffer for getline.
 	char* line_buf = (char*) malloc(1024);
 	size_t line_buf_size = 1024;

@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
 		do_search(metadatas,arguments);
 	}else if(command == "get_top")
 	{
-		search_inverted_index(metadatas,arguments);	
+		get_top(metadatas,arguments);	
 	}else if(command == "make_wordlength_stats")
 	{
 		make_wordlength_stats(metadatas,arguments);

@@ -15,7 +15,7 @@
 #include "manage_metadata.h"
 
 
-void search_inverted_index(map<unsigned int,Metadata> &metadatas,vector<string> &arguments);
+void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments);
 
 
 #endif
