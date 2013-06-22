@@ -12,7 +12,7 @@ fi;
 for i in `seq 1 6`; do
 	rm -rf ./tests_output/`basename $1`.${i}.d
 	rm -rf ./tests_output/`basename $1`.${i}.d
-	if $is_pos 
+	if $is_pos ;
 	then
 		retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --build-wordsearch-indexes --corpus-has-pos-data --numbuffers=4 >/dev/null)
 		if [ ! $retval ];
@@ -29,7 +29,12 @@ for i in `seq 1 6`; do
 		exit 1;
 	fi;
 
-	for current_directory in $(ls -d ./tests_output/`basename $1`.${i}.d/by_*/ ./tests_output/`basename $1`.${i}.d/pos_*/);
+	pos_supplement_glob="";
+	if $is_pos ;
+	then
+		pos_supplement_glob="./tests_output/`basename $1`.${i}.d/pos_*/)";
+	fi;
+	for current_directory in $(ls -d ./tests_output/`basename $1`.${i}.d/by_*/ $pos_supplement_glob);
 	do
 		filename=./tests_output/$(basename $1).$(basename $current_directory).out;
 		printf "" > ${filename}
