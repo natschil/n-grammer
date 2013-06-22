@@ -7,7 +7,7 @@ const char* header_str ="N-Gram-Counter-Version:\t";
 Metadata::Metadata(string &metadata_filename)
 {
 	this->file_name = string("");
-	const char* ptr = strchr(metadata_filename.c_str(),'/');
+	const char* ptr = strrchr(metadata_filename.c_str(),'/');
 	if(!*ptr)
 	{
 		this->output_folder_name = string("./");

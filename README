@@ -1,11 +1,12 @@
 ngram.counting
 
 	The ngram.counting program is a program for generating indexes of n-grams present in a corpus to
-	the frequency at which they occur. It is designed for use with large UTF-8 corpora which do not necessarily
-	need to fit into the available RAM and is able to create indexes for use with corpora that have part of speech
-	information for every word. It creates "Combined Indexes" which allow for searching for n-grams by arbitary
+	the frequency at which they occur. It is designed for use with large UTF-8 corpora (which do not necessarily
+	need to fit into the available RAM) and is able to create indexes for use with corpora that have part of speech
+	tags for every word. It creates "Combined Indexes" which allow for searching for n-grams by arbitary
 	combinations of words in the n-gram, i.e. searching for "* and planets" should be possible to find frequency information on
-	n-grams like "stars and planets" or "asteroids and planets" (where * means any word).
+	n-grams like "stars and planets" or "asteroids and planets" (where * means to match any word).
+	ngram.counting depends on the libunistring libraries and makes use of parallelism using OpenMP.
 
 Invocation
 
@@ -102,6 +103,7 @@ Options
                   	Use b buffers internally, and with that at maximum b threads.
 
 Configuration options specifiable at compile-time:
+
 	The config.h file contains various other optiosn for precisely specifying various other options, such as the
 	memory used by the n-gram counter.
 
