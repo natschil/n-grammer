@@ -22,7 +22,7 @@ extern "C" {
 #include "util.h"
 /*This file contains functions useful for merging two files where all lines are of the following form:
  * <string><tab><number><newline>
- * and are sorted lexographically by string. 
+ * and are sorted using binary comparison by string. 
  *
  * The output file is a merge of the two files,but so that lines with equal strings have their numbers added. 
  *
