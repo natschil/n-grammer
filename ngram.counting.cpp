@@ -372,7 +372,7 @@ static int getnextwordandaddit(
    	s = buf->allocate_for_string(bytes_to_allocate);
 
 	size_t inflexion_s_length = bytes_to_allocate;
-	normalization_result = u8_normalize(norm,inflexion, inflexion_length, s, &inflexion_s_length);
+	uint8_t* normalization_result = u8_normalize(norm,inflexion, inflexion_length, s, &inflexion_s_length);
 
 	if(!normalization_result || (inflexion_s_length > MAX_WORD_SIZE)) 
 	{
@@ -876,28 +876,64 @@ long long int count_ngrams(
 	string metadata_filename = string("./") + string(output_location);
 	Metadata metadata_file(metadata_filename);
 
-	//Note that if single_wordsearch_index_to_build doesn't need to be set. 
-	//
-	if((metadata_file.file_name == string(infile_name)) && ((single_wordsearch_index_to_build > 0) || build_pos_supplement_indexes))
+	if((metadata_file.file_name == string(infile_name)) && ((single_wordsearch_index_to_build > 0) && metadata_file.file_exists_already))
 	{
-		indexes->writeMetadata(metadata_file);
-		//Append the amount of time taken for this operation.
 		metadata_file.time_taken += (int)(end_time.tv_sec - start_time.tv_sec);
+		indexes->writeMetadata(metadata_file);
+		metadata_file.write();
 	}else
 	{
 		metadata_file.file_name = string(infile_name);
 		metadata_file.num_words = totalwords;
 		
-		metadata_file.time_taken = (int)(end_time.tv_sec - start_time.tv_sec);
+		if(!build_pos_supplement_indexes)
+			metadata_file.time_taken = (int)(end_time.tv_sec - start_time.tv_sec);
+		else
+			metadata_file.time_taken = 0;
+
 		metadata_file.max_word_size = MAX_WORD_SIZE;
 		metadata_file.max_classification_size = MAX_CLASSIFICATION_SIZE;
 		metadata_file.max_lemma_size = MAX_LEMMA_SIZE;
 		metadata_file.is_pos = is_pos;
 
 		indexes->writeMetadata(metadata_file);
+		metadata_file.write();
 	}
-	metadata_file.write();
-	
+	if(build_pos_supplement_indexes)
+	{
+		DIR* processing_dir = opendir("./");
+		if(!processing_dir)
+		{
+			fprintf(stderr,"Failed to open directory %s\n",outdir);
+			exit(-1);
+		}
+		struct dirent* current_directory_entry;
+		while((current_directory_entry = readdir(processing_dir)))
+		{
+			if(current_directory_entry->d_type & DT_DIR)
+				continue;
+			if(!isdigit(*current_directory_entry->d_name))
+				continue;
+
+			const char* ptr = current_directory_entry->d_name;
+			while(*ptr && isdigit(*ptr)) ptr++;
+			if(strcmp(ptr,"_grams.metadata"))
+				continue;
+
+
+			string metadata_string(current_directory_entry->d_name);
+			Metadata current_metadata(metadata_string);
+			if(!current_metadata.file_exists_already)
+				continue;
+			else
+			{
+				indexes->writeMetadata(current_metadata);
+				metadata_file.time_taken += (int)(end_time.tv_sec - start_time.tv_sec);
+				current_metadata.write();
+			}
+		}
+		closedir(processing_dir);
+	}
 
 	FILE* metadata_file_f = fopen(output_location,"r");
 	free(output_location);

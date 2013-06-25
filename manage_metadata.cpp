@@ -8,7 +8,7 @@ Metadata::Metadata(string &metadata_filename)
 {
 	this->file_name = string("");
 	const char* ptr = strrchr(metadata_filename.c_str(),'/');
-	if(!*ptr)
+	if(!ptr)
 	{
 		this->output_folder_name = string("./");
 	}else

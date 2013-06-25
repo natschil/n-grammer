@@ -18,7 +18,17 @@ for i in `seq 1 6`; do
 		if [ ! $retval ];
 		then
 			retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --numbuffers=4 --build-pos-supplement-indexes --cache-entire-file > /dev/null);
+		else
+			echo "Failed to generate POS indexes";
+			exit 1;
+
 		fi;
+		if [  $retval ];
+		then
+			echo "Failed to generate POS supplement indexes";
+			exit 1;
+		fi;
+
 	else
 		retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --build-wordsearch-indexes --cache-entire-file --numbuffers=4 >/dev/null)
 	fi;
@@ -32,7 +42,7 @@ for i in `seq 1 6`; do
 	pos_supplement_glob="";
 	if $is_pos ;
 	then
-		pos_supplement_glob="./tests_output/`basename $1`.${i}.d/pos_*/)";
+		pos_supplement_glob="./tests_output/`basename $1`.${i}.d/pos_*/";
 	fi;
 	for current_directory in $(ls -d ./tests_output/`basename $1`.${i}.d/by_*/ $pos_supplement_glob);
 	do
