@@ -147,7 +147,8 @@ class DictCollection
 				vector<char*> &prefixes,
 				const word* null_word,
 				word* buffer_bottom,
-				uint8_t* strings_start
+				uint8_t* strings_start,
+				bool is_pos_supplement_indexes
 				) ;
 		void writeToDisk(word* start);
 		void writeRangeToDisk(word* begin, word* end,const word* null_word);
@@ -174,7 +175,8 @@ class Dict
 		const unsigned int* word_order,
 		const word* null_word,
 		word* buffer_bottom,
-		uint8_t* strings_start
+		uint8_t* strings_start,
+		bool is_pos_supplement_indexes
 		);
 	void cleanUp(void);
 	void writeOutNGram(word* ngram_start,long long int count);
@@ -189,6 +191,8 @@ class Dict
 	word* buffer_bottom;
 	uint8_t* strings_start;
 	FILE* outfile;
+
+	bool is_pos_supplement_indexes;
 };
 
 DictCollection::DictCollection(
@@ -199,7 +203,8 @@ DictCollection::DictCollection(
 				vector<char*> &prefixes,
 				const word* null_word,
 				word* buffer_bottom,
-				uint8_t* strings_start
+				uint8_t* strings_start,
+				bool is_pos_supplement_indexes
 				)
 				: combinations(combinations) , optimized_combinations(optimized_combinations)
 {
@@ -217,7 +222,8 @@ DictCollection::DictCollection(
 				       	combinations[i],
 					null_word,
 					buffer_bottom,
-					strings_start
+					strings_start,
+					is_pos_supplement_indexes
 					));
 	}
 
@@ -368,7 +374,8 @@ Dict::Dict(
 		const unsigned int* word_order,
 		const word* null_word,
 		word* buffer_bottom,
-		uint8_t* strings_start
+		uint8_t* strings_start,
+		bool is_pos_supplement_indexes
 		)
 {
 	this->ngramsize = ngramsize;
@@ -379,6 +386,7 @@ Dict::Dict(
 	this->null_word = null_word;
 	this->buffer_bottom = buffer_bottom;
 	this->strings_start = strings_start;
+	this->is_pos_supplement_indexes = is_pos_supplement_indexes;
 
 
 	if(mkdir(prefix,S_IRUSR | S_IWUSR | S_IXUSR) && (errno != EEXIST))
@@ -422,6 +430,8 @@ void Dict::writeOutNGram(word* ngram_start,long long int count)
 	{
 		if(tmp->prev == null_word)
 		{
+			if(is_pos_supplement_indexes)
+				return;
 			words_in_ngram[optimized_combo->lower[j]] = (const uint8_t*)"$";
 		}else
 		{
@@ -436,6 +446,8 @@ void Dict::writeOutNGram(word* ngram_start,long long int count)
 	{
 		if(tmp->next == null_word)
 		{
+			if(is_pos_supplement_indexes)
+				return;
 			words_in_ngram[optimized_combo->upper[j]] = (const uint8_t*) "$";
 		}else
 		{
@@ -686,10 +698,8 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 	
 	                                        if(++counter < ngramsize)
 	                                        {
-	                                                if(first_cur->next == null_word)
-								return false;
-							else if(second_cur->next == null_word)
-								return true;
+	                                                if((first_cur == null_word) || (second_cur == null_word))
+								return res < 0;
 							first_cur = first_cur->next;
 							second_cur = second_cur->next;
 	
@@ -754,7 +764,8 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 			prefixes,
 			null_word,
 			buffer_bottom,
-			strings_start
+			strings_start,
+			is_pos_supplement_index
 			);
 
 	for(word* current_word = buffer_bottom; current_word != buffer_top;)
