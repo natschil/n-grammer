@@ -1,5 +1,6 @@
 a of	7
 an is	7
+and $	7
 åber åber	4
 åber strasse	1
 case the	7
@@ -19,11 +20,13 @@ sentence a	7
 strasse straße	1
 straße finland	1
 straße straße	4
+test $	1
 test test	4
 that if	7
 the is	7
 the then	7
 then case	7
+this $	1
 this åber	1
 this it	6
 this this	5

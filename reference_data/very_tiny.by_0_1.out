@@ -13,6 +13,7 @@ finland thisissimplyalongword	1
 if that	7
 is an	7
 is the	7
+it $	1
 it this	6
 n-gram counter	7
 of a	7
@@ -31,8 +32,10 @@ this is	7
 this this	5
 thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa	5
 thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa	1
+thisisawordwiththirtyninecharactsaaaaaa $	1
 thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa	6
 thisissimplyalongword thisisawordwithfortycharactersaaaaaaaaaa	1
 thisissimplyalongword thisissimplyalongword	5
 will deal	7
+with $	7
 with it	7

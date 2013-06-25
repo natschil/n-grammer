@@ -1,5 +1,6 @@
 a with of sentence	7
 an of is example	7
+and that $ if	7
 åber åber åber åber	2
 åber åber strasse åber	1
 åber this åber åber	1
@@ -17,9 +18,11 @@ finland thisissimplyalongword this finland	1
 if is and that	7
 is case that the	7
 is example this an	7
+it $ with $	1
 it is with this	6
 n-gram will the counter	7
 of sentence example a	7
+sentence $ a with	7
 strasse åber straße åber	1
 straße åber straße strasse	1
 straße strasse straße straße	1
@@ -27,11 +30,13 @@ straße straße finland straße	1
 straße straße straße straße	2
 test finland test finland	1
 test finland test test	1
+test test $ test	1
 test test test test	2
 that the if is	7
 the counter then n-gram	7
 the then is case	7
 then n-gram case the	7
+this an $ is	1
 this an it is	6
 this finland this finland	1
 this finland this this	1
@@ -41,6 +46,8 @@ thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaa
 thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisissimplyalongword thisisawordwithfortycharactersaaaaaaaaaa	1
 thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa	1
 thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa	1
+thisisawordwiththirtyninecharactsaaaaaa $ thisisawordwiththirtyninecharactsaaaaaa $	1
+thisisawordwiththirtyninecharactsaaaaaa $ thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa	1
 thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa	1
 thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa	4
 thisissimplyalongword thisisawordwithfortycharactersaaaaaaaaaa thisissimplyalongword thisisawordwithfortycharactersaaaaaaaaaa	1
@@ -48,4 +55,6 @@ thisissimplyalongword thisisawordwithfortycharactersaaaaaaaaaa thisissimplyalong
 thisissimplyalongword thisissimplyalongword finland thisissimplyalongword	1
 thisissimplyalongword thisissimplyalongword thisissimplyalongword thisissimplyalongword	3
 will with counter deal	7
+with $ deal it	1
+with $ sentence $	7
 with this deal it	6

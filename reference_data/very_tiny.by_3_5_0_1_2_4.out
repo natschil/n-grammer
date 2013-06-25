@@ -1,5 +1,7 @@
 a with an example of sentence	7
+an of $ this is example	1
 an of it this is example	6
+and that $ $ $ if	7
 åber åber strasse åber åber åber	1
 åber åber straße strasse åber åber	1
 åber åber straße straße strasse åber	1
@@ -17,11 +19,15 @@ finland straße finland finland finland finland	1
 finland straße finland finland finland straße	1
 finland thisissimplyalongword this this finland thisissimplyalongword	1
 finland thisissimplyalongword this this this finland	1
+if is $ $ and that	7
 is case and if that the	7
+is example $ $ this an	1
 is example with it this an	6
+it $ will deal with $	1
 it is will deal with this	6
 n-gram will case then the counter	7
 of sentence is an example a	7
+sentence $ example of a with	7
 strasse åber straße straße straße åber	1
 straße åber straße straße straße strasse	1
 straße strasse straße straße straße straße	1
@@ -30,9 +36,14 @@ straße straße finland finland straße straße	1
 straße straße finland straße straße straße	1
 test finland test test test finland	1
 test finland test test test test	1
+test test $ $ $ test	1
+test test $ $ test test	1
+test test $ test test test	1
+that the $ and if is	7
 the counter the case then n-gram	7
 the then if that is case	7
 then n-gram is the case the	7
+this an $ $ $ is	1
 this an deal with it is	6
 this finland this this this finland	1
 this finland this this this this	1
@@ -46,6 +57,8 @@ thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaa
 thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisissimplyalongword thisissimplyalongword thisissimplyalongword thisisawordwithfortycharactersaaaaaaaaaa	1
 thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa	1
 thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa	1
+thisisawordwiththirtyninecharactsaaaaaa $ thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa $	1
+thisisawordwiththirtyninecharactsaaaaaa $ thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa	1
 thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa	1
 thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa	1
 thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwithfortycharactersaaaaaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa thisisawordwiththirtyninecharactsaaaaaa	1
@@ -57,4 +70,6 @@ thisissimplyalongword thisissimplyalongword finland thisissimplyalongword thisis
 thisissimplyalongword thisissimplyalongword this finland finland thisissimplyalongword	1
 thisissimplyalongword thisissimplyalongword thisissimplyalongword thisissimplyalongword thisissimplyalongword thisissimplyalongword	1
 will with the n-gram counter deal	7
+with $ counter will deal it	1
+with $ of a sentence $	7
 with this counter will deal it	6

@@ -2,6 +2,7 @@ cc|and|and pp|its|its nn|breathing|breathing nn|durability|durability	1
 dt|an|an rb|here|here jj|attractive|attractive in|in|in	1
 dt|a|a vvg|tick|ticking vvn|turn|turned in|on|on	1
 dt|a|a vvn|upholster|upholstered nn|needle|needle vvg|use|using	1
+dt|each|each $ jj|individual|individual $	1
 dt|the|the vvn|enclose|enclosed jjs|fine|finest in|in|in	1
 in|as|as rb|as|as pp|it|it jj|comfortable|comfortable	1
 in|for|for nn|calico|calico pp|its|its vvn|use|used	1
@@ -9,9 +10,12 @@ in|in|in vbz|be|is dt|the|the vvn|enclose|enclosed	1
 in|in|in vvn|picture|pictured dt|an|an rb|here|here	1
 in|on|on np|mulberry|mulberry dt|a|a vvg|tick|ticking	1
 jjs|fine|finest in|in|in nn|quality|quality dt|the|the	1
+jj|affordable|affordable pp|it|it $ vbz|be|is	1
 jj|attractive|attractive in|in|in np|mulberry|mulberry dt|an|an	1
 jj|comfortable|comfortable pp|it|it in|as|as rb|as|as	1
 jj|extra|extra to|to|to nn|support|support vv|provide|provide	1
+jj|individual|individual $ vvn|pocket|pocketed dt|each|each	1
+nns|property|properties cc|and|and $ nn|breathing|breathing	1
 nn|breathing|breathing nn|durability|durability nns|property|properties cc|and|and	1
 nn|calico|calico nn|quality|quality vvn|use|used nn|cotton|cotton	1
 nn|cotton|cotton jjs|fine|finest nn|calico|calico nn|quality|quality	1
@@ -24,12 +28,16 @@ nn|quality|quality dt|the|the nn|cotton|cotton jjs|fine|finest	1
 nn|spring|spring jj|individual|individual vbz|be|is vvn|pocket|pocketed	1
 nn|support|support vv|provide|provide vvg|make|making jj|extra|extra	1
 nn|wood|wood dt|a|a nn|leg|leg vvn|turn|turned	1
+np|baronet|baronet $ np|supreme|supreme np|the|the	1
 np|mulberry|mulberry dt|an|an vvg|tick|ticking jj|attractive|attractive	1
 np|supreme|supreme np|the|the vbz|be|is np|baronet|baronet	1
+np|the|the $ np|baronet|baronet $	1
+np|the|the nn|wood|wood $ nn|leg|leg	1
 pp|its|its vvn|use|used nn|durability|durability in|for|for	1
 pp|it|it jj|comfortable|comfortable vbz|be|is in|as|as	1
 pp|it|it nn|support|support rb|as|as vvg|make|making	1
 rb|as|as vvg|make|making jj|comfortable|comfortable pp|it|it	1
+rb|here|here $ in|in|in vvn|picture|pictured	1
 to|to|to nn|hair|hair vv|provide|provide nn|pad|pad	1
 vbz|be|is in|as|as jj|affordable|affordable pp|it|it	1
 vbz|be|is np|baronet|baronet vvn|upholster|upholstered np|supreme|supreme	1
@@ -38,6 +46,7 @@ vvg|make|making jj|extra|extra pp|it|it nn|support|support	1
 vvg|tick|ticking jj|attractive|attractive in|on|on np|mulberry|mulberry	1
 vvg|use|using vbz|be|is dt|a|a vvn|upholster|upholstered	1
 vvn|enclose|enclosed nn|spring|spring in|in|in vbz|be|is	1
+vvn|picture|pictured $ rb|here|here $	1
 vvn|pocket|pocketed dt|each|each nn|spring|spring jj|individual|individual	1
 vvn|tease|teased dt|a|a nn|hair|hair nn|needle|needle	1
 vvn|turn|turned in|on|on nn|wood|wood dt|a|a	1
