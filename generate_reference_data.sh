@@ -14,14 +14,22 @@ for i in `seq 1 6`; do
 	rm -rf ./reference_data/`basename $1`.${i}.d
 	if  $is_pos 
 	then
-		retval=$(./ngram.counting $i $1 ./reference_data/`basename $1`.${i}.d --wordsearch-index-depth=${i} --corpus-has-pos-data=yes --numbuffers=1 >/dev/null)
+		retval=$(./ngram.counting $i $1 ./reference_data/`basename $1`.${i}.d --build-wordsearch-indexes --corpus-has-pos-data --numbuffers=1 >/dev/null)
 		if [ ! $retval ];
 		then
-			retval=$(./ngram.counting $i $1 ./tests_output/`basename $1`.${i}.d --numbuffers=1 --build-pos-supplement-indexes --cache-entire-file > /dev/null);
+			retval=$(./ngram.counting $i $1 ./reference_data/`basename $1`.${i}.d --numbuffers=1 --build-pos-supplement-indexes --cache-entire-file > /dev/null);
+		else
+			echo "Failed to generate POS indexes";
+			exit 1;
+		fi;
+		if [ $retval ];
+		then
+			echo "Failed to create POS supplement indexes";
+			exit 1;
 		fi;
 
 	else
-		retval=$(./ngram.counting $i $1 ./reference_data/`basename $1`.${i}.d --wordsearch-index-depth=${i} --numbuffers=1 >/dev/null)
+		retval=$(./ngram.counting $i $1 ./reference_data/`basename $1`.${i}.d --build-wordsearch-indexes --numbuffers=1 >/dev/null)
 	fi;
 	if [ $retval ];
 	then
@@ -42,5 +50,5 @@ for i in `seq 1 6`; do
 				fi;
 		done;
 	done;
-	echo "Done for number"${i};
+	echo "Done for number "${i};
 done;
