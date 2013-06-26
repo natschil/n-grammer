@@ -2,134 +2,227 @@
 
 using namespace std;
 
-//Replace any occurances of word with [word||] and any occurance of * not within square brackets with [*|*|]
-static void normalize_search_string_format(string& search_string_str)
+//This is taken directly from the ngram.counting.cpp file of the n-gram conter.
+static int get_next_ucs4t_from_file( const uint8_t (**ptr),const uint8_t* eof,ucs4_t *character)
 {
-	const char* search_string = search_string_str.c_str();
-	string new_search_string("");
-
-	const char* ptr;
-	bool in_brackets = false;
-	string current_inflexion("");
-	string current_classification("");
-	string current_lemma("");
-
-	string* current_string_part = &current_inflexion;
-
-	for(ptr = search_string; ; ptr++)
+	int read = 0;
+	while(eof > *ptr)
 	{
-		if(*ptr == ' '|| !*ptr)
-		{
-			if(in_brackets)
-			{
-				cerr<<"search: No spaces allowed within word descriptors for POS searches"<<endl;
-				exit(-1);
-			}else
-			{
-				if((ptr > search_string) && (*(ptr -1 ) != ']'))
-				{
-					new_search_string += ("[*|*|" + *current_string_part + "]");
-				}
-				if(*ptr)
-				{
-					new_search_string += ' ';
-				}
-				current_inflexion = "";
-				current_classification ="";
-				current_lemma="";
-				current_string_part = &current_inflexion;
-			}
-			if(!*ptr)
-				break;
-		}else if(*ptr == '[')
-		{
-			if(in_brackets)
-			{
-				cerr<<"search: No nesting of brackets allowd in search string"<<endl;
-				exit(-1);
-			}else
-			{
-				in_brackets = true;
-				current_inflexion = "";
-				current_classification ="";
-				current_lemma="";
-				current_string_part = &current_inflexion;
-				new_search_string += "[";
-			}
-		}else if(*ptr == ']')
-		{
-			if(!in_brackets)
-			{
-				cerr<<"search: Mismatched brackets in search string"<<endl;
-				exit(-1);
-			}else
-			{
-				if(current_string_part != &current_lemma)
-				{
-					cerr<<"search: Expected one more '|'"<<endl;
-					exit(-1);
-				}
-				if(current_lemma == "")
-				{
-					cerr<<"search:Empty search string part. Perhaps you mean '*'?"<<endl;
-					exit(-1);
-				}
-				new_search_string += current_lemma;
-				in_brackets = false;
-				current_inflexion = "";
-				current_classification ="";
-				current_lemma="";
-				current_string_part = &current_inflexion;
-				new_search_string += ']';
-			}
+		read = u8_mbtouc(character,*ptr,eof-*ptr);
+		if(read > 0)
+			break;
+		else
+			(*ptr)++;
+	}
 
-		}else if(*ptr == '|')
-		{
-			if(!in_brackets)
-			{
-				cerr<<"search: No '|' characters allowed outside of brackets"<<endl;
-				exit(-1);
-			}else
-			{
-				if(*current_string_part == "")
-				{
-					cerr<<"search: Found empty search string part. Did you maybe mean '*' instead?"<<endl;
-					exit(-1);
-				}
-				if(current_string_part != &current_lemma)
-				{
-					new_search_string += *current_string_part;
-					if(current_string_part == &current_inflexion)
-						current_string_part = &current_classification;
-					else
-						current_string_part = &current_lemma;
+	if(eof <= *ptr)
+	{
+		return 0;
+	}else
+	{
+		(*ptr) += read;
+	}
 
+	return 1;
+}
+
+/*
+ * This function both checks that the format of the POS search string is correct (i.e. doesn't contain things like [this|is|a|test])
+ * and also replaces occurances of * not within square brackets with [*|*|*] and words not within square brackets with [*|*|word]
+ * It normalizes the strings using the unicode NFKD normalization form and does other normalization, such as removing preceding hyphens
+ * It normalizes the strings using the unicode NFKD normalization form and does other normalization, such as removing preceding hyphens
+ * in the same way that getnextwordandaddit() does in ngram.counting of the n-gram counter.
+ */
+
+static void normalize_and_check_search_string(string& search_string_str,const Metadata &relevant_metadata)
+{
+	enum {IN_WHITESPACE,IN_CLASSIFICATION, IN_LEMMA,IN_INFLEXION,IN_SINGLE_WORD} state = IN_WHITESPACE;
+	string final_search_str;
+	ucs4_t character;
+
+	size_t word_size = max(max(relevant_metadata.max_word_size,relevant_metadata.max_classification_size),relevant_metadata.max_lemma_size);
+	size_t current_word_size = 0;
+	uint8_t* word = (uint8_t*)malloc(word_size);
+	
+	const uint8_t* ptr = (const uint8_t*) search_string_str.c_str();
+	const uint8_t* eof = ptr + strlen((const char*) ptr);
+
+	while(1)
+	{
+		int finished = !get_next_ucs4t_from_file(&ptr,eof,&character);
+		if(finished || uc_is_property_white_space(character))
+		{
+			if(state != IN_WHITESPACE)
+			{
+				if(state == IN_SINGLE_WORD)
+				{
+					if(((word[0] == '$') || (word[0] == '*')) && (current_word_size != 1))
+					{
+						cerr<<"'$' or '*' may not be part of a word"<<endl;
+						free(word);
+						exit(-1);
+					}
+
+
+					if(relevant_metadata.is_pos && (word[0] != '$' ))
+						final_search_str += "[*|*|";
+					uint8_t* normalized_word = (uint8_t*) malloc(word_size);
+					size_t normalized_word_size = word_size;	
+	
+					uint8_t* normalization_result = u8_normalize(UNINORM_NFKD,word,current_word_size,normalized_word, &normalized_word_size);
+					if(normalization_result > 0)
+					{
+						final_search_str += string((const char*) normalized_word, normalized_word_size);
+						current_word_size = 0;
+					}else
+					{
+						cerr<<"A word in the search string is longer than the maximum size in this index, and hence no results would be found"<<endl;
+						free(normalized_word);
+						free(word);
+						exit(-1);
+					}
+					free(normalized_word);
+
+					if(relevant_metadata.is_pos && (word[0] != '$'))
+						final_search_str += ']';
+
+					state = IN_WHITESPACE;
+					if(!finished)
+						final_search_str += ' ';
 				}else
 				{
-					cerr<<"search: Found '|' after lemma, Did you mean ']'?"<<endl;
+					cerr<<"Unexpected whitespace in search string, exiting"<<endl;	
+					free(word);
+					
 					exit(-1);
 				}
-
-				new_search_string += '|';
+				if(finished)
+					break;
 			}
-
-		}else if(*ptr == '*')
+		}else if(character == '|')
 		{
-			if((*current_string_part != "") && (!strchr("]| ",*(ptr+1))))
+			switch(state)
 			{
-				cerr<<"search: The '*' character must appear on its own in a search string part"<<endl;
+			case IN_WHITESPACE: 	cerr<<"Search string has invalid format, expected '[' instead of '|'"<<endl;
+					    	free(word);
+					    	exit(-1);
+			break;
+			case IN_CLASSIFICATION: state = IN_LEMMA; 
+			break;
+			case IN_LEMMA: 		state = IN_INFLEXION; 
+			break;
+			case IN_INFLEXION: 	cerr<<"Search string has invalid format, expected ']' instead of '|'"<<endl;
+					   	free(word);
+					   	exit(-1);
+			break;
+			case IN_SINGLE_WORD:	cerr<<"Search string has invalid format, expected ' ' instead of '|'"<<endl;
+						free(word);
+						exit(-1);
+			}
+			uint8_t* normalized_word = (uint8_t*) malloc(word_size);
+			size_t normalized_word_size = word_size;	
+
+			uint8_t* normalization_result = u8_normalize(UNINORM_NFKD,word,current_word_size,normalized_word, &normalized_word_size);
+			if(normalization_result > 0)
+			{
+				final_search_str += string((const char*) normalized_word, normalized_word_size);
+				current_word_size = 0;
+			}else
+			{
+				cerr<<"A word in the search string is longer than the maximum size in this index, and hence no results would be found"<<endl;
+				free(normalized_word);
+				free(word);
 				exit(-1);
 			}
+			free(normalized_word);
 
-			*current_string_part = '*';
-		}else{
-			*current_string_part += *ptr;
+			final_search_str += '|';
+
+		}else if(character == '[')
+		{
+			if(state != IN_WHITESPACE)
+			{
+				cerr<<"Unexpected '[' in search string"<<endl;
+				free(word);
+				exit(-1);
+			}else
+			{
+				final_search_str += '[';
+				state = IN_CLASSIFICATION;
+			}
+		}else if(character == ']')
+		{
+			if(state != IN_INFLEXION)
+			{
+				cerr<<"Unexpected ']' in search string"<<endl;
+				free(word);
+				exit(-1);
+			}else
+			{
+				uint8_t* normalized_word = (uint8_t*) malloc(word_size);
+				size_t normalized_word_size = word_size;	
+	
+				uint8_t* normalization_result = u8_normalize(UNINORM_NFKD,word,current_word_size,normalized_word, &normalized_word_size);
+				if(normalization_result > 0)
+				{
+					final_search_str += string((const char*) normalized_word, normalized_word_size);
+					current_word_size = 0;
+				}else
+				{
+					cerr<<"A word in the search string is longer than the maximum size in this index, and hence no results would be found"<<endl;
+					free(normalized_word);
+					free(word);
+					exit(-1);
+				}
+				free(normalized_word);
+
+				if(!finished)
+					final_search_str += "] ";
+				else
+					final_search_str += ']';
+				state = IN_WHITESPACE;
+			}
+		}else
+		{
+			if(state == IN_WHITESPACE)
+			{
+				state = IN_SINGLE_WORD;
+			}
+			if(uc_is_property_alphabetic(character))
+			{
+				character = uc_tolower(character);
+			}else if(!(current_word_size && (uc_is_property_hyphen(character) ||
+						      (uc_is_property_diacritic(character) && !uc_is_general_category(character,UC_MODIFIER_SYMBOL)))
+				  ))
+			{
+				if(!(((state == IN_SINGLE_WORD) && (character == '$'))) && (character != '*'))
+					continue;
+			}
+			int read = u8_uctomb(word + current_word_size, character,word_size - current_word_size);
+			if(read < 0)
+			{
+				cerr<<"A word in the search string is too long, and hence cannot exist in the index"<<endl;
+				free(word);
+				exit(-1);
+			}else
+			{
+				current_word_size += read;
+			}
 		}
 	}
-	search_string_str = new_search_string;
+	free(word);
+	search_string_str = final_search_str;
+	if(!relevant_metadata.is_pos && strchr(search_string_str.c_str(),'['))
+	{
+		cerr<<"You entered a POS search string for a non-POS corpus. Exiting"<<endl;
+		exit(-1);
+	}
 	return;
 }
 
+/*
+ * This function searches through the POS supplement indexes to generate search strings.
+ */
 static void flesh_partially_known_words(vector<string> &search_strings,string &foldername)
 {
 
@@ -141,12 +234,12 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 	current_filename = foldername + "/pos_supplement_index_i_c_l/0.out";
 	searchable_file *i_c_l = new searchable_file(current_filename);
 
-	//We do a simple breadth-first expanding of the relevant words...
+	//We do a simple breadth-first expansion of the relevant words...
 	while(1)
 	{
 		int found_some = 0;
 		vector<string> next_level_of_search_strings;
-		for(vector<string>::iterator i = search_strings.begin(); i!=search_strings.end(); i++)
+		for(auto i = search_strings.begin(); i != search_strings.end(); i++)
 		{
 			string current_search_string = *i;
 			string::iterator current_char = current_search_string.begin();
@@ -175,7 +268,7 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 						}else
 						{
 					   		string search_string = inflexion + " ";
-					 		string filter = search_string + "* *";
+					 		string filter = search_string + "* *\t";
 							index_used = i_c_l;
 							i_c_l->search(search_string,tmp_result,filter);
 						}
@@ -184,14 +277,14 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 						if(inflexion == "*")
 						{
 							string search_string = lemma + " ";
-							string filter = search_string + "* *";
+							string filter = search_string + "* *\t";
 							index_used = l_i_c;
 							l_i_c->search(search_string,tmp_result,filter);
 						}else
 						{
 
 							string search_string = lemma + " " +  inflexion + " "; 
-							string filter = search_string + "*";
+							string filter = search_string + "*\t";
 							index_used = l_i_c;
 							l_i_c->search(search_string,tmp_result,filter);
 						}
@@ -205,14 +298,14 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 					}else
 					{
 						string search_string = inflexion + " " +  classification + " ";
-						string filter = search_string + "*";
+						string filter = search_string + "*\t";
 						index_used = i_c_l;
 						i_c_l->search(search_string,tmp_result,filter);
 					}
 				}else if(inflexion == "*")
 				{
 					string search_string = classification + " " + lemma + " ";
-					string filter = search_string + "*";
+					string filter = search_string + "*\t";
 					index_used = c_l_i;
 					c_l_i->search(search_string,tmp_result,filter);
 				}
@@ -249,14 +342,17 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 					}
 					break;
 				}
-				current_char++;
-
+				if(current_char != current_search_string.end())
+					current_char++;
+				else
+				{
+					next_level_of_search_strings.push_back(current_search_string);
+				}
 			}
 		}
 		if(!found_some)
-		{
 			break;
-		}else
+		else
 			search_strings = next_level_of_search_strings;
 	}
 
@@ -269,8 +365,7 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 
 
 
-
-void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
+static vector<pair<vector<string>, long long int> > internal_search(map<unsigned int, Metadata> &metadatas,vector<string> arguments)
 {
 	if(!arguments.size())
 	{
@@ -286,20 +381,22 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	//We know that all of the metadatas are for the same file, and that there is at least one metadata.
 	bool is_pos = (metadatas.begin()->second).is_pos;
 
-	string search_string = arguments[0];
-	if(is_pos)
-	{
-		normalize_search_string_format(search_string);
-	}
+	string original_search_string = arguments[0];
 
-	//word positions that are part of the search string
-	size_t ngramsize = 0;
+	normalize_and_check_search_string(original_search_string,metadatas.begin()->second);
+	cerr<<"Searching using normalized search string \""<<original_search_string<<"\""<<endl;
+
+	unsigned int ngramsize = 0;
+	unsigned int original_ngramsize = 0;
+
+	//Vectors of word positions for words that we know, words that we partially know and words that are null:
 	vector<unsigned int> known_words;
 	vector<unsigned int> partially_known_words;
+	vector<unsigned int> null_words;
 	vector<string> tokenized_search_string;
 
-	//We tokenize the search string by spaces, and initialize the three variables above.
-	stringstream argumentstream(search_string);
+	//We tokenize the search string by spaces, and initialize the four variables above.
+	stringstream argumentstream(original_search_string);
 	string cur("");
 	while(getline(argumentstream,cur,' '))
 	{
@@ -311,7 +408,10 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 		{
 			if(cur != "*")
 			{
-				known_words.push_back(ngramsize);
+				if(cur == "$")
+					null_words.push_back(ngramsize);
+				else
+					known_words.push_back(ngramsize);
 			}
 		}else
 		{
@@ -328,20 +428,31 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 				}
 			}else
 			{
-				known_words.push_back(ngramsize);
+				if(cur == "$")
+				{
+					null_words.push_back(ngramsize);
+				}else
+					known_words.push_back(ngramsize);
 			}
 		}
 		tokenized_search_string.push_back(cur);						
 		ngramsize++;
 	}
+	original_ngramsize = ngramsize;
 
 	//We check if we have metadata for the index of that n-gram size
-	auto relevant_metadata_itr = metadatas.find(ngramsize);
+	auto relevant_metadata_itr = metadatas.lower_bound(ngramsize);
 	if(relevant_metadata_itr == metadatas.end())
 	{
-		cerr<<"search: Unable to find metadata for ngrams of size "<<ngramsize<<endl;
+		cerr<<"search: Unable to find metadata for ngrams of size "<<original_ngramsize<<" or greater"<<endl;
 		exit(-1);
 	}
+	ngramsize = relevant_metadata_itr->first;
+	for(size_t i = original_ngramsize; i < ngramsize; i++)
+	{
+		tokenized_search_string.push_back("*");
+	}
+
 	Metadata &relevant_metadata = relevant_metadata_itr->second;
 	if(is_pos && !relevant_metadata.pos_supplement_indexes_exist)
 	{
@@ -358,15 +469,23 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	{
 		size_t counter = 0;
 		size_t classification_only_counter = 0;
-		vector<unsigned int>::const_iterator j;
-		for(j = (*indexes_itr).begin(); j != (*indexes_itr).end(); j++)
+
+		for(auto j = null_words.begin(); j != null_words.end(); j++)
+		{
+			if(*((*indexes_itr).begin()) == *j)
+				goto continue_upper_loop;
+		}
+		if(0)
+		continue_upper_loop: continue;
+
+		for(auto j = indexes_itr->begin(); j != indexes_itr->end(); j++)
 		{
 			if(find(known_words.begin(),known_words.end(),*j) != known_words.end())
 				counter++;
 			else
 				break;
 		}
-		for(j = (*indexes_itr).begin(); j!=(*indexes_itr).end();j++)
+		for(auto j = (*indexes_itr).begin(); j!=(*indexes_itr).end();j++)
 		{
 			if(find(partially_known_words.begin()+matches, partially_known_words.end(),*j) != partially_known_words.end())
 				classification_only_counter++;
@@ -391,13 +510,14 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	}
 	//We output a little bit of info before we start the search
 	cerr<<"search: Searching with "<<matches<<" matches using index by";
-
-	for(size_t i = 0; i < search_index_to_use.size(); i++)
-	{
-		cerr<<"_";
-		cerr<<search_index_to_use[i];
-	}
+	for_each(search_index_to_use.begin(), search_index_to_use.end(),
+			[](const unsigned int &i) ->void
+			{
+			cerr<<"_"<<i;
+			}
+		);
 	cerr<<endl;
+
 	//We build a search string in the order that the index is in.
 	vector<string> tokenized_search_string_in_order;
 	for(size_t i = 0; i< ngramsize; i++)
@@ -423,11 +543,9 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	if(is_pos)
 	{
 		flesh_partially_known_words(all_search_strings,relevant_metadata.output_folder_name);
-		for(size_t i = 0; i<all_search_strings.size(); i++)
+		for(auto i = all_search_strings.begin(); i != all_search_strings.end(); i++)
 		{
-			string &this_search_string = all_search_strings[i];
-			this_search_string.erase(remove_if(this_search_string.begin(), this_search_string.end(), [](char c) {return (c == '[') || (c == ']');}),this_search_string.end());
-
+			i->erase(remove_if(i->begin(),i->end(), [](char c){return (c == '[') || (c == ']');}), i->end());
 		}
 	}
 	//We make a string which has the filename of the index:
@@ -460,17 +578,21 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 		}
 
 		filter.erase(remove_if(filter.begin(),filter.end(), [](char c) {return ((c == '[') || (c == ']'));}),filter.end());
+		if(*(filter.rbegin()) != '\t')
+			filter += '\t';
 
 		//We do the actual search
 		index_file->search(tosearchfor, results,filter);
 	}
 	
 		
+	vector<pair<vector<string>, long long int> > final_results_unreduced;
 	for(size_t i = 0; i < results.size(); i++)
 	{
-		string current_ngram = results[i];
+		vector<string> current_ngram_in_order_as_vector;
 
 		//We rearrange all of the strings we've found to be in the order that they are in the text.
+		string current_ngram = results[i];
 		stringstream current_ngram_stream(current_ngram);
 		vector<string> current_ngram_vector;
 		stringstream current_word;	
@@ -492,20 +614,115 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 		}
 		for(size_t i=0; i<search_index_to_use.size(); i++)
 		{
-			if(i)
-				cout<<" ";
 			for(size_t j = 0; j < search_index_to_use.size(); j++)
 			{
 				if(search_index_to_use[j] == i)
 				{
-					cout<<current_ngram_vector[j];
+					current_ngram_in_order_as_vector.push_back(current_ngram_vector[j]);
 					break;
 				}
 			}
 		}
-		cout<<"\t"<<current_ngram_vector[ngramsize]<<"\n";
+		const char* startptr = current_ngram_vector[ngramsize].c_str();
+		char* endptr;
+		long long int number = strtol(startptr,&endptr,10);
+		if((startptr != endptr) && (*endptr != '\n'))
+		{
+			final_results_unreduced.push_back(pair<vector<string>,long long int>(current_ngram_in_order_as_vector,number));
+		}else
+		{
+			cerr<<"Received invalid result"<<endl;
+			exit(-1);
+		}
+	}
+
+	//We sort the unreduced result by the n-gram part.
+	sort(final_results_unreduced.begin(),final_results_unreduced.end(),
+			[](const pair<vector<string>,long long int> &first, const pair<vector<string>,long long int> &second)
+			{
+				vector<string> first_ngram = first.first;	
+				vector<string> second_ngram = second.first;
+				auto i = first_ngram.begin();
+				auto j = second_ngram.begin();
+				int res = 0;
+				for(; i != first_ngram.end(); i++, j++)
+				{
+					res = i->compare(*j);
+					if(res)
+					{
+						return res < 0;
+					}
+				}
+				return res < 0;
+			}
+	    );
+
+	vector<pair<vector<string>, long long int> > final_results_reduced;
+
+	if(final_results_unreduced.begin() != final_results_unreduced.end())
+	{
+		pair<vector<string>, long long int> current_reduced_result;
+		for(size_t i = 0; i < original_ngramsize; i++)
+		{
+			current_reduced_result.first.push_back(final_results_unreduced.begin()->first[i]);
+		}
+		current_reduced_result.second = final_results_unreduced.begin()->second;
+	
+		for_each(final_results_unreduced.begin() + 1, final_results_unreduced.end(),
+				[&current_reduced_result,&original_ngramsize,&final_results_reduced](const pair<vector<string>,long long int> &cur)
+				{
+					unsigned int num_matches = 
+					[](const vector<string> &shorter_ngram, const vector<string> &second_ngram)->unsigned int
+					{
+						auto i =  shorter_ngram.begin();
+						auto j = second_ngram.begin();
+						unsigned int result = 0;
+						for(; i != shorter_ngram.end(); i++,j++)
+						{
+							if(!i->compare(*j))
+								result++;
+							else
+								break;
+						}
+						return result;
+					}(current_reduced_result.first,cur.first);
+
+					if(num_matches >= original_ngramsize)
+					{
+						current_reduced_result.second += cur.second;
+					}else
+					{
+						final_results_reduced.push_back(current_reduced_result);
+					}
+
+				}
+				);
+		final_results_reduced.push_back(current_reduced_result);
 	}
 
 	delete index_file;
-	return;		
+	return final_results_reduced;		
 }
+void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
+{
+	vector<pair<vector<string>, long long int> > results = internal_search(metadatas,arguments);
+	sort(results.begin(),results.end(),
+			[](const pair<vector<string>,long long int> &first,const pair<vector<string>, long long int> &second)->bool
+			{
+				return second.second > first.second;
+			}
+		    );
+	for_each(results.begin(),results.end(), 
+			[](const pair<vector<string>,long long int> &cur) -> void
+			{
+				for(auto i = cur.first.begin(); i != cur.first.end(); i++)
+				{
+					if(i != cur.first.begin())
+						cout<<" ";
+					cout<<*i;
+				}
+				cout<<"\t"<<cur.second<<"\n";
+			}
+		);
+}
+

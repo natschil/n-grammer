@@ -19,6 +19,14 @@
 
 #include <stdint.h>
 
+#include <unistr.h>
+#include <uninorm.h>
+#include <unitypes.h>
+#include <unictype.h>
+#include <unistdio.h>
+#include <unicase.h>
+
+
 #include "manage_metadata.h"
 #include "searchable_file.h"
 

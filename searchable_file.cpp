@@ -125,7 +125,7 @@ void searchable_file::search(string &search_str,vector<string> &results,string &
 			}
 			if(end_of_string_starting_at_i == mmaped_index_size)
 			{
-				cerr<<"Input file "<<index_filename<<" has incorrect formatting."<<endl;
+				cerr<<"searchable_file: Input file "<<index_filename<<" has incorrect formatting."<<endl;
 				exit(-1);
 			}
 
@@ -143,7 +143,7 @@ void searchable_file::search(string &search_str,vector<string> &results,string &
 				{
 					if(itr == mmaped_index_size)
 					{
-						cerr<<"File "<<index_filename<<" has incorrect formatting"<<endl;
+						cerr<<"searchable_file: File "<<index_filename<<" has incorrect formatting"<<endl;
 						exit(-1);
 					}
 					if(mmaped_index[itr] != '\n')
@@ -191,7 +191,7 @@ void searchable_file::search(string &search_str,vector<string> &results,string &
 						{
 							if(j == mmaped_index_size)
 							{
-								cerr<<"File "<<index_filename<<" has incorrect format"<<endl;
+								cerr<<"searchable_file: File "<<index_filename<<" has incorrect format"<<endl;
 							}
 							foundstring<<mmaped_index[j];
 						}
@@ -219,7 +219,7 @@ void searchable_file::search(string &search_str,vector<string> &results,string &
 				upper = i - 2;
 				if(upper > 0)
 				{
-					while(mmaped_index[upper] >= 0)
+					while(upper >= 0)
 					{
 						if(mmaped_index[upper] == '\n')
 							break;
@@ -240,87 +240,156 @@ searchable_file::~searchable_file()
 	close(fd);
 }
 
+/*
+ * This function returns true if a certain string from the n-gram database (result_s) matches a certain filter (filter_s) and 
+ * a certain search string (search_string_s).
+ * The filter string must have its beginning be equal to the search string, but may be longer than the search string.
+ * 	The filter string can end in something like the following, where the tab matches the single tab there is always in the results string (see below):
+ * 	For non-POS corpora: 
+ * 		"* someword *\t"
+ * 			 where '*' matches one word (and one word only) in the end result string.
+ * 	For POS corpora:
+ * 		"*|something|somethingorother np|something|*\t"
+ * 			where the * in this case matches a while word or lemma or type, as appropriate.
+ * 	All three strings must *not* have duplicate whitespace, where whitespace in this case is spaces and tabs.
+ * The result string must also, as its beginning, have the search string.
+ * 	The result string must end in "\t<some_number>"
+ */
 bool searchable_file::string_matches_filter(string &result_s, string &filter_s,string &search_string_s)
 {
-	const char* result = result_s.c_str();
-	const char* filter = filter_s.c_str();
-	const char* search_string = search_string_s.c_str();
-
-	if(strlen(filter) < strlen(search_string))
+	/* Make sure that the arguments are correctly formatted*/
+	if(filter_s.length() < search_string_s.length())
 	{
-		cerr<<"There is a bug somewhere..."<<endl;
+		cerr<<"searchable_file: Filter string length does not match search string length"<<endl;
+		exit(-1);
+	}else if(result_s.length() < search_string_s.length())
+	{
+		cerr<<"searchable_file: Result string length does not match search string length"<<endl;
+		exit(-1);
+	}else if(
+			strstr(result_s.c_str(),"  ") ||
+			strstr(result_s.c_str()," \t") || 
+		       	strstr(result_s.c_str(),"\t ") ||
+			count(result_s.begin(),result_s.end(), '\t') != 1
+
+		)
+	{
+		cerr<<"searchable_file: Result string has incorrect formatting"<<endl;
+		exit(-1);
+	}else if(
+			strstr(filter_s.c_str(),"  ") ||
+			strstr(filter_s.c_str()," \t") || 
+		       	strstr(filter_s.c_str(),"\t ") ||
+			count(filter_s.begin(),filter_s.end(),'\t') != 1
+		)
+	{
+		cerr<<"searchable_file: Filter string'"<<filter_s<<"' has incorrect formatting"<<endl,
+		exit(-1);
+	}else if(
+			strstr(search_string_s.c_str(),"  ") ||
+			strstr(search_string_s.c_str()," \t") || 
+		       	strstr(search_string_s.c_str(),"\t ") ||
+		       	strstr(search_string_s.c_str(),"\t\t") ||
+			(strchr(search_string_s.c_str(),'\t') && (*(search_string_s.rbegin()) != '\t'))
+		)
+	{
+		cerr<<"searchable_file: Search string has incorrect formatting";
+		exit(-1);
+	}else if(
+			!strchr(result_s.c_str(),'\t')
+		       	|| 
+			! all_of(strchr(result_s.c_str(),'\t') + 1, result_s.c_str() + result_s.length(),
+				[](const char &input)->bool
+				{
+					return (bool) isdigit(input);	
+				}
+			)
+		)
+	{
+		cerr<<"searchable_file: Results string should end in a tab and then a number, this seems to not be the case"<<endl;
+		exit(-1);
+	}else if(result_s.substr(0,search_string_s.length()) != search_string_s)
+	{
+		cerr<<"searchable_file: Results string should begin with search string, this is not the case and hence there is a bug somewhere"<<endl;
+		exit(-1);
+	}else if(filter_s.substr(0,search_string_s.length()) != search_string_s)
+	{
+		cerr<<"searchable_file: Filter string should begin with search string, this is not the case and hence there is a bug somewhere"<<endl;
 		exit(-1);
 	}
-	if(strlen(filter) == strlen(search_string))
-	{
-		return 1;
-	}
-	if(strlen(result) < strlen(search_string))
-	{
-		cerr<<"This indicates that there is a bug"<<endl;
-		exit(-1);
-	}
 
+
+
+	//Because we know that the initial portions of the search strings match, we simply start from there. We keep two pointers, one for the
+	//current place in filter and one for the corresponding place in the result string.
 	const char* filter_ptr;
 	const char* result_ptr;
-	for(filter_ptr= filter + strlen(search_string),result_ptr = result + strlen(search_string);; filter_ptr++,result_ptr++)
+	const char* result = result_s.c_str();
+	const char* filter = filter_s.c_str();
+	enum {CLASSIFICATION, LEMMA, INFLEXION} current_pos_part = CLASSIFICATION;
+
+	for(filter_ptr = filter,result_ptr = result ;;filter_ptr++)
 	{
-		if(!*filter_ptr)
+		switch(*filter_ptr)
 		{
-			if(*result_ptr)
+		//If there's a too early end of string.
+		case '\0': return false;
+		break;
+		case '*':
+			 if(!is_pos)
+			 {
+				//We skip forward to the next whitespace.
+				result_ptr = strpbrk(result_ptr, " \t");
+			 }else
+			 {
+				 switch(current_pos_part)
+				 {
+					 case CLASSIFICATION:
+					 case LEMMA:
+					 result_ptr = strchr(result,'|');
+					 if(!result_ptr)
+					 {	
+						cerr<<"searchable_file: Looking for '|' in pos index, but didn't find it, exiting"<<endl;
+						exit(-1);
+					 }
+					break;
+					case INFLEXION:
+					result_ptr = strpbrk(result," \t");
+					if(!result_ptr)
+					{
+						cerr<<"searchable_file: Expecting whitespace but did not find it, exiting"<<endl;
+						exit(-1);
+					}
+				 }
+			 }
+		break;
+
+		default:
+			if(*filter_ptr != *result_ptr)
+			{
+				return false;
+			}else
+			{
+				if(*filter_ptr == '\t')
+				{
+					return true;
+				}else if(is_pos && (*filter_ptr == '|'))
+				{
+					if(current_pos_part == CLASSIFICATION)
+						current_pos_part = LEMMA;
+					else if(current_pos_part == LEMMA)
+						current_pos_part = INFLEXION;
+				}else if(is_pos && (*filter_ptr == ' '))
+				{
+					current_pos_part = CLASSIFICATION;
+				}
+
 				result_ptr++;
-			else
-			{
-				cerr<<"It looks like there is a bug here"<<endl;
-				return 0;
-			}
-
-			if(isdigit(*result_ptr))
-			{
-				break;
-			}else
-			{
-				cerr<<"This is a (probably serious) bug in the filter mechanism of search for filter."<<endl;
-				return 0;
 			}
 		}
-		if(!*result_ptr)
-		{
-			cerr<<"This is a bug"<<endl;
-			exit(-1);
-		}
-		if(*filter_ptr == ' ')
-		{
-			continue;
-		}
-
-		if(*filter_ptr == '*')
-		{
-			//TODO: optimize this.
-			if(!is_pos)
-			{
-				const char* result_tmp = strpbrk(result_ptr," \t");
-				if(result_tmp)
-					result_ptr = result_tmp;
-				else
-					result_ptr = result_ptr + strlen(result_ptr);
-			}else
-			{
-				const char* result_tmp = strpbrk(result_ptr,"| \t");
-				if(result_tmp)
-					result_ptr = result_tmp;
-				else
-					result_ptr = result_ptr + strlen(result_ptr);
-			}
-			result_ptr--;
-			continue;
-		}
-
-		if(*filter_ptr != *result_ptr)
-			return 0;		
 	}
 
-	return 1;
+	return true;
 }
 
 
