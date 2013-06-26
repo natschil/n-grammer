@@ -693,6 +693,11 @@ static vector<pair<vector<string>, long long int> > internal_search(map<unsigned
 					}else
 					{
 						final_results_reduced.push_back(current_reduced_result);
+						for(size_t i = 0; i<original_ngramsize; i++)
+						{
+							current_reduced_result.first[i] = cur.first[i];
+						}
+						current_reduced_result.second = cur.second;
 					}
 
 				}
