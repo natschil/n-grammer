@@ -1,4 +1,4 @@
-N-Gram-Counter-Version:	2
+N-Gram-Counter-Version:	3
 Filename:	./corpora/very_tiny
 Numwords:	206
 Time:	0
@@ -27,5 +27,4 @@ InvertedIndexes:
 	inverted_by_3_0_1_4_2
 	inverted_by_3_4_0_1_2
 	inverted_by_4_0_1_2_3
-MaxFrequency:	7
 WordlengthStatsExist:	yes
