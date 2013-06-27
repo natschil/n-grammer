@@ -80,9 +80,6 @@ sub parse_metadata_file
 				
 				$current_metadata{"InvertedIndexes"}->{$index_name} = $index_name_without_by;
 			}
-		}elsif( $currentline =~ /^MaxFrequency:\t([0-9]+)\n$/)
-		{
-			$current_metadata{"MaxFrequency"} = int($1);
 		}elsif( $currentline =~ /^WordlengthStatsExist:\t(.*)\n$/)
 		{
 			if($1 eq "yes")
