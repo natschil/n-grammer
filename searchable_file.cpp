@@ -346,7 +346,17 @@ bool searchable_file::string_matches_filter(string &result_s, string &filter_s,s
 				 {
 					 case CLASSIFICATION:
 					 case LEMMA:
-					 result_ptr = strchr(result,'|');
+					//In the case of a null word we simply increment result_ptr, as MARKER1 below doesn't check current_pos_part
+					 if(*result_ptr != '$')	
+					 	result_ptr = strchr(result_ptr,'|');
+					 else
+					 {
+						result_ptr++;
+						filter_ptr = strpbrk(filter_ptr," \t");
+						filter_ptr--;
+					 }
+
+
 					 if(!result_ptr)
 					 {	
 						cerr<<"searchable_file: Looking for '|' in pos index, but didn't find it, exiting"<<endl;
@@ -354,7 +364,7 @@ bool searchable_file::string_matches_filter(string &result_s, string &filter_s,s
 					 }
 					break;
 					case INFLEXION:
-					result_ptr = strpbrk(result," \t");
+					result_ptr = strpbrk(result_ptr," \t");
 					if(!result_ptr)
 					{
 						cerr<<"searchable_file: Expecting whitespace but did not find it, exiting"<<endl;
@@ -380,6 +390,10 @@ bool searchable_file::string_matches_filter(string &result_s, string &filter_s,s
 					else if(current_pos_part == LEMMA)
 						current_pos_part = INFLEXION;
 				}else if(is_pos && (*filter_ptr == ' '))
+				{
+					//MARKER1: Do not check current_pos_part before setting it.
+					current_pos_part = CLASSIFICATION;
+				}else if(is_pos && (*result_ptr == '$'))
 				{
 					current_pos_part = CLASSIFICATION;
 				}

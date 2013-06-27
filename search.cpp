@@ -58,7 +58,7 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 				{
 					if(((word[0] == '$') || (word[0] == '*')) && (current_word_size != 1))
 					{
-						cerr<<"'$' or '*' may not be part of a word"<<endl;
+						cerr<<"search: '$' or '*' may not be part of a word"<<endl;
 						free(word);
 						exit(-1);
 					}
@@ -66,22 +66,23 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 
 					if(relevant_metadata.is_pos && (word[0] != '$' ))
 						final_search_str += "[*|*|";
+
 					uint8_t* normalized_word = (uint8_t*) malloc(word_size);
 					size_t normalized_word_size = word_size;	
 	
 					uint8_t* normalization_result = u8_normalize(UNINORM_NFKD,word,current_word_size,normalized_word, &normalized_word_size);
-					if(normalization_result > 0)
+					if(normalization_result)
 					{
 						final_search_str += string((const char*) normalized_word, normalized_word_size);
+						free(normalized_word);
 						current_word_size = 0;
 					}else
 					{
-						cerr<<"A word in the search string is longer than the maximum size in this index, and hence no results would be found"<<endl;
+						cerr<<"search: A word in the search string is longer than the maximum size in this index, and hence no results would be found"<<endl;
 						free(normalized_word);
 						free(word);
 						exit(-1);
 					}
-					free(normalized_word);
 
 					if(relevant_metadata.is_pos && (word[0] != '$'))
 						final_search_str += ']';
@@ -103,7 +104,12 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 		{
 			switch(state)
 			{
-			case IN_WHITESPACE: 	cerr<<"Search string has invalid format, expected '[' instead of '|'"<<endl;
+			case IN_WHITESPACE: 	
+						if(relevant_metadata.is_pos)
+							cerr<<"Search string has invalid format, expected '[' instead of '|'"<<endl;
+						else
+							cerr<<"Search string contains illegal character '|'. (It's a non-POS corpus)"
+								<<endl;
 					    	free(word);
 					    	exit(-1);
 			break;
@@ -111,11 +117,19 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 			break;
 			case IN_LEMMA: 		state = IN_INFLEXION; 
 			break;
-			case IN_INFLEXION: 	cerr<<"Search string has invalid format, expected ']' instead of '|'"<<endl;
+			case IN_INFLEXION: 	
+						if(relevant_metadata.is_pos)
+							cerr<<"Search string has invalid format, expected ']' instead of '|'"<<endl;
+						else
+							cerr<<"Search string contains illegal characeter '|'. (It's a non-POS corpus"<<endl;
 					   	free(word);
 					   	exit(-1);
 			break;
-			case IN_SINGLE_WORD:	cerr<<"Search string has invalid format, expected ' ' instead of '|'"<<endl;
+			case IN_SINGLE_WORD:	
+						if(relevant_metadata.is_pos)
+							cerr<<"Search string has invalid format, expected ' ' instead of '|'"<<endl;
+						else
+							cerr<<"Search string contains illegal character '|'. (It's a non-POS corpus)"<<endl;
 						free(word);
 						exit(-1);
 			}
@@ -123,9 +137,10 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 			size_t normalized_word_size = word_size;	
 
 			uint8_t* normalization_result = u8_normalize(UNINORM_NFKD,word,current_word_size,normalized_word, &normalized_word_size);
-			if(normalization_result > 0)
+			if(normalization_result)
 			{
 				final_search_str += string((const char*) normalized_word, normalized_word_size);
+				free(normalized_word);
 				current_word_size = 0;
 			}else
 			{
@@ -134,7 +149,6 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 				free(word);
 				exit(-1);
 			}
-			free(normalized_word);
 
 			final_search_str += '|';
 
@@ -147,8 +161,16 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 				exit(-1);
 			}else
 			{
-				final_search_str += '[';
-				state = IN_CLASSIFICATION;
+				if(relevant_metadata.is_pos)
+				{
+					final_search_str += '[';
+					state = IN_CLASSIFICATION;
+				}else
+				{
+					cerr<<"Search strings contains illegal character '['"<<endl;
+					free(word);
+					exit(-1);
+				}
 			}
 		}else if(character == ']')
 		{
@@ -159,6 +181,12 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 				exit(-1);
 			}else
 			{
+				if(!relevant_metadata.is_pos)
+				{
+					cerr<<"Unexpected ']' in search string. (It's a non-POS corpus)"<<endl;
+					free(word);
+					exit(-1);
+				}
 				uint8_t* normalized_word = (uint8_t*) malloc(word_size);
 				size_t normalized_word_size = word_size;	
 	
@@ -166,6 +194,7 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 				if(normalization_result > 0)
 				{
 					final_search_str += string((const char*) normalized_word, normalized_word_size);
+					free(normalized_word);
 					current_word_size = 0;
 				}else
 				{
@@ -174,7 +203,6 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 					free(word);
 					exit(-1);
 				}
-				free(normalized_word);
 
 				if(!finished)
 					final_search_str += "] ";
@@ -212,11 +240,6 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 	}
 	free(word);
 	search_string_str = final_search_str;
-	if(!relevant_metadata.is_pos && strchr(search_string_str.c_str(),'['))
-	{
-		cerr<<"You entered a POS search string for a non-POS corpus. Exiting"<<endl;
-		exit(-1);
-	}
 	return;
 }
 
@@ -229,8 +252,10 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 	//At first, we open the pos indexes
 	string current_filename(foldername + "/pos_supplement_index_c_l_i/0.out");
 	searchable_file *c_l_i = new searchable_file(current_filename);
+
 	current_filename = foldername + "/pos_supplement_index_l_i_c/0.out";
 	searchable_file *l_i_c = new searchable_file(current_filename);
+
 	current_filename = foldername + "/pos_supplement_index_i_c_l/0.out";
 	searchable_file *i_c_l = new searchable_file(current_filename);
 
@@ -356,8 +381,6 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 			search_strings = next_level_of_search_strings;
 	}
 
-
-
 	delete c_l_i;
 	delete l_i_c;
 	delete i_c_l;
@@ -450,7 +473,10 @@ static vector<pair<vector<string>, long long int> > internal_search(map<unsigned
 	ngramsize = relevant_metadata_itr->first;
 	for(size_t i = original_ngramsize; i < ngramsize; i++)
 	{
-		tokenized_search_string.push_back("*");
+		if(is_pos)
+			tokenized_search_string.push_back("[*|*|*]");
+		else
+			tokenized_search_string.push_back("*");
 	}
 
 	Metadata &relevant_metadata = relevant_metadata_itr->second;
@@ -540,10 +566,20 @@ static vector<pair<vector<string>, long long int> > internal_search(map<unsigned
 
 	all_search_strings.push_back(tosearchfor);
 
+	//At this point we remove all '[' s and ']'s as they were mainly there for aesthetic reasons anyways
 	if(is_pos)
 	{
 		flesh_partially_known_words(all_search_strings,relevant_metadata.output_folder_name);
 		for(auto i = all_search_strings.begin(); i != all_search_strings.end(); i++)
+		{
+			i->erase(remove_if(i->begin(),i->end(), [](char c){return (c == '[') || (c == ']');}), i->end());
+		}
+		for(auto i = tokenized_search_string.begin(); i != tokenized_search_string.end(); i++)
+		{
+			i->erase(remove_if(i->begin(),i->end(), [](char c){return (c == '[') || (c == ']');}), i->end());
+		}
+
+		for(auto i = tokenized_search_string_in_order.begin(); i != tokenized_search_string_in_order.end(); i++)
 		{
 			i->erase(remove_if(i->begin(),i->end(), [](char c){return (c == '[') || (c == ']');}), i->end());
 		}
@@ -657,9 +693,12 @@ static vector<pair<vector<string>, long long int> > internal_search(map<unsigned
 			}
 	    );
 
+	/*
+	 * At this point, in the case that we searched for n-grams in a (n+k)-gram index, we need to combine entries 
+	 * that are equal except for the last k words.
+	 */
 	vector<pair<vector<string>, long long int> > final_results_reduced;
-
-	if(final_results_unreduced.begin() != final_results_unreduced.end())
+	if((final_results_unreduced.begin() != final_results_unreduced.end()) && (ngramsize != original_ngramsize))
 	{
 		pair<vector<string>, long long int> current_reduced_result;
 		for(size_t i = 0; i < original_ngramsize; i++)
@@ -703,7 +742,11 @@ static vector<pair<vector<string>, long long int> > internal_search(map<unsigned
 				}
 				);
 		final_results_reduced.push_back(current_reduced_result);
+	}else
+	{
+		final_results_reduced = final_results_unreduced;
 	}
+
 
 	delete index_file;
 	return final_results_reduced;		
@@ -714,7 +757,7 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 	sort(results.begin(),results.end(),
 			[](const pair<vector<string>,long long int> &first,const pair<vector<string>, long long int> &second)->bool
 			{
-				return second.second > first.second;
+				return second.second < first.second;
 			}
 		    );
 	for_each(results.begin(),results.end(), 
