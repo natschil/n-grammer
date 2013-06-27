@@ -57,16 +57,18 @@ sub get_top
 	my $folder = $query->param("folder");
 	unless(exists($indexes->{$folder}))
 	{
-		say "/Folder $folder does not exist" and die;
+		say "/Folder $folder does not exist";
+		print "/Query did not execute successfully" and die;
 	}
 	my $howmany = scalar($query->param("howmany"));	
 	my $ngramsize = scalar($query->param("ngramsize"));
 	if(!$howmany or !$ngramsize)
 	{
-		say "/Invalid query" and die;
+		say "/Invalid query";
+		say "/Query did not execute successfully" and die;
 	}
 	my $pid = open3(my $analysis_stdin,my $analysis_stdout,my $analysis_stderr = "lvaluable",
-		"$ngram_analysis_location"," $ngram_indexes_dir/$folder", "get_top" ,"$ngramsize" ,"$howmany");
+		"$ngram_analysis_location","$ngram_indexes_dir/$folder", "get_top" ,"$ngramsize" ,"$howmany");
 	close($analysis_stdin);
 	waitpid($pid,0);
 	while(<$analysis_stderr>)
@@ -80,7 +82,10 @@ sub get_top
 
 	if($?)
 	{
-		print "/Error";
+		say "/Query did not execute successfully";
+	}else
+	{
+		say "/Query executed successfully";
 	}
 }
 
@@ -90,12 +95,15 @@ sub view_wordlength_stats
 	my $folder = $query->param("folder");
 	unless(exists($indexes->{$folder}))
 	{
-		say "/Folder $folder does not exist" and die;
+		say "/Folder $folder does not exist";
+		say "/Query did not execute successfully" and die;
 	}
 	my $ngramsize = scalar($query->param("ngramsize"));
 	if(!$ngramsize)
 	{
-		say "/Invalid query" and die;
+
+		say "/Invalid query";
+		say "/Query did not execute successfully" and die;
 	}
 	my $pid = open3(my $analysis_stdin,my $analysis_stdout,my $analysis_stderr = "lvaluable",
 		"$ngram_analysis_location","$ngram_indexes_dir/$folder","view_wordlength_stats","$ngramsize");
@@ -112,7 +120,10 @@ sub view_wordlength_stats
 
 	if($?)
 	{
-		print "/Error";
+		say "/Query did not execute successfully";
+	}else
+	{
+		say "/Query executed successfully";
 	}
 }
 
@@ -122,12 +133,15 @@ sub search
 	my $folder = $query->param("folder");
 	unless(exists($indexes->{$folder}))
 	{
-		say "/Folder $folder does not exist" and die;
+
+		say "/Folder $folder does not exist";
+		say "/Query did not execute successfully" and die;
 	}
 	my $search_string = $query->param("search_string");
 	if(!$search_string)
 	{
-		say "/Invalid query" and die;
+		say "/Invalid search string $search_string";
+		say "/Query did not execute successfully" and die;
 	}
 	my $pid = open3(my $analysis_stdin,my $analysis_stdout,my $analysis_stderr = "lvaluable",
 		"$ngram_analysis_location", "$ngram_indexes_dir/$folder", "search", "$search_string");
@@ -143,7 +157,10 @@ sub search
 	}
 	if($?)
 	{
-		print "/Error";
+		say "/Query did not execute successfully" and die;
+	}else
+	{
+		say"/Query executed successfully";
 	}
 
 }

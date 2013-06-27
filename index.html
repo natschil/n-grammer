@@ -1,3 +1,238 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
 <html>
+<head>
+	<style>
+		table, th,td
+		{
+			border: 1px solid black;
+			width: 50%
+		}
+		td
+		{
+			width: 0%;
+		}
 
+		#actions_table
+		{
+			float:right;
+		}
+
+		#all_indexes_table
+		{
+			float:left;
+		}
+	</style>
+<title>
+	Welcome!
+</title>
+<script>
+	"use strict;"
+
+	var query_folder = "";
+	var query_type = "search";
+
+	var $ = function(value)
+	{
+		return document.getElementById(value);
+	}
+	window.onload = function()
+	{
+		var all_indexes_request = new XMLHttpRequest;
+		all_indexes_request.onload = function()
+		{
+
+			all_indexes_request.responseText.split("\n").forEach(
+				function(entry)
+				{
+					if(entry[0] == "/")				
+					{
+						$("error_log").innerHTML += entry;
+						$("error_log").innerHTML += "<br/>";
+					}else
+					{
+						//Empty the table of indexes:	
+						try
+						{
+							var list_all_result = JSON.parse(entry);
+						}catch(e)
+						{
+							if(entry)
+							$("error_log").innerHTML += "An error seems to have occured<br/>";
+						}
+						for( var i in list_all_result)
+						{
+							var first_row = document.createElement("tr");
+							var first_row_first_col = first_row.appendChild(document.createElement("td"));
+							var radio_button = first_row_first_col.appendChild(document.createElement("input"));
+							radio_button.type="radio";
+							radio_button.name = "select_corpus";
+							radio_button.value = i;
+							radio_button.checked = true;
+							query_folder = i;
+							first_row_first_col.appendChild(document.createTextNode(i));
+
+							var first_row_second_col = first_row.appendChild(document.createElement("td"));
+							for(var ngramsize in list_all_result[i])
+							{
+								var header_text_node = document.createElement("h6");
+								header_text_node.innerHTML = ngramsize + "-grams";
+								first_row_second_col.appendChild(header_text_node);
+								for(var attribute_name in list_all_result[i][ngramsize])
+								{
+									if(["Filename","WorldlengthStatsExist","Numwords"].indexOf(attribute_name) > -1)
+									{
+										first_row_second_col.appendChild(document.createTextNode(
+										"\u00A0\u00A0\u00A0" + attribute_name + ":\u00A0\u00A0" + list_all_result[i][ngramsize][attribute_name]
+										));
+										first_row_second_col.appendChild(document.createElement("br"));
+									}else if(["InvertedIndexes","Indexes"].indexOf(attribute_name) > -1)
+									{
+										first_row_second_col.appendChild(document.createTextNode(
+											"\u00A0\u00A0\u00A0" + attribute_name
+										));
+										first_row_second_col.appendChild(document.createElement("br"));
+										for(var index in list_all_result[i][ngramsize][attribute_name])
+										{
+											first_row_second_col.appendChild(document.createTextNode(
+											"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + index
+											));
+											first_row_second_col.appendChild(document.createElement("br"));
+										}
+									}
+								}
+							}
+
+							radio_button.onclick = function()
+							{
+								query_folder = this.value;					
+							}
+
+							$("all_indexes_table").appendChild(first_row);
+						}
+					}
+				}
+				);
+		};
+		all_indexes_request.open("GET","./cgi-bin/ngramanalysis-wrapper.pl?action=list_all");
+		all_indexes_request.send(null);
+
+		$("run_query").onclick = function()
+		{
+			var query_request = new XMLHttpRequest;
+			query_request.onload = function()
+			{
+				results_area.innerHTML += "------------------\n";
+				results_area.innerHTML += "<br/>";
+				query_request.responseText.split("\n").forEach(
+					function(cur)
+					{
+						if(cur[0] == "/")
+						{
+							$("error_log").innerHTML += cur;
+							$("error_log").innerHTML += "<br/>"
+						}else
+						{
+							$("results_area").innerHTML += cur;
+							$("results_area").innerHTML +="<br/>";
+
+						}
+
+					}
+					);
+			}
+			var url ="/cgi-bin/ngramanalysis-wrapper.pl?";
+			url += "folder=" + window.escape(query_folder);
+			url += "&action=" + window.escape(query_type);
+			switch(query_type)
+			{
+				case "search":
+					url+= "&search_string=" + window.escape($("search_string").value);
+				break;
+				case "get_top":
+					url+="&ngramsize=" + window.escape($("ngram_number_get_top").value);
+					url+="&howmany=" + window.escape($("howmany").value);
+				break;
+				case "view_wordlength_stats":
+					url+="&ngramsize=" + window.escape($("ngram_number_wordlength_stats").value);
+				break;
+			}
+
+			query_request.open("get",url);
+			query_request.send(null);
+
+		}
+
+		for(var i in $("actions_part_of_table").getElementsByTagName("tr"))
+		{
+			var updateQueryType = function()
+			{
+				for(var j in $("params_part_of_table").getElementsByTagName("tr"))
+				{
+					if($("params_part_of_table").getElementsByTagName("tr")[j].style)
+						$("params_part_of_table").getElementsByTagName("tr")[j].style.visibility = "collapse";
+				}
+
+				$(this.value + "_param_row").style.visibility = "visible";
+				query_type = this.value;
+
+			};
+			if($("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName)
+				$("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName("input")[0].onclick = updateQueryType;
+		}
+
+
+	};
+</script>
+</head>
+<body>
+	<table id="all_indexes_table">
+		<th>Index Name </th>
+		<th>Details</th>
+	</table>
+	<table id="actions_table">
+		<th>Action</th>
+		<tbody id="actions_part_of_table">
+		<tr><td><input type="radio" name="action_result" value="search" checked />Search(*)</td></tr>
+		<tr><td><input type="radio" name="action_result" value="get_top"/>Show most frequent n-grams</td></tr>
+		<tr><td><input type="radio" name="action_result" value="view_wordlength_stats"/>Show wordlength statistics</td></tr>
+		</tbody>
+		<tr><td>
+<pre>
+(*) Entering a search string like "Piece * cake" would probably find
+	"piece of cake" in an english-language corpus.
+
+    For POS corpora, you can enter search strings like "[*|piece|*] of cake",
+    which would find n-grams like
+	"piece of cake"
+    or
+	"pieces of cake".
+    The POS notation above takes the form [type|lemma|word], where an asterisk
+    means a wildcard.
+
+    Each word of the result of a search on a POS corpus has the form
+    [type|lemma|word] in the result.
+</pre>
+		</td></tr>
+		<th> Parameters </th>
+		<tbody id="params_part_of_table">
+		<tr id="search_param_row"><td >Search String:<input type="text" id="search_string"></td> </tr>
+		<tr id="get_top_param_row" style="visibility:collapse"><td>
+				N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_get_top"><br/>
+				Number of results to show: <input type="text" id="howmany"/>
+		</td> </tr>
+		<tr id="view_wordlength_stats_param_row" style="visibility:collapse"><td>N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_wordlength_stats"></td> </tr>
+		</tbody>
+		<th> Notification Type </th>
+		<tr><td><input type="radio" name="notification_type" value="web" checked="true"/>On this website (results will appear below)</td></tr>
+		<tr><td><input type="radio" name="notification_type" value="email"/>Per email to <input type="text" id="email_input"/></td></tr>
+		<tr><td><input type="button" value="Go!" id="run_query"/></td></tr>
+		<th> Log </th>
+		<tr><td id="error_log"/></tr>
+		<th> Results</th>
+		<tr><td id="results_area"</td></tr>
+
+	</table>
+	</table>
+</body>
 </html>
