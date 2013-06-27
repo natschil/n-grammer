@@ -29,7 +29,6 @@ Metadata::Metadata(string &metadata_filename)
 	this->metadata_filename = metadata_filename;
 	this->file_exists_already = true; //Assume it is valid until we find out otherwise.
 
-	this->max_frequency = 0;
 	this->wordlength_stats_exist = 0;
 
 
@@ -160,9 +159,6 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 				pos_supplement_indexes_exist = true;
 			}
 			metadata_file.unget();//Because we swallowed the newline character in getline() which the line below was supposed to swallow
-		}else if(nextline == "MaxFrequency")
-		{
-			metadata_file >> max_frequency;
 		}else if(nextline == "WordlengthStatsExist")
 		{
 			string wordlength_stats_exist_str;
@@ -220,8 +216,6 @@ void Metadata::write(void)
 		}
 		outfile<<"\n";
 	}
-	if(this->max_frequency)
-		outfile<<"MaxFrequency:\t"<<max_frequency<<"\n";
 	if(this->wordlength_stats_exist)
 		outfile<<"WordlengthStatsExist:\tyes\n";
 	return;
