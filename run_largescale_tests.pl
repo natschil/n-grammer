@@ -8,6 +8,9 @@ use File::Basename;
 use File::Compare;
 use File::Path 'remove_tree';
 
+#Force flush of stdout.
+$|=1;
+
 #TODO: Fix the ugly code below to something that is better.
 do "perl_metadata_management.pl";
 
@@ -20,7 +23,9 @@ if( $#ARGV != 0)
 my $reference_dir = "./reference_data/" . basename($ARGV[0]);
 my $tests_dir = "./tests_output/" .basename($ARGV[0]) ;
 
+say "Removing previous tests";
 remove_tree($tests_dir);
+say "Copying reference data";
 if(system("cp -r $reference_dir $tests_dir"))
 {
 	say "Unable to copy indexes to test directory";
@@ -30,9 +35,10 @@ if(system("cp -r $reference_dir $tests_dir"))
 $reference_dir .= "/";
 $tests_dir .= "/";
 
-#test inverted indexes and wordlenght stats.
+#test inverted indexes and wordlength stats.
 for my $i (1 .. 8)
 {
+	say "Parsing metadata";
 	my $reference_metadata = parse_metadata_file($reference_dir,$i) ;
 
 	#Test inverting the indexes
@@ -124,43 +130,105 @@ for my $i (1 .. 8)
 		"this is * * * a sentence",
 		"this * an * of * sentence *"
 	);
+	my @search_strings_pos_first = (
+		"",
+		"[in|in|in]",
+		"[in|in|in] [dt|the|the]",
+		"[in|in|in] [dt|the|the] [np|uk|uk]",
+		"[dt|a|a] [nn|number|number] [in|of|of]",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|national|national]",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|important|important] [nns|question|questions]",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|educational|educational] [nns|aim|aims] \$",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|educational|educational] [nns|aim|aims] \$ \$",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|educational|educational] [nns|aim|aims] \$ \$ \$",
+	);
+	my @search_strings_pos_second = (
+		"",
+		"[in|*|in]",
+		"[*|in|in] [dt|the|*]",
+		"[in|*|in] [dt|*|the] [np|uk|uk]",
+		"[dt|a|*] [nn|*|number] [*|of|of]",
+		"[*|a|a] [*|number|number] [*|of|of] [jj|national|national]",
+		"[dt|a|a] [nn|*|number] [in|of|*] [jj|important|important] [nns|question|*]",
+		"[*|a|a] [nn|number|number] [in|*|of] [jj|educational|educational] [nns|aim|aims] \$",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|*|educational] [nns|aim|aims] \$ \$",
+		"[dt|a|a] [nn|number|number] [in|of|*] [jj|educational|*] [nns|aim|aims] \$ \$ \$",
+	);
 	unless($reference_metadata->{"isPos"})
 	{
-		if( system(
-				"./ngram.analysis $tests_dir search ".
-					"\"$search_strings_non_pos_first[${i}]\" > ${tests_dir}/${i}_grams_search_first_out 2>/dev/null"
-				))
+		for my $j (1 .. $i)
 		{
-			die "Running search failed for $i-grams";
-		}
-		if(compare(${tests_dir}.$i."_grams_search_first_out",${reference_dir}.$i."_grams_search_first_out"))
-		{
-			die "Search (without wildcards) produced wrong results";
-		
-		}
-
-		if( system(
-				"./ngram.analysis $tests_dir search " .
-					"\"$search_strings_non_pos_second[${i}]\" > ${tests_dir}/${i}_grams_search_second_out 2>/dev/null"
-				))
-		{
-			die "Running search failed for $i-grams";
-		}
-
-		if(compare(${tests_dir}.$i."_grams_search_second_out",${reference_dir}.$i."_grams_search_second_out"))
-
-		{
-			die "Search (with wildcards) produced wrong results";
-		
-		}
-
-		say "Succeeded in testing search for $i-grams";
+			if( system(
+					"./ngram.analysis $tests_dir search ".
+						"\"$search_strings_non_pos_first[${j}]\" > ${tests_dir}/${j}_grams_search_first_out 2>/dev/null"
+					))
+			{
+				die "Running search failed for $i-grams";
+			}
+			if(compare(${tests_dir}.$j."_grams_search_first_out",${reference_dir}.$j."_grams_search_first_out"))
+			{
+				die "Search (without wildcards) produced wrong results";
+			
+			}
 	
-	}
+			if( system(
+					"./ngram.analysis $tests_dir search " .
+						"\"$search_strings_non_pos_second[${j}]\" > ${tests_dir}/${j}_grams_search_second_out 2>/dev/null"
+					))
+			{
+				die "Running search failed for $i-grams";
+			}
+	
+			if(compare(${tests_dir}.$j."_grams_search_second_out",${reference_dir}.$j."_grams_search_second_out"))
+	
+			{
+				die "Search (with wildcards) produced wrong results";
+			
+			}
+		}
+		say "Succeeded in testing search for $i-grams";
+		
+		
+	}else
+	{
+		for my $j (1 .. $i)
+		{
+			if( system(
+					"./ngram.analysis $tests_dir search ".
+						"\"$search_strings_pos_first[${j}]\" > ${tests_dir}/${j}_grams_search_first_out 2>/dev/null"
+					))
+			{
+				die "Running search failed for $i-grams";
+			}
+			if(compare(${tests_dir}.$j."_grams_search_first_out",${reference_dir}.$j."_grams_search_first_out"))
+			{
+				die "Search (without wildcards) produced wrong results";
+			
+			}
+	
+			if( system(
+					"./ngram.analysis $tests_dir search " .
+						"\"$search_strings_pos_second[${j}]\" > ${tests_dir}/${j}_grams_search_second_out 2>/dev/null"
+					))
+			{
+				die "Running search failed for $i-grams";
+			}
+	
+			if(compare(${tests_dir}.$j."_grams_search_second_out",${reference_dir}.$j."_grams_search_second_out"))
+	
+			{
+				die "Search (with wildcards) produced wrong results";
+			
+			}
+		}
+		say "Succeeded in testing search for $i-grams";
+		
+		
+		}
+
 
 
 
 
 
 }
-#Test some 

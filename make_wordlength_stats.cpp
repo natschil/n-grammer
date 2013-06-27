@@ -22,11 +22,17 @@ void make_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 	}
 
 	Metadata &relevant_metadata = relevant_metadata_itr->second;
-	if(relevant_metadata.indices.begin() == relevant_metadata.indices.end())
+	if(relevant_metadata.is_pos)
 	{
-		cerr<<"No indexes found for "<<ngram_size<<"-grams"<<endl;
+		cerr<<"make_wordlength_stats: Cannot operate on POS indexes"<<endl;
 		exit(-1);
 	}
+	if(relevant_metadata.indices.begin() == relevant_metadata.indices.end())
+	{
+		cerr<<"make_wordlength_stats: No indexes found for "<<ngram_size<<"-grams"<<endl;
+		exit(-1);
+	}
+
 	stringstream index_as_string_stream;
 	for(unsigned int i = 0; i< ngram_size; i++)
 	{

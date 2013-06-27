@@ -8,7 +8,7 @@ static inline unsigned int integer_pow_10(unsigned int num)
 	return result;
 }
 
-static void get_max_frequency(Metadata &relevant_metadata, string &foldername)
+static long long int get_max_frequency(Metadata &relevant_metadata, string &foldername)
 {
 	long long int max_freq = 0;
 
@@ -63,7 +63,7 @@ static void get_max_frequency(Metadata &relevant_metadata, string &foldername)
 	}
 	fclose(index_file);
 	free(line_buf);
-	relevant_metadata.max_frequency = max_freq;
+	return max_freq;
 }
 
 void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
@@ -135,12 +135,9 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	string foldername = relevant_metadata.output_folder_name + string("/") + string("by_") + arguments[0];
 	string out_filename = relevant_metadata.output_folder_name + string("/")+  string("inverted_by_") + arguments[0];
 
-	if(!relevant_metadata.max_frequency)
-	{
-		get_max_frequency(relevant_metadata,foldername);
-	}
+	long long max_frequency = get_max_frequency(relevant_metadata,foldername);
 
-	long long int *table = (long long int*) calloc(relevant_metadata.max_frequency + 1,sizeof(*table));
+	long long int *table = (long long int*) calloc(max_frequency + 1,sizeof(*table));
 
 	//We use a type of counting sort
 	string filename  = foldername + string("/0.out");
@@ -209,7 +206,7 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	free(line_buf);
 
 	//We sift down:
-	for(size_t i = relevant_metadata.max_frequency; i>1;i--)
+	for(size_t i = max_frequency; i>1;i--)
 		table[i -1] += table[i];
 
 	//We open the output file, set it to the correct size and then mmap it.
@@ -234,11 +231,20 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		exit(-1);
 	}
 
+
+	long long current_offset = 0;
+	currentfile = fopen(filename.c_str(),"r");
+	if(!currentfile)
+	{
+		cerr<<"invert_index: Unable to open input index file:"<<filename<<endl;
+		free(table);
+		munmap(outfile_map,output_file_size);
+		exit(-1);
+	}
+
 	//The last stage of the distribution sort
 	line_buf_size = 1024;
 	line_buf = (char*) malloc(line_buf_size);
-	long long current_offset = 0;
-	currentfile = fopen(filename.c_str(),"r");
 	while((read = getline(&line_buf,&line_buf_size,currentfile)) > 0)
 	{
 		//Set ptr to point to the newline after the number.

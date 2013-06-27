@@ -76,8 +76,6 @@ class Metadata
 
 		//The set of inverted indexes, by frequency of occurance.
 		set<vector<unsigned int> > inverted_indices;
-		//The maximal frequency found in the database
-		unsigned int max_frequency;
 
 		//Whether or not wordlength statistics exist.
 		bool wordlength_stats_exist;

@@ -97,9 +97,9 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 					
 					exit(-1);
 				}
-				if(finished)
-					break;
 			}
+			if(finished)
+				break;
 		}else if(character == '|')
 		{
 			switch(state)

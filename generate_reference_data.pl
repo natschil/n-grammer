@@ -38,20 +38,24 @@ for my $i (1 .. 8)
 	}
 
 
-	if(system("./ngram.analysis $processing_dir make_wordlength_stats $i"))
+	unless($current_metadata->{"isPos"})
 	{
-		die "make_wordlength_stats failed for $i-grams";
-	}else
-	{
-		say "Generated reference data for make_wordlength_stats for $i-grams";
-	}
+		if(system("./ngram.analysis $processing_dir make_wordlength_stats $i"))
+		{
+			die "make_wordlength_stats failed for $i-grams";
+		}else
+		{
+			say "Generated reference data for make_wordlength_stats for $i-grams";
+		}
 
-	if(system("./ngram.analysis $processing_dir view_wordlength_stats $i > ${processing_dir}/${i}_grams_view_wordlength_out 2>/dev/null"))
-	{
-		die "view_wordlength_stats failed for $i-grams";
-	}else
-	{
-		say "Generated reference data for view_wordlenth_stats for $i-grams";
+		if(system("./ngram.analysis $processing_dir view_wordlength_stats $i > ${processing_dir}/${i}_grams_view_wordlength_out 2>/dev/null"))
+		{
+			die "view_wordlength_stats failed for $i-grams";
+		}else
+		{
+			say "Generated reference data for view_wordlenth_stats for $i-grams";
+		}
+
 	}
 
 	my @search_strings_non_pos_first = (
@@ -79,6 +83,32 @@ for my $i (1 .. 8)
 	);
 
 
+	my @search_strings_pos_first = (
+		"",
+		"[in|in|in]",
+		"[in|in|in] [dt|the|the]",
+		"[in|in|in] [dt|the|the] [np|uk|uk]",
+		"[dt|a|a] [nn|number|number] [in|of|of]",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|national|national]",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|important|important] [nns|question|questions]",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|educational|educational] [nns|aim|aims] \$",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|educational|educational] [nns|aim|aims] \$ \$",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|educational|educational] [nns|aim|aims] \$ \$ \$",
+	);
+	my @search_strings_pos_second = (
+		"",
+		"[in|*|in]",
+		"[*|in|in] [dt|the|*]",
+		"[in|*|in] [dt|*|the] [np|uk|uk]",
+		"[dt|a|*] [nn|*|number] [*|of|of]",
+		"[*|a|a] [*|number|number] [*|of|of] [jj|national|national]",
+		"[dt|a|a] [nn|*|number] [in|of|*] [jj|important|important] [nns|question|*]",
+		"[*|a|a] [nn|number|number] [in|*|of] [jj|educational|educational] [nns|aim|aims] \$",
+		"[dt|a|a] [nn|number|number] [in|of|of] [jj|*|educational] [nns|aim|aims] \$ \$",
+		"[dt|a|a] [nn|number|number] [in|of|*] [jj|educational|*] [nns|aim|aims] \$ \$ \$",
+	);
+
+
 
 	unless($current_metadata->{"isPos"})	
 	{
@@ -99,6 +129,21 @@ for my $i (1 .. 8)
 		say "Generated search reference data for $i-grams";
 	}else
 	{
+		if( system(
+				"./ngram.analysis $processing_dir search ".
+					"\"$search_strings_pos_first[${i}]\" > ${processing_dir}/${i}_grams_search_first_out 2>/dev/null"
+				))
+		{
+			die "search failed for $i-grams";
+		}
+		if( system(
+				"./ngram.analysis $processing_dir search " .
+					"\"$search_strings_pos_second[${i}]\" > ${processing_dir}/${i}_grams_search_second_out 2>/dev/null"
+				))
+		{
+			die "search failed for $i-grams";
+		}
+		say "Generated search reference data for $i-grams";
 
 	}
 }
