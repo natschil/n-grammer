@@ -7,7 +7,7 @@ sub parse_metadata_file
 {
 	my ($processing_dir,$i) = @_;
 	my %current_metadata;
-	open(METADATA_FILE,$processing_dir . "${i}_grams.metadata") or die "Unable to open $processing_dir ${i}_grams.metadata";
+	open(METADATA_FILE,$processing_dir . "/${i}_grams.metadata") or die "Unable to open $processing_dir/${i}_grams.metadata";
 	while(my $currentline = <METADATA_FILE>)
 	{
 		if( $currentline =~ /^N-Gram-Counter-Version:\t([0-9]+)\n$/)
