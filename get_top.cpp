@@ -139,7 +139,7 @@ void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 		exit(-1);
 	}
 	string currentline;
-	cout<<"N-gram\tFrequency\tFreqPerMillion"<<endl;
+	cerr<<"N-gram\tFrequency\tFreqPerMillion"<<endl;
 	for(size_t i = 0; i< num_to_display && getline(inverted_index_file,currentline);i++)
 	{
 		const char* to_work_with = currentline.c_str();
