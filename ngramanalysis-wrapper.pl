@@ -7,11 +7,15 @@ use CGI;
 use JSON;
 use Cwd;
 use IPC::Open3;
+use Email::Send::SMTP::Gmail;
+
 use perl_metadata_management;
 
 
 my $ngram_indexes_dir = "/var/www/html/ngram-indexes/";
 my $ngram_analysis_location = "/home/nathanael/dev/ngram.analysis/ngram.analysis";
+my $sending_email_account = 'ngramanalysis.cyserver@gmail.com';
+my $sending_email_password = "somepassword";
 
 my $q = CGI->new;
 print $q->header(-type=>'text/plain',-charset=>"utf-8");
@@ -71,22 +75,8 @@ sub get_top
 		"$ngram_analysis_location","$ngram_indexes_dir/$folder", "get_top" ,"$ngramsize" ,"$howmany");
 	close($analysis_stdin);
 	waitpid($pid,0);
-	while(<$analysis_stderr>)
-	{
-		print "/",$_;
-	}
-	while(<$analysis_stdout>)
-	{
-		print $_;
-	}
 
-	if($?)
-	{
-		say "/Query did not execute successfully";
-	}else
-	{
-		say "/Query executed successfully";
-	}
+	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
 }
 
 sub view_wordlength_stats
@@ -109,22 +99,7 @@ sub view_wordlength_stats
 		"$ngram_analysis_location","$ngram_indexes_dir/$folder","view_wordlength_stats","$ngramsize");
 	close($analysis_stdin);
 	waitpid($pid,0);
-	while(<$analysis_stderr>)
-	{
-		print "/",$_;
-	}
-	while(<$analysis_stdout>)
-	{
-		print $_;
-	}
-
-	if($?)
-	{
-		say "/Query did not execute successfully";
-	}else
-	{
-		say "/Query executed successfully";
-	}
+	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
 }
 
 sub search
@@ -147,21 +122,127 @@ sub search
 		"$ngram_analysis_location", "$ngram_indexes_dir/$folder", "search", "$search_string");
 	close($analysis_stdin);
 	waitpid($pid,0);
+	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
+
+
+}
+
+sub output_results
+{
+	my ($query,$folder,$analysis_stdout,$analysis_stderr) = @_;
+	my $notification_type = $query->param("notification_type");
+
+	if(($notification_type eq "email") and !($query->param("email_address")))
+	{
+		print "/"."Please enter an email address" and die;
+	}
+
+	my $hours = (localtime)[2];
+	my $message = "Good ";
+
+	$message .= "Morning" if ($hours >= 4) && ($hours < 12);
+	$message .= "Afternoon" if ($hours >= 12) && ($hours < 17);
+	$message .= "Evening" if ($hours >= 17) && ($hours < 22);
+	$message .= "Day" if ($hours < 4) || ($hours >= 22);
+	
+	$message .=",\n";
+	given($action)
+	{
+		when("search")
+		{
+			my $search_string = $query->param("search_string");
+		$message .= <<HEREDOC;
+Here are your results for your search on the database $folder for "$search_string".
+
+Log messages output during this search:
+---------------------
+HEREDOC
+		}
+		when("get_top")
+		{
+		my $ngramsize = scalar($query->param("ngramsize"));
+		my $howmany = scalar($query->param("howmany"));
+		$message .= <<HEREDOC;
+Here are your results for your query to list the top $howmany most frequent $ngramsize-grams.
+
+Log messages output during this query:
+---------------------
+HEREDOC
+		}
+		when("view_wordlength_stats")
+		{
+		my $ngramsize = scalar($query->param("ngramsize"));
+		$message .= <<HEREDOC;
+Here are your results for your query for length-statistics for $ngramsize-grams.
+Please bear in mind that these length statistics are in utf-8 code unit length, and hence do not accurately reflect the actual number of glyphs
+in the n-gram.
+
+Log messages output during this query:
+---------------------
+HEREDOC
+		}
+	}
+
 	while(<$analysis_stderr>)
 	{
+		$message .= "\t$_" if $notification_type eq "email";
 		print "/",$_;
-	}
-	while(<$analysis_stdout>)
-	{
-		print $_;
 	}
 	if($?)
 	{
+		$message .= "\tQuery did not execute successfully" if $notification_type eq "email";
 		say "/Query did not execute successfully" and die;
 	}else
 	{
+		$message .= "\tQuery executed successfully" if $notification_type eq "email";
 		say"/Query executed successfully";
 	}
+	$message .="\n---------------------\n";
+	$message .= "Here are the results:\n";
+	$message .="\n---------------------\n";
+	while(<$analysis_stdout>)
+	{
+		($notification_type eq "email") ? ($message .= $_) : (print $_);
+	}
+	$message .="\n---------------------\n";
+	if($notification_type eq "email")
+	{
+		my $email = Email::Send::SMTP::Gmail->new
+		(
+			-smtp => "smtp.gmail.com",
+			-login => $sending_email_account,
+			-pass => $sending_email_password,
+		);
+
+		my $subject = "N-gram analysis ";
+		given($action)
+		{
+			when("search")
+			{
+				my $search_string = $query->param("search_string");
+				$subject .= "results for search $search_string in folder $folder";
+			};
+			when("get_top")
+			{
+				my $ngramsize = scalar($query->param("ngramsize"));
+				my $howmany = scalar($query->param("howmany"));
+				$subject .= "list of $howmany most frequent $ngramsize-grams in folder $folder";
+			}
+			when("view_wordlength_stats")
+			{
+				my $ngramsize = scalar($query->param("ngramsize"));
+				$subject .= "wordlength information for $ngramsize-grams in folder $folder";
+			}
+		}
+		$email->send(
+			-to => $query->param("email_address"),
+			-subject => $subject,
+			-body => $message,
+		);
+		$email->bye;
+		say "/Sent email successfully to ". $query->param("email_address");
+	}
+
 
 }
 

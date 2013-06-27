@@ -1,0 +1,10 @@
+A Web interface for ngram.analysis
+
+This program provides a GUI for the ngram.analysis program in the form of a web interface.
+Put the file index.html somewhere onto the server.
+Put the files ngramanalysis-wrapper.pl and perl_metadata_management.pm into the /cgi-bin/
+folder of the webserver. Configure the variables at the start of ngramanalyss-wrapper.pl.
+See there for details.
+
+This program relies on the Email::Send::SMTP::Gmail package to have been installed.
+
