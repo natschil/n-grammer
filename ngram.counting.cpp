@@ -804,7 +804,6 @@ long long int count_ngrams(
 			unsigned int local_buffercount = current_schedule_entry.first.buffercount;
 			//To make swapping words in the sorting step easier, we have a special "null_word" instead of simply checking for NULL.
 			//We define that here.
-			//TODO: Check whether this actually makes the program more efficient or not.
 			word local_null_word;
 			size_t maximum_single_allocation = 0;
 			if(is_pos && build_pos_supplement_indexes)

@@ -730,7 +730,7 @@ void IndexCollection::writeBufferToDisk(unsigned int buffercount,unsigned int ri
 			);
 	}
 	
-		//We now see which words are equal: TODO: move this into the sorting step.
+	//We now see which words are equal: 
 	word* prev_ptr = buffer_top-1;
 
 	for(word* ptr = buffer_top-1; ptr >= buffer_bottom; ptr--)
@@ -813,7 +813,6 @@ void IndexCollection::copyToFinalPlace(int k)
 {
 	for(size_t i = 0; i < numcombos;i++)
 	{
-		//TODO: Copy any relevant metadata here...
 		char* finalpath = (char*) malloc(strlen(prefixes[i]) * sizeof(*finalpath) + 1);
 		strcpy(finalpath,prefixes[i] + 4);//To remove preceding "tmp."
 		recursively_remove_directory(finalpath);
