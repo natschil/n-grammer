@@ -701,7 +701,7 @@ long long int count_ngrams(
 
 
    //We map the file to a region of memory, telling the kernel to cache it where applicable.
-	uint8_t* infile = (uint8_t*)mmap(NULL,filesize,PROT_READ, MAP_PRIVATE,fd,0);
+	uint8_t* infile = (uint8_t*)mmap(NULL,filesize,PROT_READ, MAP_SHARED,fd,0);
 	if((void*)infile == (void*) -1)
 	{
 		close(fd);
