@@ -43,6 +43,10 @@ given ($action)
 	{
 		search($q,$all_indexes);
 	};
+	when("entropy_of")
+	{
+		entropy_of($q,$all_indexes);
+	}
 	default
 	{
 		say "/Invalid or nonexistent 'action' parameter $action" and die;
@@ -124,9 +128,31 @@ sub search
 	waitpid($pid,0);
 	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
 
+}
+sub entropy_of
+{
+	my ($query,$indexes) = @_;
+	my $folder = $query->param("folder");
+	unless(exists($indexes->{$folder}))
+	{
+
+		say "/Folder $folder does not exist";
+		say "/Query did not execute successfully" and die;
+	}
+	my $search_string = $query->param("search_string");
+	if(!$search_string)
+	{
+		say "/Invalid search string $search_string";
+		say "/Query did not execute successfully" and die;
+	}
+	my $pid = open3(my $analysis_stdin,my $analysis_stdout,my $analysis_stderr = "lvaluable",
+		"$ngram_analysis_location", "$ngram_indexes_dir/$folder", "entropy_of", "$search_string");
+	close($analysis_stdin);
+	waitpid($pid,0);
+	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
+
 
 }
-
 sub output_results
 {
 	my ($query,$folder,$analysis_stdout,$analysis_stderr) = @_;
@@ -153,6 +179,16 @@ sub output_results
 			my $search_string = $query->param("search_string");
 		$message .= <<HEREDOC;
 Here are your results for your search on the database $folder for "$search_string".
+
+Log messages output during this search:
+---------------------
+HEREDOC
+		}
+		when("entropy_of")
+		{
+			my $search_string = $query->param("search_string");
+		$message .= <<HEREDOC;
+Here are your results for your query about entropy on the database $folder for "$search_string".
 
 Log messages output during this search:
 ---------------------
@@ -222,6 +258,12 @@ HEREDOC
 				my $search_string = $query->param("search_string");
 				$subject .= "results for search $search_string in folder $folder";
 			};
+			when("search")
+			{
+				my $search_string = $query->param("search_string");
+				$subject .= "results for entropy of $search_string in folder $folder";
+			};
+
 			when("get_top")
 			{
 				my $ngramsize = scalar($query->param("ngramsize"));

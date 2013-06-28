@@ -151,6 +151,7 @@
 			url += "&action=" + window.escape(query_type);
 			switch(query_type)
 			{
+				case "entropy_of":
 				case "search":
 					url+= "&search_string=" + window.escape($("search_string").value);
 				break;
@@ -183,7 +184,10 @@
 						$("params_part_of_table").getElementsByTagName("tr")[j].style.visibility = "collapse";
 				}
 
-				$(this.value + "_param_row").style.visibility = "visible";
+				if(this.value != "entropy_of")
+					$(this.value + "_param_row").style.visibility = "visible";
+				else
+					$("search_param_row").style.visibility = "visible";
 				query_type = this.value;
 
 			};
@@ -213,6 +217,7 @@
 		<th>Action</th>
 		<tbody id="actions_part_of_table">
 		<tr><td><input type="radio" name="action_result" value="search" checked />Search(*)</td></tr>
+		<tr><td><input type="radio" name="action_result" value="entropy_of" />Entropy (**)</td></tr>
 		<tr><td><input type="radio" name="action_result" value="get_top"/>Show most frequent n-grams</td></tr>
 		<tr><td><input type="radio" name="action_result" value="view_wordlength_stats"/>Show wordlength statistics (in utf8 code units)</td></tr>
 		</tbody>
@@ -231,6 +236,7 @@
 
     Each word of the result of a search on a POS corpus has the form
     [type|lemma|word] in the result.
+(**) Use a search string with wildcards to determine the entropy of the wildcards (in bits).
 </pre>
 		</td></tr>
 		<th> Parameters </th>
