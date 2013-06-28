@@ -59,3 +59,12 @@ view_wordlength_stats
 	words (i.e. the n) for which the table should be shown. make_wordlength_stats needs to be called
 	before calling view_wordlength_stats.
 
+entropy_of
+	This function is relatively similar to the search function, and simply represents a series of transformations
+	on the search output. It returns the entropy (in bits) of the result of the search, given that an n-gram matches
+	the search string.
+	i.e. if the output of the search "a *" on a particular corpus is
+		a bit	1
+		a lot	1
+	Then the entropy returned is 1, as the value of the word following "a" has as much entropy as a single coin toss.
+

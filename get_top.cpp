@@ -139,7 +139,7 @@ void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 		exit(-1);
 	}
 	string currentline;
-	cerr<<"N-gram\tFrequency\tFreqPerMillion"<<endl;
+	cerr<<"N-gram\tFrequency"<<endl;
 	for(size_t i = 0; i< num_to_display && getline(inverted_index_file,currentline);i++)
 	{
 		const char* to_work_with = currentline.c_str();
@@ -149,7 +149,7 @@ void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 		to_work_with++;
 		off_t address = strtoll(to_work_with, &endptr, 16);
 		writeOutAddress(address,offsets,folder_name,frequency);
-		cout<<"\t"<<frequency<<"\t"<<(((double) frequency) / (double) relevant_metadata.num_words) * 1000000l<<endl;
+		cout<<"\t"<<frequency<<endl;
 	}
 	free(offsets);
 

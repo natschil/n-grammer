@@ -110,40 +110,42 @@ for my $i (1 .. 4)
 
 
 
-	unless($current_metadata->{"isPos"})	
+	for my $function("search","entropy_of")
 	{
-		if( system(
-				"./ngram.analysis $processing_dir/$i search ".
-					"\"$search_strings_non_pos_first[${i}]\" > ${processing_dir}/${i}_grams_search_first_out 2>/dev/null"
-				))
+		unless($current_metadata->{"isPos"})	
 		{
-			die "search failed for $i-grams";
-		}
-		if( system(
-				"./ngram.analysis $processing_dir/$i search " .
-					"\"$search_strings_non_pos_second[${i}]\" > ${processing_dir}/${i}_grams_search_second_out 2>/dev/null"
-				))
+			if( system(
+					"./ngram.analysis $processing_dir/$i $function ".
+						"\"$search_strings_non_pos_first[${i}]\" > ${processing_dir}/${i}_grams_${function}_first_out 2>/dev/null"
+					))
+			{
+				die "$function failed for $i-grams";
+			}
+			if( system(
+					"./ngram.analysis $processing_dir/$i $function " .
+						"\"$search_strings_non_pos_second[${i}]\" > ${processing_dir}/${i}_grams_${function}_second_out 2>/dev/null"
+					))
+			{
+				die "$function failed for $i-grams";
+			}
+			say "Generated $function reference data for $i-grams";
+		}else
 		{
-			die "search failed for $i-grams";
+			if( system(
+					"./ngram.analysis $processing_dir/$i $function ".
+						"\"$search_strings_pos_first[${i}]\" > ${processing_dir}/${i}_grams_${function}_first_out 2>/dev/null"
+					))
+			{
+				die "$function failed for $i-grams";
+			}
+			if( system(
+					"./ngram.analysis $processing_dir/$i search " .
+						"\"$search_strings_pos_second[${i}]\" > ${processing_dir}/${i}_grams_${function}_second_out 2>/dev/null"
+					))
+			{
+				die "$function failed for $i-grams";
+			}
+			say "Generated search reference data for $i-grams";
 		}
-		say "Generated search reference data for $i-grams";
-	}else
-	{
-		if( system(
-				"./ngram.analysis $processing_dir/$i search ".
-					"\"$search_strings_pos_first[${i}]\" > ${processing_dir}/${i}_grams_search_first_out 2>/dev/null"
-				))
-		{
-			die "search failed for $i-grams";
-		}
-		if( system(
-				"./ngram.analysis $processing_dir/$i search " .
-					"\"$search_strings_pos_second[${i}]\" > ${processing_dir}/${i}_grams_search_second_out 2>/dev/null"
-				))
-		{
-			die "search failed for $i-grams";
-		}
-		say "Generated search reference data for $i-grams";
-
 	}
 }

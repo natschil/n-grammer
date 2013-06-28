@@ -78,6 +78,7 @@ for my $i (1 .. 4)
 	}
 
 	#Test the wordlength stat generation and reading.
+
 	unless($reference_metadata->{"isPos"})
 	{
 		if(system("./ngram.analysis $tests_dir/$i make_wordlength_stats $i"))
@@ -154,77 +155,75 @@ for my $i (1 .. 4)
 		"[dt|a|a] [nn|number|number] [in|of|of] [jj|*|educational] [nns|aim|aims] \$ \$",
 		"[dt|a|a] [nn|number|number] [in|of|*] [jj|educational|*] [nns|aim|aims] \$ \$ \$",
 	);
-	unless($reference_metadata->{"isPos"})
+	for my $function ("search","entropy_of")
 	{
-		for my $j (1 .. $i)
+		unless($reference_metadata->{"isPos"})
 		{
-			if( system(
-					"./ngram.analysis $tests_dir/$i search ".
-						"\"$search_strings_non_pos_first[${j}]\" > $tests_dir/${j}_grams_search_first_out 2>/dev/null"
-					))
+			for my $j (1 .. $i)
 			{
-				die "Running search failed for $i-grams";
-			}
-			if(compare("$tests_dir/${j}_grams_search_first_out","$reference_dir/${j}_grams_search_first_out"))
-			{
-				die "Search (without wildcards) produced wrong results";
-			
-			}
-	
-			if( system(
-					"./ngram.analysis $tests_dir/$i search " .
-						"\"$search_strings_non_pos_second[${j}]\" > $tests_dir/${j}_grams_search_second_out 2>/dev/null"
-					))
-			{
-				die "Running search failed for $i-grams";
-			}
-	
-			if(compare("$tests_dir/${j}_grams_search_second_out","$reference_dir/${j}_grams_search_second_out"))
-	
-			{
-				die "Search (with wildcards) produced wrong results";
-			
-			}
-		}
-		say "Succeeded in testing search for $i-grams";
+				if( system(
+						"./ngram.analysis $tests_dir/$i $function ".
+							"\"$search_strings_non_pos_first[${j}]\" > $tests_dir/${j}_grams_${function}_first_out 2>/dev/null"
+						))
+				{
+					die "Running $function failed for $i-grams";
+				}
+				if(compare("$tests_dir/${j}_grams_${function}_first_out","$reference_dir/${j}_grams_${function}_first_out"))
+				{
+					die "Search (without wildcards) produced wrong results";
+				
+				}
 		
+				if( system(
+						"./ngram.analysis $tests_dir/$i $function " .
+							"\"$search_strings_non_pos_second[${j}]\" > $tests_dir/${j}_grams_${function}_second_out 2>/dev/null"
+						))
+				{
+					die "Running $function failed for $i-grams";
+				}
 		
-	}else
-	{
-		for my $j (1 .. $i)
+				if(compare("$tests_dir/${j}_grams_${function}_second_out","$reference_dir/${j}_grams_${function}_second_out"))
+		
+				{
+					die "Search (with wildcards) produced wrong results";
+				
+				}
+			}
+		}else
 		{
-			if( system(
-					"./ngram.analysis $tests_dir/$i search ".
-						"\"$search_strings_pos_first[${j}]\" > $tests_dir/${j}_grams_search_first_out 2>/dev/null"
-					))
+			for my $j (1 .. $i)
 			{
-				die "Running search failed for $i-grams";
-			}
-			if(compare("$tests_dir/${j}_grams_search_first_out","$reference_dir/${j}_grams_search_first_out"))
-			{
-				die "Search (without wildcards) produced wrong results";
-			
-			}
-	
-			if( system(
-					"./ngram.analysis $tests_dir/$i search " .
-						"\"$search_strings_pos_second[${j}]\" > $tests_dir/${j}_grams_search_second_out 2>/dev/null"
-					))
-			{
-				die "Running search failed for $i-grams";
-			}
-	
-			if(compare("$tests_dir/${j}_grams_search_second_out","$reference_dir/${j}_grams_search_second_out"))
-	
-			{
-				die "Search (with wildcards) produced wrong results";
-			
-			}
-		}
-		say "Succeeded in testing search for $i-grams";
+				if( system(
+						"./ngram.analysis $tests_dir/$i $function ".
+							"\"$search_strings_pos_first[${j}]\" > $tests_dir/${j}_grams_${function}_first_out 2>/dev/null"
+						))
+				{
+					die "Running $function failed for $i-grams";
+				}
+				if(compare("$tests_dir/${j}_grams_${function}_first_out","$reference_dir/${j}_grams_${function}_first_out"))
+				{
+					die "Search (without wildcards) produced wrong results";
+				
+				}
 		
+				if( system(
+						"./ngram.analysis $tests_dir $function " .
+							"\"$search_strings_pos_second[${j}]\" > $tests_dir/${j}_grams_${function}_second_out 2>/dev/null"
+						))
+				{
+					die "Running $function failed for $i-grams";
+				}
 		
-		}
+				if(compare("$tests_dir/${j}_grams_${function}_second_out","$reference_dir/${j}_grams_${function}_second_out"))
+		
+				{
+					die "Search (with wildcards) produced wrong results";
+				
+				}
+			}
+		}	
+		say "Succeeded in testing $function for $i-grams";
+	}
 
 
 
