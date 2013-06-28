@@ -388,7 +388,7 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 
 
 
-static vector<pair<vector<string>, long long int> > internal_search(map<unsigned int, Metadata> &metadatas,vector<string> arguments)
+vector<pair<vector<string>, long long int> > internal_search(map<unsigned int, Metadata> &metadatas,vector<string> arguments)
 {
 	if(!arguments.size())
 	{
@@ -465,75 +465,82 @@ static vector<pair<vector<string>, long long int> > internal_search(map<unsigned
 
 	//We check if we have metadata for the index of that n-gram size
 	auto relevant_metadata_itr = metadatas.lower_bound(ngramsize);
-	if(relevant_metadata_itr == metadatas.end())
-	{
-		cerr<<"search: Unable to find metadata for ngrams of size "<<original_ngramsize<<" or greater"<<endl;
-		exit(-1);
-	}
-	ngramsize = relevant_metadata_itr->first;
-	for(size_t i = original_ngramsize; i < ngramsize; i++)
-	{
-		if(is_pos)
-			tokenized_search_string.push_back("[*|*|*]");
-		else
-			tokenized_search_string.push_back("*");
-	}
-
-	Metadata &relevant_metadata = relevant_metadata_itr->second;
-	if(is_pos && !relevant_metadata.pos_supplement_indexes_exist)
-	{
-		cerr<<"search: No POS supplement indexes seem to exist\n";
-		exit(-1);
-	}
-
-	//We do a simple and unefficient search for the index that matches with the relevant permutation of known and unknown strings
 	vector<unsigned int> search_index_to_use;	
-	size_t matches = 0;
-	size_t classification_only_matches = 0;
+	size_t matches;
+	size_t classification_only_matches;
+	Metadata *relevant_metadata;
 
-	for(set<vector<unsigned int> >::iterator indexes_itr = relevant_metadata.indices.begin(); indexes_itr != relevant_metadata.indices.end();indexes_itr++)
-	{
-		size_t counter = 0;
-		size_t classification_only_counter = 0;
 
-		for(auto j = null_words.begin(); j != null_words.end(); j++)
+	do{
+		if(relevant_metadata_itr == metadatas.end())
 		{
-			if(*((*indexes_itr).begin()) == *j)
-				goto continue_upper_loop;
+			cerr<<"search: Unable to indexes for ngrams of size "<<original_ngramsize<<" or greater that could do this search"<<endl;
+			exit(-1);
 		}
-		if(0)
-		continue_upper_loop: continue;
 
-		for(auto j = indexes_itr->begin(); j != indexes_itr->end(); j++)
+		search_index_to_use.resize(0);
+		matches = 0;
+		classification_only_matches = 0;
+		relevant_metadata = &relevant_metadata_itr->second;
+		tokenized_search_string.resize(original_ngramsize);
+
+		ngramsize = relevant_metadata_itr->first;
+		for(size_t i = original_ngramsize; i < ngramsize; i++)
 		{
-			if(find(known_words.begin(),known_words.end(),*j) != known_words.end())
-				counter++;
+			if(is_pos)
+				tokenized_search_string.push_back("[*|*|*]");
 			else
-				break;
+				tokenized_search_string.push_back("*");
 		}
-		for(auto j = (*indexes_itr).begin(); j!=(*indexes_itr).end();j++)
+
+		if(is_pos && !relevant_metadata->pos_supplement_indexes_exist)
 		{
-			if(find(partially_known_words.begin()+matches, partially_known_words.end(),*j) != partially_known_words.end())
-				classification_only_counter++;
-			else
-				break;
+			cerr<<"search: No POS supplement indexes seem to exist\n";
+			exit(-1);
 		}
-		if(counter > matches)
+
+		//We do a simple and unefficient search for the index that matches with the relevant permutation of known and unknown strings
+
+		for(set<vector<unsigned int> >::iterator indexes_itr = relevant_metadata->indices.begin(); indexes_itr != relevant_metadata->indices.end();indexes_itr++)
 		{
-			search_index_to_use = *indexes_itr;
-			matches = counter;
-			classification_only_matches = classification_only_counter;
-		}else if((counter == matches) && (classification_only_counter > classification_only_matches))
-		{
-			search_index_to_use = *indexes_itr;
-			classification_only_matches = classification_only_counter;
+			size_t counter = 0;
+			size_t classification_only_counter = 0;
+
+			for(auto j = null_words.begin(); j != null_words.end(); j++)
+			{
+				if(*((*indexes_itr).begin()) == *j)
+					goto continue_upper_loop;
+			}
+			if(0)
+			continue_upper_loop: continue;
+
+			for(auto j = indexes_itr->begin(); j != indexes_itr->end(); j++)
+			{
+				if(find(known_words.begin(),known_words.end(),*j) != known_words.end())
+					counter++;
+				else
+					break;
+			}
+			for(auto j = (*indexes_itr).begin(); j!=(*indexes_itr).end();j++)
+			{
+				if(find(partially_known_words.begin()+matches, partially_known_words.end(),*j) != partially_known_words.end())
+					classification_only_counter++;
+				else
+					break;
+			}
+			if(counter > matches)
+			{
+				search_index_to_use = *indexes_itr;
+				matches = counter;
+				classification_only_matches = classification_only_counter;
+			}else if((counter == matches) && (classification_only_counter > classification_only_matches))
+			{
+				search_index_to_use = *indexes_itr;
+				classification_only_matches = classification_only_counter;
+			}
 		}
-	}
-	if(!matches)
-	{
-		cerr<<"search: No indexes found that could do this type of search."<<endl;
-		exit(-1);
-	}
+		relevant_metadata_itr++;
+	}while(!matches);
 	//We output a little bit of info before we start the search
 	cerr<<"search: Searching with "<<matches<<" matches using index by";
 	for_each(search_index_to_use.begin(), search_index_to_use.end(),
@@ -569,7 +576,7 @@ static vector<pair<vector<string>, long long int> > internal_search(map<unsigned
 	//At this point we remove all '[' s and ']'s as they were mainly there for aesthetic reasons anyways
 	if(is_pos)
 	{
-		flesh_partially_known_words(all_search_strings,relevant_metadata.output_folder_name);
+		flesh_partially_known_words(all_search_strings,relevant_metadata->output_folder_name);
 		for(auto i = all_search_strings.begin(); i != all_search_strings.end(); i++)
 		{
 			i->erase(remove_if(i->begin(),i->end(), [](char c){return (c == '[') || (c == ']');}), i->end());
@@ -585,7 +592,7 @@ static vector<pair<vector<string>, long long int> > internal_search(map<unsigned
 		}
 	}
 	//We make a string which has the filename of the index:
-	string index_filename = relevant_metadata.output_folder_name + "/by";
+	string index_filename = relevant_metadata->output_folder_name + "/by";
 	stringstream index_filename_stream(index_filename);
 	index_filename_stream.seekp(0, std::ios::end);
 	for(size_t i = 0; i< search_index_to_use.size(); i++)

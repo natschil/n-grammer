@@ -44,7 +44,7 @@ searchable_file::searchable_file(string &index_filename,bool is_pos)
 	{
 		if(ptr2 == (mmaped_index + mmaped_index_size))
 		{
-			cerr<<"searchable_file: The file "<<index_filename<<" has incorrect formatting";
+			cerr<<"searchable_file: The file "<<index_filename<<" has incorrect formatting"<<endl;
 			exit(-1);
 		}
 		ptr2++;
@@ -65,7 +65,7 @@ searchable_file::searchable_file(string &index_filename,bool is_pos)
 	{
 		if(ptr2 == (mmaped_index + mmaped_index_size))
 		{
-			cerr<<"searchable_file: The file "<<index_filename<<" has incorrect formatting";
+			cerr<<"searchable_file: The file "<<index_filename<<" has incorrect formatting"<<endl;
 			exit(-1);
 		}
 		ptr2++;
@@ -283,7 +283,7 @@ bool searchable_file::string_matches_filter(string &result_s, string &filter_s,s
 			count(filter_s.begin(),filter_s.end(),'\t') != 1
 		)
 	{
-		cerr<<"searchable_file: Filter string'"<<filter_s<<"' has incorrect formatting"<<endl,
+		cerr<<"searchable_file: Filter string'"<<filter_s<<"'has incorrect formatting"<<endl,
 		exit(-1);
 	}else if(
 			strstr(search_string_s.c_str(),"  ") ||

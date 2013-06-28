@@ -33,4 +33,5 @@
 using namespace std;
 void do_search( map<unsigned int,Metadata> &metadatas,vector<string> arguments);
 
+vector<pair<vector<string>, long long int> > internal_search(map<unsigned int, Metadata> &metadatas,vector<string> arguments);
 #endif
