@@ -99,8 +99,8 @@ int get_final_k()
 
 static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[2*MAX_BUFFERS-1],const char* prefix)
 {
-
-	#pragma omp flush //TODO: Research whether doing a flush here is neccessary, it probably isn't.
+	//Doing a flush here is necessary as different threads write to scheduling_table
+	#pragma omp flush 
 	int other_n = (n && (n % 2)) ? n - 1: n+1;
 	int final_n = ((n && (n % 2)) ? other_n : n) / 2;  //I.e. take the even one, divide by two
 	int final_k = k + 1;
