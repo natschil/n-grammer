@@ -2,14 +2,13 @@
  * This function contains files useful for searching for various n-gram combinations.
  */
 
-#ifndef NGRAM_ANALYSIS_ENTROPY_OF_H
-#define NGRAM_ANALYSIS_ENTROPY_OF_H
+#ifndef NGRAM_ANALYSIS_ENTROPY_INDEX_H
+#define NGRAM_ANALYSIS_ENTROPY_INDEX_H
 
 #include <map>
 #include <vector>
 #include <string>
 
-#include "search.h"
 #include "manage_metadata.h"
 #include "math.h"
 
