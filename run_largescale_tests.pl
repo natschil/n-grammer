@@ -39,20 +39,20 @@ $tests_dir .= "/";
 for my $i (1 .. 8)
 {
 	say "Parsing metadata";
-	my $reference_metadata = parse_metadata_file($reference_dir,$i) ;
+	my $reference_metadata = parse_metadata_file("$reference_dir/$i",$i) ;
 
 	#Test inverting the indexes
 	while( my( $current_index_name,$current_index_short_name) =  each $reference_metadata->{"InvertedIndexes"})
 	{
 
 
-		if(system("./ngram.analysis $tests_dir invert_index $current_index_short_name"))
+		if(system("./ngram.analysis $tests_dir/$i invert_index $current_index_short_name"))
 		{
 			say "Failed to generate inverted indexes for index $current_index_name";
 			exit(-1);
 		}
 
-		if(compare( $tests_dir. $current_index_name ,  $reference_dir.$current_index_name))
+		if(compare( "$tests_dir/$i/$current_index_name" ,  "$reference_dir/$i/$current_index_name"))
 		{
 			say "Failed at index $current_index_name";
 			exit(-1);
@@ -62,13 +62,13 @@ for my $i (1 .. 8)
 	say "Succeeded in testing indexes of $i-grams";
 
 	#Test get_top
-	if(system("./ngram.analysis $tests_dir get_top $i 200 > ${tests_dir}/${i}_grams_get_top_out 2>/dev/null"))
+	if(system("./ngram.analysis $tests_dir/$i get_top $i 200 > $tests_dir/${i}_grams_get_top_out 2>/dev/null"))
 	{
 		say "Failed to make get_top for $i-grams";
 		exit(-1);
 	}	
 
-	if(compare($tests_dir.$i."_grams_get_top_out", $reference_dir.$i."_grams_get_top_out"))
+	if(compare("$tests_dir/${i}_grams_get_top_out", "$reference_dir/${i}_grams_get_top_out"))
 	{
 		say "Failed test for get_top for $i-grams";
 		exit(-1);
@@ -80,24 +80,24 @@ for my $i (1 .. 8)
 	#Test the wordlength stat generation and reading.
 	unless($reference_metadata->{"isPos"})
 	{
-		if(system("./ngram.analysis $tests_dir make_wordlength_stats $i"))
+		if(system("./ngram.analysis $tests_dir/$i make_wordlength_stats $i"))
 		{
 			say "Failed to generate wordlength stats for $i-grams";
 			exit(-1);
 		}
 
-		if(compare($tests_dir . $i ."_grams_wordlength_stats",$reference_dir. $i ."_grams_wordlength_stats"))
+		if(compare("$tests_dir/$i/${i}_grams_wordlength_stats","$reference_dir/$i/${i}_grams_wordlength_stats"))
 		{
 			say "Failed test for make_wordlength_stats for $i-grams";
 			exit(-1);
 		}
 
-		if(system("./ngram.analysis $tests_dir view_wordlength_stats $i > $tests_dir/${i}_grams_view_wordlength_out 2> /dev/null"))
+		if(system("./ngram.analysis $tests_dir/$i view_wordlength_stats $i > $tests_dir/${i}_grams_view_wordlength_out 2> /dev/null"))
 		{
 			say "Failed to run view_wordlength_stats $i";
 			exit(-1);
 		}
-		if(compare($tests_dir. $i . "_grams_view_wordlength_out", $reference_dir. $i . "_grams_view_wordlength_out"))
+		if(compare("$tests_dir/${i}_grams_view_wordlength_out", "$reference_dir/${i}_grams_view_wordlength_out"))
 		{
 			say "Failed at testing view_wordlength_stats output for $i";
 			exit(-1);
@@ -159,27 +159,27 @@ for my $i (1 .. 8)
 		for my $j (1 .. $i)
 		{
 			if( system(
-					"./ngram.analysis $tests_dir search ".
-						"\"$search_strings_non_pos_first[${j}]\" > ${tests_dir}/${j}_grams_search_first_out 2>/dev/null"
+					"./ngram.analysis $tests_dir/$i search ".
+						"\"$search_strings_non_pos_first[${j}]\" > $tests_dir/${j}_grams_search_first_out 2>/dev/null"
 					))
 			{
 				die "Running search failed for $i-grams";
 			}
-			if(compare(${tests_dir}.$j."_grams_search_first_out",${reference_dir}.$j."_grams_search_first_out"))
+			if(compare("$tests_dir/${j}_grams_search_first_out","$reference_dir/${j}_grams_search_first_out"))
 			{
 				die "Search (without wildcards) produced wrong results";
 			
 			}
 	
 			if( system(
-					"./ngram.analysis $tests_dir search " .
-						"\"$search_strings_non_pos_second[${j}]\" > ${tests_dir}/${j}_grams_search_second_out 2>/dev/null"
+					"./ngram.analysis $tests_dir/$i search " .
+						"\"$search_strings_non_pos_second[${j}]\" > $tests_dir/${j}_grams_search_second_out 2>/dev/null"
 					))
 			{
 				die "Running search failed for $i-grams";
 			}
 	
-			if(compare(${tests_dir}.$j."_grams_search_second_out",${reference_dir}.$j."_grams_search_second_out"))
+			if(compare("$tests_dir/${j}_grams_search_second_out","$reference_dir/${j}_grams_search_second_out"))
 	
 			{
 				die "Search (with wildcards) produced wrong results";
@@ -194,13 +194,13 @@ for my $i (1 .. 8)
 		for my $j (1 .. $i)
 		{
 			if( system(
-					"./ngram.analysis $tests_dir search ".
-						"\"$search_strings_pos_first[${j}]\" > ${tests_dir}/${j}_grams_search_first_out 2>/dev/null"
+					"./ngram.analysis $tests_dir/$i search ".
+						"\"$search_strings_pos_first[${j}]\" > $tests_dir/${j}_grams_search_first_out 2>/dev/null"
 					))
 			{
 				die "Running search failed for $i-grams";
 			}
-			if(compare(${tests_dir}.$j."_grams_search_first_out",${reference_dir}.$j."_grams_search_first_out"))
+			if(compare("$tests_dir/${j}_grams_search_first_out","$reference_dir/${j}_grams_search_first_out"))
 			{
 				die "Search (without wildcards) produced wrong results";
 			
@@ -208,13 +208,13 @@ for my $i (1 .. 8)
 	
 			if( system(
 					"./ngram.analysis $tests_dir search " .
-						"\"$search_strings_pos_second[${j}]\" > ${tests_dir}/${j}_grams_search_second_out 2>/dev/null"
+						"\"$search_strings_pos_second[${j}]\" > $tests_dir/${j}_grams_search_second_out 2>/dev/null"
 					))
 			{
 				die "Running search failed for $i-grams";
 			}
 	
-			if(compare(${tests_dir}.$j."_grams_search_second_out",${reference_dir}.$j."_grams_search_second_out"))
+			if(compare("$tests_dir/${j}_grams_search_second_out","$reference_dir/${j}_grams_search_second_out"))
 	
 			{
 				die "Search (with wildcards) produced wrong results";

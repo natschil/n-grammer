@@ -17,10 +17,10 @@ if( $#ARGV != 0)
 my $processing_dir = "./reference_data/" . basename($ARGV[0]) . "/";
 for my $i (1 .. 8)
 {
-	my $current_metadata = parse_metadata_file($processing_dir,$i) ;
+	my $current_metadata = parse_metadata_file("$processing_dir/$i",$i) ;
 	for my $current_index_name (values $current_metadata->{"Indexes"})
 	{
-		if(system("./ngram.analysis $processing_dir invert_index $current_index_name"))
+		if(system("./ngram.analysis $processing_dir/$i invert_index $current_index_name"))
 		{
 			die "Invert index failed for index $current_index_name";
 		}else
@@ -29,7 +29,7 @@ for my $i (1 .. 8)
 		}
 	}
 
-	if(system("./ngram.analysis $processing_dir get_top $i 200 > ${processing_dir}/${i}_grams_get_top_out 2>/dev/null"))
+	if(system("./ngram.analysis $processing_dir/$i get_top $i 200 > ${processing_dir}/${i}_grams_get_top_out 2>/dev/null"))
 	{
 		die "get_top failed for $i-grams";
 	}else
@@ -40,7 +40,7 @@ for my $i (1 .. 8)
 
 	unless($current_metadata->{"isPos"})
 	{
-		if(system("./ngram.analysis $processing_dir make_wordlength_stats $i"))
+		if(system("./ngram.analysis $processing_dir/$i make_wordlength_stats $i"))
 		{
 			die "make_wordlength_stats failed for $i-grams";
 		}else
@@ -48,7 +48,7 @@ for my $i (1 .. 8)
 			say "Generated reference data for make_wordlength_stats for $i-grams";
 		}
 
-		if(system("./ngram.analysis $processing_dir view_wordlength_stats $i > ${processing_dir}/${i}_grams_view_wordlength_out 2>/dev/null"))
+		if(system("./ngram.analysis $processing_dir/$i view_wordlength_stats $i > ${processing_dir}/${i}_grams_view_wordlength_out 2>/dev/null"))
 		{
 			die "view_wordlength_stats failed for $i-grams";
 		}else
@@ -113,14 +113,14 @@ for my $i (1 .. 8)
 	unless($current_metadata->{"isPos"})	
 	{
 		if( system(
-				"./ngram.analysis $processing_dir search ".
+				"./ngram.analysis $processing_dir/$i search ".
 					"\"$search_strings_non_pos_first[${i}]\" > ${processing_dir}/${i}_grams_search_first_out 2>/dev/null"
 				))
 		{
 			die "search failed for $i-grams";
 		}
 		if( system(
-				"./ngram.analysis $processing_dir search " .
+				"./ngram.analysis $processing_dir/$i search " .
 					"\"$search_strings_non_pos_second[${i}]\" > ${processing_dir}/${i}_grams_search_second_out 2>/dev/null"
 				))
 		{
@@ -130,14 +130,14 @@ for my $i (1 .. 8)
 	}else
 	{
 		if( system(
-				"./ngram.analysis $processing_dir search ".
+				"./ngram.analysis $processing_dir/$i search ".
 					"\"$search_strings_pos_first[${i}]\" > ${processing_dir}/${i}_grams_search_first_out 2>/dev/null"
 				))
 		{
 			die "search failed for $i-grams";
 		}
 		if( system(
-				"./ngram.analysis $processing_dir search " .
+				"./ngram.analysis $processing_dir/$i search " .
 					"\"$search_strings_pos_second[${i}]\" > ${processing_dir}/${i}_grams_search_second_out 2>/dev/null"
 				))
 		{
