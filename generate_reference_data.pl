@@ -15,7 +15,7 @@ if( $#ARGV != 0)
 }
 
 my $processing_dir = "./reference_data/" . basename($ARGV[0]) . "/";
-for my $i (1 .. 8)
+for my $i (1 .. 4)
 {
 	my $current_metadata = parse_metadata_file("$processing_dir/$i",$i) ;
 	for my $current_index_name (values $current_metadata->{"Indexes"})

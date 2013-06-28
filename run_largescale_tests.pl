@@ -36,7 +36,7 @@ $reference_dir .= "/";
 $tests_dir .= "/";
 
 #test inverted indexes and wordlength stats.
-for my $i (1 .. 8)
+for my $i (1 .. 4)
 {
 	say "Parsing metadata";
 	my $reference_metadata = parse_metadata_file("$reference_dir/$i",$i) ;
@@ -207,7 +207,7 @@ for my $i (1 .. 8)
 			}
 	
 			if( system(
-					"./ngram.analysis $tests_dir search " .
+					"./ngram.analysis $tests_dir/$i search " .
 						"\"$search_strings_pos_second[${j}]\" > $tests_dir/${j}_grams_search_second_out 2>/dev/null"
 					))
 			{
