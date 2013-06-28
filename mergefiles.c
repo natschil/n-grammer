@@ -58,7 +58,7 @@ void schedule_next_merge(int k, int n,int rightmost_run,uint8_t (*scheduling_tab
 
 			snprintf(old_directory_name, strlen(prefix) + 1 + 4 + 1 + 4 + 1,"%s/%d_%d",prefix,k,n);
 			snprintf(new_directory_name, strlen(prefix) + 1 + 4 + 1 + 4 + 1,"%s/%d_%d", prefix,other_k,other_n + 1);
-			remove(new_directory_name); //This shouldn't exist, so better be safe.
+			recursively_remove_directory(new_directory_name); //This shouldn't exist, so better be safe.
 			rename(old_directory_name,new_directory_name);
 			n = other_n + 1;
 			k = other_k;
@@ -99,6 +99,8 @@ int get_final_k()
 
 static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_table)[2*MAX_BUFFERS-1],const char* prefix)
 {
+
+	#pragma omp flush //TODO: Research whether doing a flush here is neccessary, it probably isn't.
 	int other_n = (n && (n % 2)) ? n - 1: n+1;
 	int final_n = ((n && (n % 2)) ? other_n : n) / 2;  //I.e. take the even one, divide by two
 	int final_k = k + 1;
@@ -109,96 +111,88 @@ static void merge_next(int k, int n,int rightmost_run, uint8_t (*scheduling_tabl
 	mkdir(dirbuf,S_IRUSR | S_IWUSR | S_IXUSR);
 	//fprintf(stdout, "Merging %d_%d with %d_%d to give %d_%d\n",k,n,k,other_n,final_k,final_n);
 
-	#pragma omp flush //TODO: Research whether doing a flush here is neccessary, it probably isn't.
-	int i;
-	for(i = 0; i< 1;i++)
+	//MARKER8
+	char* buf = malloc(strlen(prefix)+1 + 4 + 1 + 4 + 1 +4 + 4 + 1);
+	char* buf2 = malloc(strlen(prefix)+1 + 4 + 1 + 4 + 1 +4 + 4 + 1);
+	char* output = malloc(strlen(prefix)+1 + 4 + 1 + 4 + 1 +4 + 4 + 1);
+
+	sprintf(buf,  "%s/%d_%d/0.out",prefix,k,n);
+	sprintf(buf2, "%s/%d_%d/0.out",prefix,k,other_n);
+	sprintf(output, "%s/%d_%d/0.out",prefix,final_k,final_n);
+
+	struct stat firstfile_st;
+	struct stat secondfile_st;
+	if(stat(buf, &firstfile_st))
 	{
-
-		//MARKER8
-		char* buf = malloc(strlen(prefix)+1 + 4 + 1 + 4 + 1 +4 + 4 + 1);
-		char* buf2 = malloc(strlen(prefix)+1 + 4 + 1 + 4 + 1 +4 + 4 + 1);
-		char* output = malloc(strlen(prefix)+1 + 4 + 1 + 4 + 1 +4 + 4 + 1);
-
-		sprintf(buf,  "%s/%d_%d/%d.out",prefix,k,n,i);
-		sprintf(buf2, "%s/%d_%d/%d.out",prefix,k,other_n,i);
-		sprintf(output, "%s/%d_%d/%d.out",prefix,final_k,final_n,i);
-
-		struct stat firstfile_st;
-		struct stat secondfile_st;
-		if(stat(buf, &firstfile_st))
-		{
-			fprintf(stderr,"Unable to stat %s\n",buf);
-			exit(-1);
-		}
-		if(!firstfile_st.st_size)//Simply move the other file to the final location.
-		{
-			rename(buf2,output);
-			free(buf);
-			free(buf2);
-			free(output);
-			continue;
-		}
-		if(stat(buf2,&secondfile_st))
-		{
-			fprintf(stderr,"Unable to stat %s\n",buf);
-			exit(-1);
-		}
-		if(!secondfile_st.st_size)
-		{
-			rename(buf,output);
-			free(buf);
-			free(buf2);
-			free(output);
-			continue;
-		}
-
-
-		FILE* firstfile = fopen(buf, "r");
-		FILE* secondfile = fopen(buf2, "r");
-		FILE* outputfile = fopen(output, "w+");
-		int outputfile_fd = fileno(outputfile);
-		//Note that we can call posix_fallocate here fine without worrying about the output file becoming too large
-		//because we know that the output file is at least as big as the larger input file
-		if(posix_fallocate(outputfile_fd,0,firstfile_st.st_size > secondfile_st.st_size? firstfile_st.st_size: secondfile_st.st_size))
-		{
-			fprintf(stderr,"Unable to posix_fallocate() output file");
-			exit(-1);
-		}
-		if(!firstfile)
-		{
-			fprintf(stderr, "Unable to open %s for reading\n", buf);
-			exit(-1);
-		}else if(!secondfile)
-		{
-			fprintf(stderr,"Unable to open %s for reading\n", buf2);
-			exit(-1);
-		}else if(!outputfile)
-		{
-			fprintf(stderr, "Unable to open %s for writing\n",output);
-			exit(-1);
-		}
-
-		struct stat first_stat;
-		struct stat second_stat;
-		if( stat(buf,&first_stat) || stat(buf2, &second_stat))
-		{
-			fprintf(stderr, "Unable to stat either %s or %s", buf, buf2);
-			exit(-1);
-		}
-
-		int mergefile_out = merge_files(firstfile,first_stat.st_size,secondfile,second_stat.st_size,outputfile,max_ngram_string_length);
-		fclose(firstfile);
-		fclose(secondfile);
-		fclose(outputfile);
-		if(mergefile_out)
-		{
-			fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
-			exit(-1);
-		}
-		free(buf);
-		free(buf2);
-		free(output);
+		fprintf(stderr,"Unable to stat %s\n",buf);
+		exit(-1);
 	}
+	if(!firstfile_st.st_size)//Simply move the other file to the final location.
+	{
+		rename(buf2,output);
+		goto merge_finished;
+	}
+	if(stat(buf2,&secondfile_st))
+	{
+		fprintf(stderr,"Unable to stat %s\n",buf);
+		exit(-1);
+	}
+	if(!secondfile_st.st_size)
+	{
+		rename(buf,output);
+		goto merge_finished;
+	}
+
+
+	FILE* firstfile = fopen(buf, "r");
+	FILE* secondfile = fopen(buf2, "r");
+	unlink(output);
+	FILE* outputfile = fopen(output, "w+");
+	if(!firstfile)
+	{
+		fprintf(stderr, "Unable to open %s for reading\n", buf);
+		exit(-1);
+	}else if(!secondfile)
+	{
+		fprintf(stderr,"Unable to open %s for reading\n", buf2);
+		exit(-1);
+	}else if(!outputfile)
+	{
+		fprintf(stderr, "Unable to open %s for writing\n",output);
+		exit(-1);
+	}
+	int outputfile_fd = fileno(outputfile);
+	//Note that we can call posix_fallocate here fine without worrying about the output file becoming too large
+	//because we know that the output file is at least as big as the larger input file
+	if(posix_fallocate(outputfile_fd,0,firstfile_st.st_size > secondfile_st.st_size? firstfile_st.st_size: secondfile_st.st_size))
+	{
+		fprintf(stderr,"Unable to posix_fallocate() output file");
+		exit(-1);
+	}
+
+
+	struct stat first_stat;
+	struct stat second_stat;
+	if( stat(buf,&first_stat) || stat(buf2, &second_stat))
+	{
+		fprintf(stderr, "Unable to stat either %s or %s", buf, buf2);
+		exit(-1);
+	}
+
+	int mergefile_out = merge_files(firstfile,first_stat.st_size,secondfile,second_stat.st_size,outputfile,max_ngram_string_length);
+	fclose(firstfile);
+	fclose(secondfile);
+	fclose(outputfile);
+	if(mergefile_out)
+	{
+		fprintf(stderr, "Failed to merge files %s and %s\n",buf,buf2);
+		exit(-1);
+	}
+
+merge_finished:
+	free(buf);
+	free(buf2);
+	free(output);
 
 	sprintf(dirbuf,"%s/%d_%d",prefix,k,n);
 	recursively_remove_directory(dirbuf);
