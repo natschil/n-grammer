@@ -10,14 +10,18 @@ CFLAGS = -Wall -g -O3 -fopenmp -Wextra -D NDEBUG -march=native  -I/usr/include  
 TARGET = ngram.counting
 OBJS = ngram.counting.o main.o  mergefiles.o searchindexcombinations.o indices_v2.o util.o words.o manage_metadata.o
 MERGER = merger
+SORTED_CHECK = check_if_sorted
 
 MERGER_OBJS = mergefiles.o merge_files.o util.o
 
-default: $(TARGET) $(MERGER)
+default: $(TARGET) $(MERGER) $(SORTED_CHECK)
 $(TARGET): $(OBJS)
 	$(CPP) $(FLAGS) -o $@ $(OBJS) $(LIBS) $(LDFLAGS) 
 $(MERGER) :  $(MERGER_OBJS)
 	$(CC) $(CFLAGS) -o $@ $(MERGER_OBJS) $(LDFLAGS)
+
+$(SORTED_CHECK) : check_if_sorted.o
+	$(CC) $(CFLAGS) -o $@ check_if_sorted.o
 
 
 
