@@ -379,6 +379,10 @@ getbothfiles:
 			}
 		}
 
+		//We can use strcmp here because we've used it to compare single words, and the ascii space and tab characters effectively
+		//function like the '\0' character at the end of every single word in the sense that they have lower values than any
+		//other characters used (including utf-8 characters, as they have the most significant bit set, and strcmp uses unsigned chars (according to at least C99))
+		//TODO: Write some sort of assert check to make sure this is the case.
 		int cmp = strcmp(buf, buf2);
 		if(!cmp)
 		{

@@ -80,7 +80,6 @@ int main (int argc, char* argv[])
   int single_wordsearch_index_to_build = -1;
   int wordsearch_indexes_howmany = -1;
 
-  bool build_smaller_indexes = false;
 
   if(argc > options_start)
   {
@@ -141,10 +140,7 @@ int main (int argc, char* argv[])
 		}else if(!strcmp(argv[i],"--build-pos-supplement-indexes"))
 		{
 			build_pos_supplement_indexes = true;
-		}/*else if(!strcmp(argv[i],"--also-build-smaller-indexes"))
-		{
-			build_smaller_indexes = true;	
-		}*/else
+		}else
 		{
 			cerr<<"\nInvalid option"<<argv[i]<<"\n\n";
 			print_usage(argv);
@@ -194,7 +190,6 @@ int main (int argc, char* argv[])
 		  cache_entire_file,
 		  has_pos,
 		  build_pos_supplement_indexes,
-		  build_smaller_indexes,
 		  single_wordsearch_index_to_build,
 		  wordsearch_indexes_howmany
 		  );

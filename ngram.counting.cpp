@@ -109,7 +109,6 @@ long long int count_ngrams(
 		bool cache_entire_file,
 		bool is_pos,
 		bool build_pos_supplement_indexes,
-		bool build_smaller_indexes,
 		int single_wordsearch_index_to_build,
 		int wordsearch_indexes_howmany
 		);
@@ -633,12 +632,10 @@ long long int count_ngrams(
 		bool cache_entire_file,
 		bool is_pos,
 		bool build_pos_supplement_indexes,
-		bool build_smaller_indexes,
 		int single_wordsearch_index_to_build,
 		int wordsearch_indexes_howmany
 		)
 {
-	(void) build_smaller_indexes;
     //Get the current time, for timing how long the function took.
     	struct timeval start_time,end_time;
   	gettimeofday(&start_time,NULL);
@@ -657,7 +654,7 @@ long long int count_ngrams(
 	mkdir(outdir,S_IRUSR | S_IWUSR | S_IXUSR);
 	if(chdir(outdir))
 	{
-		fprintf(stderr, "Chdir(2) failed");
+		fprintf(stderr, "The target directory does not seem to exist.");
 		exit(-1);
 	}
 
@@ -677,13 +674,6 @@ long long int count_ngrams(
 	}
 
 	int number_of_files_open_concurrently = number_of_special_combinations(ngramsize);
-	if(build_smaller_indexes)
-	{
-		for(int i = ngramsize - 1; i; i--)
-		{
-			number_of_files_open_concurrently += number_of_special_combinations(i);
-		}
-	}
 	number_of_files_open_concurrently *= num_concurrent_buffers;
 
 	if(number_of_files_open_concurrently > sysconf(_SC_OPEN_MAX))
