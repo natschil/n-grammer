@@ -56,7 +56,7 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 			{
 				if(state == IN_SINGLE_WORD)
 				{
-					if(((word[0] == '$') || (word[0] == '*')) && (current_word_size != 1))
+					if(current_word_size && ((word[0] == '$') || (word[0] == '*')) && (current_word_size != 1))
 					{
 						cerr<<"search: '$' or '*' may not be part of a word"<<endl;
 						free(word);
