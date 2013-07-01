@@ -5,14 +5,24 @@
 #ifndef NGRAM_ANALYSIS_ENTROPY_INDEX_H
 #define NGRAM_ANALYSIS_ENTROPY_INDEX_H
 
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdint.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include <map>
 #include <vector>
 #include <string>
+#include <sstream>
 
 #include "manage_metadata.h"
 #include "math.h"
 
 using namespace std;
-void entropy_of( map<unsigned int,Metadata> &metadatas,vector<string> arguments);
+void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> arguments);
 
 #endif

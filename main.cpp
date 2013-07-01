@@ -18,12 +18,14 @@
 #include "make_wordlength_stats.h"
 #include "view_wordlength_stats.h"
 #include "entropy_of.h"
+#include "entropy_index.h"
 
 void print_usage(int argc,char* argv[])
 {
 	fprintf(stderr, "Usage %s <ngram.counting output folder> COMMAND OPTIONS\n",argv[0]);
 	fprintf(stderr, "COMMAND \t\t\t\tOPTIONS\n");
 	fprintf(stderr,"\t\tinvert_index\t\t <index_to_invert e.g. 0_1_2_3>\n");
+	fprintf(stderr,"\t\tentropy_index\t\t\t<search string like \"* =\"> \n");
 	fprintf(stderr,"\t\tsearch\t\t\t<search string e.g. \"this * a test\">\n");
 	fprintf(stderr,"\t\tentropy_of\t\t\t<search string> \n");
 	fprintf(stderr,"\t\tget_top\t\t\t<ngram number> <number of results to display> \n");
@@ -116,6 +118,9 @@ int main(int argc, char* argv[])
 	}else if(command =="entropy_of")
 	{
 		entropy_of(metadatas,arguments);
+	}else if(command == "entropy_index")
+	{
+		entropy_index(metadatas,arguments);	
 	}else
 	{
 		print_usage(argc,argv);
