@@ -349,7 +349,7 @@ static int getnextwordandaddit(
    }
     
     //---END.OF.DOCUMENT--- becomes END.OF.DOCUMENT--- because preceding hyphens are ignored.
-   if(!strcmp((const char*) inflexion,"END.OF.DOCUMENT---")) 
+   if(!strcmp((const char*) inflexion,"end.of.document---")) 
    {
 	   if(add_at_start)
 		   buf->add_null_word_at_start();
