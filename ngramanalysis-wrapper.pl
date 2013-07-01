@@ -7,13 +7,14 @@ use CGI;
 use JSON;
 use Cwd;
 use IPC::Open3;
-use Email::Send::SMTP::Gmail;
+use Email::Send;
+use Email::Send::SMTP;
 
 use perl_metadata_management;
 
 
-my $ngram_indexes_dir = "/var/www/html/ngram-indexes/";
-my $ngram_analysis_location = "/home/nathanael/dev/ngram.analysis/ngram.analysis";
+my $ngram_indexes_dir = "/home/nat/ngram_indexes";
+my $ngram_analysis_location = "/home/nat/ngramanalysis/ngram.analysis";
 my $sending_email_account = 'ngramanalysis.cyserver@gmail.com';
 my $sending_email_password = "somepassword";
 
@@ -178,6 +179,7 @@ sub output_results
 		{
 			my $search_string = $query->param("search_string");
 		$message .= <<HEREDOC;
+
 Here are your results for your search on the database $folder for "$search_string".
 
 Log messages output during this search:
@@ -243,12 +245,11 @@ HEREDOC
 	$message .="\n---------------------\n";
 	if($notification_type eq "email")
 	{
-		my $email = Email::Send::SMTP::Gmail->new
+		my $mailer = Email::Send->new
 		(
-			-smtp => "smtp.gmail.com",
-			-login => $sending_email_account,
-			-pass => $sending_email_password,
+			{mailer => 'SMTP'}
 		);
+		$mailer->mailer_args([Host => "smtpserv.uni-tuebingen.de:25",ssl => 0]);
 
 		my $subject = "N-gram analysis ";
 		given($action)
@@ -256,12 +257,12 @@ HEREDOC
 			when("search")
 			{
 				my $search_string = $query->param("search_string");
-				$subject .= "results for search $search_string in folder $folder";
+				$subject .= "results for search '$search_string' in folder $folder";
 			};
 			when("search")
 			{
 				my $search_string = $query->param("search_string");
-				$subject .= "results for entropy of $search_string in folder $folder";
+				$subject .= "results for entropy of '$search_string' in folder $folder";
 			};
 
 			when("get_top")
@@ -276,12 +277,14 @@ HEREDOC
 				$subject .= "wordlength information for $ngramsize-grams in folder $folder";
 			}
 		}
-		$email->send(
-			-to => $query->param("email_address"),
-			-subject => $subject,
-			-body => $message,
-		);
-		$email->bye;
+		my $email_to = $query->param("email_address");
+		my $finished_email = <<HEREDOC;
+To: $email_to
+From: ngrams\@cyserver.sfs.uni-tuebingen.de
+Subject: $subject
+$message
+HEREDOC
+		$mailer->send($finished_email);
 		say "/Sent email successfully to ". $query->param("email_address");
 	}
 
