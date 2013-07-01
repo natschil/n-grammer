@@ -1,4 +1,4 @@
-#!/bin/perl
+#!/usr/bin/perl
 #This script generates reference data for test_ngram_analyis.pl for the filename specified as the first index.
 
 use v5.10;
