@@ -367,6 +367,11 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 	//Aaand the file is sorted.
 	free(table);
 	*/
+
+	pair<unsigned int,vector<unsigned int> > result(known_words.size(),search_index_to_use);
+	relevant_metadata.entropy_indexes.insert(result);
+	relevant_metadata.write();
+
 	cerr<<"Finished building entropy index"<<endl;	
 	munmap(mmaped_output_file,output_file_size);
 	fclose(output_file);

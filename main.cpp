@@ -19,6 +19,7 @@
 #include "view_wordlength_stats.h"
 #include "entropy_of.h"
 #include "entropy_index.h"
+#include "entropy_index_get_top.h"
 
 void print_usage(int argc,char* argv[])
 {
@@ -29,6 +30,7 @@ void print_usage(int argc,char* argv[])
 	fprintf(stderr,"\t\tsearch\t\t\t<search string e.g. \"this * a test\">\n");
 	fprintf(stderr,"\t\tentropy_of\t\t\t<search string> \n");
 	fprintf(stderr,"\t\tget_top\t\t\t<ngram number> <number of results to display> \n");
+	fprintf(stderr,"\t\tentropy_index_get_top\t\t\t<ngram number> <number of results to display> \n");
 	fprintf(stderr,"\t\tmake_wordlength_stats\t<ngram_number>\n");
 	fprintf(stderr,"\t\tview_wordlength_stats\t<ngram_number>\n");
 	fflush(stderr);
@@ -109,6 +111,9 @@ int main(int argc, char* argv[])
 	}else if(command == "get_top")
 	{
 		get_top(metadatas,arguments);	
+	}else if( command == "entropy_index_get_top")
+	{
+		entropy_index_get_top(metadatas,arguments);
 	}else if(command == "make_wordlength_stats")
 	{
 		make_wordlength_stats(metadatas,arguments);

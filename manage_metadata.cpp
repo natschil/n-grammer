@@ -106,9 +106,9 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 		}else if(nextline == "MAX_LEMMA_SIZE")
 		{
 			metadata_file>>max_lemma_size;
-		}else if((nextline == "Indexes") || (nextline == "InvertedIndexes"))
+		}else if((nextline == "Indexes") || (nextline == "InvertedIndexes") || (nextline == "EntropyInvertedIndexes"))
 		{
-			int is_inverted = ((nextline == "InvertedIndexes") ? 1 : 0);
+			int index_type = ((nextline == "Indexes") ? 0 : ((nextline == "InvertedIndexes") ? 1 : 2));
 			while(1)
 			{
 				//Get the first character in the new line, note that due to the .get() above, this is true also for the first line.
@@ -128,11 +128,28 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 
 					vector<unsigned int> this_combination;
 
+					unsigned int entropy_known_words_number = 0;
+
 					string index_as_string;
-					if(!is_inverted)
-				        	index_as_string=  nextline.substr(strlen("by_"));
-					else 
-						index_as_string = nextline.substr(strlen("inverted_by_"));
+					switch(index_type)
+					{
+						case 0:
+							index_as_string = nextline.substr(strlen("by_"));
+						break;
+						case 1:
+							index_as_string = nextline.substr(strlen("inverted_by_"));
+						break;
+						case 2:
+						{
+							const char* ptr = nextline.c_str();
+							const char* ptr2 = ptr + strlen("entropy_");
+							char* endptr;
+							entropy_known_words_number = strtoul(ptr2,&endptr,10);
+							ptr2 = endptr;
+							ptr2 += strlen("_index_");
+							index_as_string = nextline.substr(ptr2 - ptr);
+						}
+					}
 
 					stringstream index_as_stringstream(index_as_string);
 					while(1)
@@ -144,10 +161,22 @@ upper_loop: while(getline(metadata_file,nextline,':'))
 						if(index_as_stringstream.eof())
 							break;
 					}
-					if(!is_inverted)
-						indices.insert(this_combination);
-					else
-						inverted_indices.insert(this_combination);
+					switch(index_type)
+					{
+						case 0:
+							indices.insert(this_combination);
+						break;
+						case 1:
+							inverted_indices.insert(this_combination);
+						break;
+						case 2:
+						{
+							pair<unsigned int,vector<unsigned int> > value(entropy_known_words_number, this_combination);
+							entropy_indexes.insert(value);
+						}
+						break;
+							
+					}
 				}
 			}
 		}else if(nextline == "POSSupplementIndexesExist")
@@ -213,6 +242,21 @@ void Metadata::write(void)
 		for(auto j = (*i).begin(); j != (*i).end(); j++)
 		{
 			outfile<<"_"<<(*j);
+		}
+		outfile<<"\n";
+	}
+
+	if(this->entropy_indexes.begin() != this->entropy_indexes.end())
+	{
+		outfile<<"EntropyInvertedIndexes:\n";
+	}
+
+	for(auto i = this->entropy_indexes.begin(); i != this->entropy_indexes.end(); i++)
+	{
+		outfile<<"\tentropy_"<<i->first<<"_index";
+		for(auto j = i->second.begin(); j != i->second.end(); j++)
+		{
+			outfile<<"_"<<*j;
 		}
 		outfile<<"\n";
 	}

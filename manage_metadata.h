@@ -76,6 +76,7 @@ class Metadata
 
 		//The set of inverted indexes, by frequency of occurance.
 		set<vector<unsigned int> > inverted_indices;
+		set<pair<unsigned int,vector<unsigned int> > > entropy_indexes;
 
 		//Whether or not wordlength statistics exist.
 		bool wordlength_stats_exist;
