@@ -2,10 +2,19 @@
 
 static int compare_entries(const void* first, const void* second)
 {
-	char* endptr;
-	unsigned int first_entropy_u = strtoul((const char*)first,&endptr,16);
-	unsigned int second_entropy_u = strtoul((const char*)second,&endptr,16);
-	return first_entropy_u - second_entropy_u;
+
+	float first_entropy;
+	float second_entropy;
+	sscanf((const char*) first, "%a",&first_entropy);
+	sscanf((const char*) second, "%a",&second_entropy);
+	if(first_entropy > second_entropy)
+	{
+		return 1;
+	}else if(second_entropy > first_entropy)
+	{
+		return -1;
+	}else
+		return 0;
 }
 
 void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> arguments)
@@ -180,7 +189,7 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 				}else
 				{
 					long double p = (long double) current_frequency / (long double) current_total_frequency;
-					current_negative_entropy += (p + log2l(p));
+					current_negative_entropy += (p * log2l(p));
 				}
 				//Set the current line to after the newline.
 				current_line = end_of_current_line + 1;
@@ -226,11 +235,14 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 							//width specifiers easier. Additionally, given that all of our floats
 							//(should) be non-negative, sorting them doesn't require all of the float
 							//overhead.
-							fprintf(output_file,"%8X %16lX\n",
-									*reinterpret_cast<uint32_t*>(&tmp_entropy),
+							if(tmp_entropy >= 0)
+							{
+								fprintf(output_file,"%16.8a %16lX\n",
+									tmp_entropy,
 									(uint64_t) (first_line - mmaped_in_file)
 							       );
 
+							}
 							first_line = current_line;
 							end_of_first_line_significant_part = end_of_current_significant_part;
 							first_significant_part_length = end_of_first_line_significant_part - first_line;
@@ -258,7 +270,7 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 		exit(-1);
 	}
 	char* outfile_eof = mmaped_output_file + output_file_size;
-	qsort(mmaped_output_file,output_file_size/(8 + 1 + 16 + 1),(8 + 1 + 16 + 1),&compare_entries);
+	qsort(mmaped_output_file,output_file_size/(16 + 1 + 16 + 1),(16 + 1 + 16 + 1),&compare_entries);
 
 	/*
 	//We now american flag sort the whole thing. We know that all entropies should be positive, and we're assuming ieee 754 floats,which we 
@@ -310,7 +322,7 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 		char *output_file_ptr;
 
 		//At first we count:
-		for(output_file_ptr = current_stackptr->begin; output_file_ptr != current_stackptr->end;output_file_ptr+=(8 + 1 + 16 + 1))
+		for(output_file_ptr = current_stackptr->begin; output_file_ptr != current_stackptr->end;output_file_ptr+=(16 + 1 + 16 + 1))
 		{
 			char* endptr;
 			uint32_t entropy_u = strtoul(output_file_ptr,&endptr,16);
@@ -326,8 +338,8 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 			total += prev;
 			if((depth != lowest_depth) && prev)
 			{
-				stackptrs[depth+1]->begin = mmaped_output_file + (*cur * (8 + 1 + 16 + 1));
-				stackptrs[depth+1]->end = mmaped_output_file + (total * (8 + 1 + 16 + 1));
+				stackptrs[depth+1]->begin = mmaped_output_file + (*cur * (16 + 1 + 16 + 1));
+				stackptrs[depth+1]->end = mmaped_output_file + (total * (16 + 1 + 16 + 1));
 				stackptrs[depth+1]++;
 			}
 		}
@@ -337,20 +349,20 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 		{
 			if(!(table_backup[i+1] - table[i]))
 				continue;
-			char* original_location  = (8 + 1 + 16 + 1)*(table_backup[i+1] - 1) + mmaped_output_file;
+			char* original_location  = (16 + 1 + 16 + 1)*(table_backup[i+1] - 1) + mmaped_output_file;
 
 			while(1)
 			{
 				char* endptr;
 				uint32_t tmp_u = strtoul(original_location,&endptr,16);
 				uint32_t relevant_bits = (tmp_u >> shift) & 0xFFFF;
-				char* next = (mmaped_output_file) + (8 + 1 + 16 + 1)*((table[relevant_bits])++);
+				char* next = (mmaped_output_file) + (16 + 1 + 16 + 1)*((table[relevant_bits])++);
 				if(next == original_location)
 					break;
 				else
 				{
 					//We swap the two elements:
-					char tmp[8 + 1 + 16 + 1];
+					char tmp[16 + 1 + 16 + 1];
 					memcpy(tmp,next,sizeof(tmp));
 					memcpy(next,original_location,sizeof(tmp));
 					memcpy(original_location,tmp,sizeof(tmp));

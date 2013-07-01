@@ -148,11 +148,11 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 	{
 		const char* to_work_with = currentline.c_str();
 		char* endptr;
-		unsigned int entropy = strtoul(to_work_with,&endptr, 16);
-		float* entropy_f = reinterpret_cast<float*> (&entropy);
+		float entropy_f;
+		size_t read = sscanf(to_work_with,"%a",&entropy_f);
 
-		to_work_with = endptr;
-		to_work_with++;
+		to_work_with += 16;
+
 		off_t address = strtoll(to_work_with, &endptr, 16);
 		vector<string> ngram = getNGramAtAddress(address,index_filename);
 		for(size_t i = 0; i < known_words.size(); i++)
@@ -166,7 +166,7 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 				cout<<" ";
 
 		}
-		cout<<"\t"<<*entropy_f<<endl;
+		cout<<"\t"<<entropy_f<<endl;
 	}
 
 }
