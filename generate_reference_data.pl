@@ -139,7 +139,7 @@ for my $i (1 .. 4)
 				die "$function failed for $i-grams";
 			}
 			if( system(
-					"./ngram.analysis $processing_dir/$i search " .
+					"./ngram.analysis $processing_dir/$i $function " .
 						"\"$search_strings_pos_second[${i}]\" > ${processing_dir}/${i}_grams_${function}_second_out 2>/dev/null"
 					))
 			{
