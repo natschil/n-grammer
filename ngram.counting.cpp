@@ -348,8 +348,8 @@ static int getnextwordandaddit(
 	   lemma[lemma_length] = '\0';
    }
     
-    //---END.OF.DOCUMENT--- becomes END.OF.DOCUMENT--- because preceding hyphens are ignored.
-   if(!strcmp((const char*) inflexion,"end.of.document---")) 
+    //---END.OF.DOCUMENT--- becomes ENDOFDOCUMENT--- because preceding hyphens are ignored and punctuation also
+   if(!strcmp((const char*) inflexion,"endofdocument---")) 
    {
 	   if(add_at_start)
 		   buf->add_null_word_at_start();
