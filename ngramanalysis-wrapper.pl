@@ -4,8 +4,8 @@ use v5.10;
 use strict; 
 use warnings;
 use CGI;
+use Encode;
 use JSON;
-use Cwd;
 use IPC::Open3;
 use Email::Send;
 use Email::Send::SMTP;
@@ -16,8 +16,8 @@ use perl_metadata_management;
 my $ngram_indexes_dir = "/home/nat/ngram_indexes";
 my $ngram_analysis_location = "/home/nat/ngramanalysis/ngram.analysis";
 my $sending_email_account = 'ngramanalysis.cyserver@gmail.com';
-my $sending_email_password = "somepassword";
 
+binmode STDOUT,":utf8";
 my $q = CGI->new;
 print $q->header(-type=>'text/plain',-charset=>"utf-8");
 
@@ -78,6 +78,10 @@ sub get_top
 	}
 	my $pid = open3(my $analysis_stdin,my $analysis_stdout,my $analysis_stderr = "lvaluable",
 		"$ngram_analysis_location","$ngram_indexes_dir/$folder", "get_top" ,"$ngramsize" ,"$howmany");
+
+	binmode $analysis_stdout, ":utf8";
+	binmode $analysis_stderr, ":utf8";
+
 	close($analysis_stdin);
 	waitpid($pid,0);
 
@@ -102,6 +106,10 @@ sub view_wordlength_stats
 	}
 	my $pid = open3(my $analysis_stdin,my $analysis_stdout,my $analysis_stderr = "lvaluable",
 		"$ngram_analysis_location","$ngram_indexes_dir/$folder","view_wordlength_stats","$ngramsize");
+
+	binmode $analysis_stdout, ":utf8";
+	binmode $analysis_stderr, ":utf8";
+
 	close($analysis_stdin);
 	waitpid($pid,0);
 	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
@@ -117,14 +125,17 @@ sub search
 		say "/Folder $folder does not exist";
 		say "/Query did not execute successfully" and die;
 	}
-	my $search_string = $query->param("search_string");
+	my $search_string = decode("utf8",$query->param("search_string"));
 	if(!$search_string)
 	{
 		say "/Invalid search string $search_string";
 		say "/Query did not execute successfully" and die;
 	}
 	my $pid = open3(my $analysis_stdin,my $analysis_stdout,my $analysis_stderr = "lvaluable",
-		"$ngram_analysis_location", "$ngram_indexes_dir/$folder", "search", "$search_string");
+		"$ngram_analysis_location", "$ngram_indexes_dir/$folder", "search", $search_string);
+
+	binmode $analysis_stdout, ":utf8";
+	binmode $analysis_stderr, ":utf8";
 	close($analysis_stdin);
 	waitpid($pid,0);
 	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
@@ -140,7 +151,7 @@ sub entropy_of
 		say "/Folder $folder does not exist";
 		say "/Query did not execute successfully" and die;
 	}
-	my $search_string = $query->param("search_string");
+	my $search_string = decode("utf8",$query->param("search_string"));
 	if(!$search_string)
 	{
 		say "/Invalid search string $search_string";
@@ -148,6 +159,9 @@ sub entropy_of
 	}
 	my $pid = open3(my $analysis_stdin,my $analysis_stdout,my $analysis_stderr = "lvaluable",
 		"$ngram_analysis_location", "$ngram_indexes_dir/$folder", "entropy_of", "$search_string");
+
+	binmode $analysis_stdout, ":utf8";
+	binmode $analysis_stderr, ":utf8";
 	close($analysis_stdin);
 	waitpid($pid,0);
 	output_results($query,$folder,$analysis_stdout,$analysis_stderr);

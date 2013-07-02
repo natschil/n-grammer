@@ -2,6 +2,7 @@
 "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
+	<meta charset='utf-8'/> 
 	<style>
 		table
 		{
@@ -147,27 +148,27 @@
 					);
 			}
 			var url ="/cgi-bin/ngramanalysis-wrapper.pl?";
-			url += "folder=" + window.escape(query_folder);
-			url += "&action=" + window.escape(query_type);
+			url += "folder=" + encodeURIComponent(query_folder);
+			url += "&action=" + encodeURIComponent(query_type);
 			switch(query_type)
 			{
 				case "entropy_of":
 				case "search":
-					url+= "&search_string=" + window.escape($("search_string").value);
+					url+= "&search_string=" + encodeURIComponent($("search_string").value);
 				break;
 				case "get_top":
-					url+="&ngramsize=" + window.escape($("ngram_number_get_top").value);
-					url+="&howmany=" + window.escape($("howmany").value);
+					url+="&ngramsize=" + encodeURIComponent($("ngram_number_get_top").value);
+					url+="&howmany=" + encodeURIComponent($("howmany").value);
 				break;
 				case "view_wordlength_stats":
-					url+="&ngramsize=" + window.escape($("ngram_number_wordlength_stats").value);
+					url+="&ngramsize=" + encodeURIComponent($("ngram_number_wordlength_stats").value);
 				break;
 			}
 
-			url+="&notification_type=" + window.escape(notification_type);
+			url+="&notification_type=" + encodeURIComponent(notification_type);
 			if(notification_type == "email")
 			{
-				url +="&email_address=" + window.escape($("email_input").value);
+				url +="&email_address=" + encodeURIComponent($("email_input").value);
 			}
 			query_request.open("get",url);
 			query_request.send(null);
