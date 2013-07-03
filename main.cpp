@@ -99,7 +99,7 @@ int main (int argc, char* argv[])
 			char* ptr = argv[i] + strlen("--build-wordsearch-index=");
 			char* endptr;
 			long int index_number = strtol(ptr,&endptr,10);
-			if(*ptr && !*endptr && (index_number>= 0))
+			if(*ptr && !*endptr && (index_number >= 0))
 			{
 				single_wordsearch_index_to_build = index_number;
 			}else
