@@ -12,17 +12,25 @@ int main(int argc, char* argv[])
 	if(argc != 2)
 	{
 		fprintf(stderr,"Usage: %s file_name\n",argv[0]);
+		return -1;
 	}
 	const char* filename = argv[1];
 	FILE* myfile = fopen(filename,"r");
 	if(!myfile)
 	{
 		fprintf(stderr,"Could not open file %s \n",filename);
+		return -1;
 	}
 	size_t buf1_size = 1024;
 	size_t buf2_size = 1024;
 	char* buf1 = malloc(buf1_size);
-	getline(&buf1,&buf1_size,myfile);
+	ssize_t read;
+	read = getline(&buf1,&buf1_size,myfile);
+	if(read <= 0)
+	{
+		fprintf(stderr,"The file %s seems to be empty \n",filename);
+		return -1;
+	}
 	if(buf2_size < buf1_size)
 	{
 		buf2_size = buf1_size;
@@ -30,7 +38,6 @@ int main(int argc, char* argv[])
 	char* buf2 = malloc(buf2_size);
 	strcpy(buf2,buf1);
 
-	ssize_t read;
 	while((read = getline(&buf1,&buf1_size,myfile))> 0)
 	{
 		if(strcmp(buf1,buf2) <= 0)
