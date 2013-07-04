@@ -6,7 +6,7 @@ use strict;
 use warnings;
 use File::Basename;
 #TODO: Fix the ugly code below to something that is better.
-do "perl_metadata_management.pl";
+use  perl_metadata_management;
 
 if( $#ARGV != 0)
 {
@@ -17,7 +17,7 @@ if( $#ARGV != 0)
 my $processing_dir = "./reference_data/" . basename($ARGV[0]) . "/";
 for my $i (1 .. 4)
 {
-	my $current_metadata = parse_metadata_file("$processing_dir/$i",$i) ;
+	my $current_metadata = perl_metadata_management::parse_metadata_file("$processing_dir/$i",$i) ;
 	for my $current_index_name (values $current_metadata->{"Indexes"})
 	{
 		if(system("./ngram.analysis $processing_dir/$i invert_index $current_index_name"))
@@ -37,6 +37,58 @@ for my $i (1 .. 4)
 		say "Generated reference data for get_top for $i-grams";
 	}
 
+	my @entropy_search_string_pattern;;
+	for my $j (1 .. $i)
+	{
+		push @entropy_search_string_pattern,1;
+	}
+	while(!$current_metadata->{"isPos"})
+	{
+		my $j;
+
+		next_permutation: for($j = @entropy_search_string_pattern - 1; $j >= 0; $j--)
+		{
+			if($entropy_search_string_pattern[$j])
+			{
+				$entropy_search_string_pattern[$j] = 0;
+				if(($j + 1) <= @entropy_search_string_pattern - 1)
+				{
+					for my $k ($j + 1 .. @entropy_search_string_pattern - 1)
+					{
+						$entropy_search_string_pattern[$k] = 1;
+					}
+				}
+				last next_permutation;
+			}
+		}
+		my $search_string_pattern;
+		for $j (@entropy_search_string_pattern)
+		{
+			$search_string_pattern .= (($j == 1) ? "=":"*");
+			$search_string_pattern .= " ";
+		}
+		$search_string_pattern =~ s/\s+$//;
+
+		for($j = 0; $j< @entropy_search_string_pattern; $j++)
+		{
+			last if $entropy_search_string_pattern[$j];
+		}
+		last if($j == @entropy_search_string_pattern);
+
+		if(system("./ngram.analysis $processing_dir/$i entropy_index \"$search_string_pattern\">/dev/null 2>/dev/null"))
+		{
+			die "Failed to create entropy index for search string \"$search_string_pattern\"";
+		}
+
+		my $binary_search_string = join("_",@entropy_search_string_pattern);
+		if(system("./ngram.analysis $processing_dir/$i entropy_index_get_top \"$search_string_pattern\" 10 3 > ${processing_dir}/entropy_index_get_top_$binary_search_string 2>/dev/null"))
+		{
+			die "Failed to run entropy_index_get_top for search string \"$search_string_pattern\"";
+		}
+
+	}
+	
+	say "Succeeded in building all entropy indexes for $i-grams";
 
 	unless($current_metadata->{"isPos"})
 	{

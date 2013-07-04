@@ -11,4 +11,7 @@ Indexes:
 InvertedIndexes:
 	inverted_by_0_1
 	inverted_by_1_0
+EntropyInvertedIndexes:
+	entropy_1_index_0_1
+	entropy_1_index_1_0
 WordlengthStatsExist:	yes

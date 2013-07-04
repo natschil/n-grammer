@@ -11,8 +11,7 @@ use File::Path 'remove_tree';
 #Force flush of stdout.
 $|=1;
 
-#TODO: Fix the ugly code below to something that is better.
-do "perl_metadata_management.pl";
+use perl_metadata_management;
 
 if( $#ARGV != 0)
 {
@@ -39,7 +38,7 @@ $tests_dir .= "/";
 for my $i (1 .. 4)
 {
 	say "Parsing metadata";
-	my $reference_metadata = parse_metadata_file("$reference_dir/$i",$i) ;
+	my $reference_metadata = perl_metadata_management::parse_metadata_file("$reference_dir/$i",$i) ;
 
 	#Test inverting the indexes
 	while( my( $current_index_name,$current_index_short_name) =  each $reference_metadata->{"InvertedIndexes"})
@@ -77,8 +76,75 @@ for my $i (1 .. 4)
 		say "Succeeded test for get_top for $i-grams";
 	}
 
-	#Test the wordlength stat generation and reading.
+	#Test the entropy indexes
+	my @entropy_search_string_pattern;
+	for my $j (1 .. $i)
+	{
+		push @entropy_search_string_pattern,1;
+	}
+	while(!$reference_metadata->{"isPos"})
+	{
+		my $j;
 
+		next_permutation: for($j = @entropy_search_string_pattern - 1; $j >= 0; $j--)
+		{
+			if($entropy_search_string_pattern[$j])
+			{
+				$entropy_search_string_pattern[$j] = 0;
+				if(($j + 1) <= @entropy_search_string_pattern - 1)
+				{
+					for my $k ($j + 1 .. @entropy_search_string_pattern - 1)
+					{
+						$entropy_search_string_pattern[$k] = 1;
+					}
+				}
+				last next_permutation;
+			}
+		}
+		my $search_string_pattern;
+		for $j (@entropy_search_string_pattern)
+		{
+			$search_string_pattern .= (($j == 1) ? "=":"*");
+			$search_string_pattern .= " ";
+		}
+		$search_string_pattern =~ s/\s+$//;
+
+		for($j = 0; $j< @entropy_search_string_pattern; $j++)
+		{
+			last if $entropy_search_string_pattern[$j];
+		}
+		last if($j == @entropy_search_string_pattern);
+
+		if(system("./ngram.analysis $tests_dir/$i entropy_index \"$search_string_pattern\">/dev/null 2>/dev/null"))
+		{
+			die "Failed to create entropy index for search string \"$search_string_pattern\"";
+		}
+
+		my $binary_search_string = join("_",@entropy_search_string_pattern);
+		if(system("./ngram.analysis $tests_dir/$i entropy_index_get_top \"$search_string_pattern\" 10 3 > $tests_dir/entropy_index_get_top_$binary_search_string 2>/dev/null"))
+		{
+			die "Failed to run entropy_index_get_top for search string \"$search_string_pattern\"";
+		}
+
+		if(compare("$tests_dir/entropy_index_get_top_$binary_search_string", "$reference_dir/entropy_index_get_top_$binary_search_string"))
+		{
+			die "Failed on test entropy_index_get_top for pattern $search_string_pattern";
+		}
+	}
+
+	unless($reference_metadata->{"isPos"} or ($i == 1))
+	{
+		for my $current_entropy_index_name (@{$reference_metadata->{"EntropyInvertedIndexes"}})
+		{
+			if(compare("$tests_dir/$i/$current_entropy_index_name", "$reference_dir/$i/$current_entropy_index_name"))
+			{
+				die "Failed comparing entropy indexes of name $current_entropy_index_name";
+			}
+		}
+	}
+	say "Finished testing entropy indexes for $i-grams";
+
+	#Test the wordlength stat generation and reading.
 	unless($reference_metadata->{"isPos"})
 	{
 		if(system("./ngram.analysis $tests_dir/$i make_wordlength_stats $i"))

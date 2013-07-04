@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+package perl_metadata_management;
 use v5.10;
 use strict;
 use warnings;
@@ -7,7 +8,7 @@ sub parse_metadata_file
 {
 	my ($processing_dir,$i) = @_;
 	my %current_metadata;
-	open(METADATA_FILE,$processing_dir . "/${i}_grams.metadata") or die "Unable to open $processing_dir/${i}_grams.metadata";
+	open(METADATA_FILE,$processing_dir . "/${i}_grams.metadata") or die "Unable to open $processing_dir ${i}_grams.metadata";
 	while(my $currentline = <METADATA_FILE>)
 	{
 		if( $currentline =~ /^N-Gram-Counter-Version:\t([0-9]+)\n$/)
@@ -81,12 +82,25 @@ sub parse_metadata_file
 			}
 		}elsif( $currentline =~ /^WordlengthStatsExist:\t(.*)\n$/)
 		{
-			if($i eq "yes")
+			if($1 eq "yes")
 			{
 				$current_metadata{"WorldlengthStatsExist"} = "yes";
 			}else
 			{
 				$current_metadata{"WordlengthStatsExist"} = "";
+			}
+		}elsif( $currentline =~ /^EntropyInvertedIndexes:\n$/)
+		{
+			$current_metadata{"EntropyInvertedIndexes"} = [];
+			while(my $index_line = <METADATA_FILE>)
+			{
+				unless($index_line =~ /^\t/)
+				{
+					seek(METADATA_FILE, -length($index_line),1);
+					last;
+				}
+				$index_line =~ /^\t(entropy_[0-9]+_index_.*)\n$/;;
+				push $current_metadata{"EntropyInvertedIndexes"},$1;
 			}
 		}else
 		{

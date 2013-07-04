@@ -153,6 +153,7 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 	if(mmaped_index_file == (void*) -1)
 	{
 		cerr<<"Could not mmap file"<<index_filename;
+		exit(-1);
 	}
 	posix_madvise(mmaped_index_file,index_file_size, POSIX_MADV_RANDOM);
 
