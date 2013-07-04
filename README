@@ -68,3 +68,17 @@ entropy_of
 		a lot	1
 	Then the entropy returned is 1, as the value of the word following "a" has as much entropy as a single coin toss.
 
+entropy_index
+	This function creates an index by entropy.
+	It takes as the only parameter a pattern describing a search string like "= * =",
+		where each '=' represents a known word, and 
+		each '*' character epresents the wildcard(s) whose entropy is used as the key of the index.
+	This index can then be queried using the entropy_index_get_top command (see below).
+
+entropy_index_get_top
+	This function takes as the first argument a pattern to match a search string (see the entropy_index command).
+	The second argument is the number of results to display (k).
+	The optional third argument gives a threshhold for the minimum frequency that an n-gram with entropy 0 must have to be shown. 
+		This value is 1 by default (i.e. show all n-grams with frequency 0).
+	This function displays the top k search strings(that match the pattern of the first argument) with the lowest entropy.
+

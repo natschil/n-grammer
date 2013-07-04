@@ -3,26 +3,24 @@
 static int compare_entries(const void* first, const void* second)
 {
 
-	float first_entropy;
-	float second_entropy;
-	sscanf((const char*) first, "%a",&first_entropy);
-	sscanf((const char*) second, "%a",&second_entropy);
-	if(first_entropy > second_entropy)
-	{
-		return 1;
-	}else if(second_entropy > first_entropy)
-	{
-		return -1;
-	}else
-		return 0;
+	const uint32_t *first_entropy = (const uint32_t*)first;
+	const uint32_t *second_entropy = (const uint32_t*) second;
+	return *first_entropy - *second_entropy;
 }
 
 void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 {
-	//TODO: Check about floating types more here.
 	if(sizeof(float) != sizeof(uint32_t))
 	{
 		cerr<<"This machine does not have sizeof(float) == 8 , and hence this query won't work."<<endl;
+		exit(-1);
+	}
+
+	float to_check = 1.0;
+	uint32_t* to_float = (uint32_t*) &to_check;
+	if(*to_float != 0x3f800000)
+	{
+		cerr<<"This machine doesn't seem to be using ieee 754 floats, and hence we cannot radix sort its floats safely. Sorry."<<endl;
 		exit(-1);
 	}
 	if(arguments.size() != 1)
@@ -44,7 +42,7 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 	vector<unsigned int> known_words;
 	vector<unsigned int> unknown_words;
 	unsigned int current_position = 0;
-	for(auto i = search_string.begin(); i != search_string.end();i++,current_position++)
+	for(auto i = search_string.begin(); i != search_string.end();i++)
 	{
 		if(!last_was_space)
 		{
@@ -69,6 +67,7 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 				unknown_words.push_back(current_position);
 			}
 			last_was_space = false;
+			current_position++;
 		}
 	}
 	unsigned int ngramsize = known_words.size() + unknown_words.size();
@@ -116,7 +115,7 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 
 	string index_filename = relevant_metadata.output_folder_name + "/by" +  index_filename_stringstream.str() + "/0.out";
 	stringstream number;
-	number<<unknown_words.size();
+	number<<known_words.size();
 	string output_filename = 
 		relevant_metadata.output_folder_name + string("/entropy_") + number.str() + string("_index") + index_filename_stringstream.str();
 
@@ -231,17 +230,19 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 							float tmp_entropy = (-1 * current_negative_entropy);
 							if(tmp_entropy == -0.0)
 								tmp_entropy = 0;
-							//We output our floats as unsigned, 32 bit integers, as that makes
-							//width specifiers easier. Additionally, given that all of our floats
-							//(should) be non-negative, sorting them doesn't require all of the float
-							//overhead.
-							if(tmp_entropy >= 0)
+							//We output our floats as unsigned, 32 bit integers, as we do bitwise operations on them.
+							uint32_t tmp_entropy_as_uint = * (unsigned int*)&tmp_entropy;
+							if(!(tmp_entropy_as_uint << 1)) //Equate +0 and -1
+								tmp_entropy_as_uint = 0;
+							//We check that the sign bit is not set and that 
+							if(!((tmp_entropy_as_uint & 0x80000000) || ((tmp_entropy_as_uint >> 24) == 0xFF)))
 							{
-								fprintf(output_file,"%16.8a %16lX\n",
-									tmp_entropy,
-									(uint64_t) (first_line - mmaped_in_file)
-							       );
-
+								fwrite((void*) &tmp_entropy_as_uint, sizeof(tmp_entropy_as_uint),1,output_file);
+								uint64_t offset = first_line - mmaped_in_file;
+								fwrite((void*) &offset, sizeof(offset), 1,output_file);
+							}else
+							{
+								fprintf(stderr,"Found non-positive and real entropy\n");
 							}
 							first_line = current_line;
 							end_of_first_line_significant_part = end_of_current_significant_part;
@@ -270,7 +271,8 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 		exit(-1);
 	}
 	char* outfile_eof = mmaped_output_file + output_file_size;
-	qsort(mmaped_output_file,output_file_size/(16 + 1 + 16 + 1),(16 + 1 + 16 + 1),&compare_entries);
+	
+	qsort(mmaped_output_file,output_file_size/(sizeof(float)+sizeof(uint64_t)),(sizeof(float) + sizeof(uint64_t)),&compare_entries);
 
 	/*
 	//We now american flag sort the whole thing. We know that all entropies should be positive, and we're assuming ieee 754 floats,which we 

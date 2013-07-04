@@ -26,11 +26,11 @@ void print_usage(int argc,char* argv[])
 	fprintf(stderr, "Usage %s <ngram.counting output folder> COMMAND OPTIONS\n",argv[0]);
 	fprintf(stderr, "COMMAND \t\t\t\tOPTIONS\n");
 	fprintf(stderr,"\t\tinvert_index\t\t <index_to_invert e.g. 0_1_2_3>\n");
-	fprintf(stderr,"\t\tentropy_index\t\t\t<search string like \"* =\"> \n");
+	fprintf(stderr,"\t\tentropy_index\t\t\t<search string like \"* =\">  (do not use yet)\n");
 	fprintf(stderr,"\t\tsearch\t\t\t<search string e.g. \"this * a test\">\n");
 	fprintf(stderr,"\t\tentropy_of\t\t\t<search string> \n");
 	fprintf(stderr,"\t\tget_top\t\t\t<ngram number> <number of results to display> \n");
-	fprintf(stderr,"\t\tentropy_index_get_top\t\t\t<ngram number> <number of results to display> \n");
+	fprintf(stderr,"\t\tentropy_index_get_top\t\t\t<ngram number> <number of results to display> <minimum frequency to display for n-grams with 0 entropy>\n");
 	fprintf(stderr,"\t\tmake_wordlength_stats\t<ngram_number>\n");
 	fprintf(stderr,"\t\tview_wordlength_stats\t<ngram_number>\n");
 	fflush(stderr);

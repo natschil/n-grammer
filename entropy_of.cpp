@@ -12,7 +12,7 @@ void entropy_of( map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 			);
 	if(!number_of_outputs)
 	{
-		cerr<<"Did not find anything using search string '"<<arguments[0]<<endl;
+		cerr<<"Did not find anything using search string '"<<arguments[0]<<"'"<<endl;
 		exit(-1);
 	}
 	long double entropy = accumulate(search_result.begin(),search_result.end(),(long double)0,

@@ -207,11 +207,11 @@ for my $i (1 .. 4)
 				}
 		
 				if( system(
-						"./ngram.analysis $tests_dir $function " .
+						"./ngram.analysis $tests_dir/$i $function " .
 							"\"$search_strings_pos_second[${j}]\" > $tests_dir/${j}_grams_${function}_second_out 2>/dev/null"
 						))
 				{
-					die "Running $function failed for $i-grams";
+					die "Running $function failed for $j-grams in $i-gram index";
 				}
 		
 				if(compare("$tests_dir/${j}_grams_${function}_second_out","$reference_dir/${j}_grams_${function}_second_out"))
