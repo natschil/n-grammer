@@ -27,6 +27,11 @@
 		{
 			float: left;
 		}
+		#results_area td
+		{
+			width:100%;
+			border: none;
+		}
 	</style>
 <title>
 	Welcome!
@@ -53,8 +58,10 @@
 				{
 					if(entry[0] == "/")				
 					{
-						$("error_log").innerHTML += entry;
-						$("error_log").innerHTML += "<br/>";
+						var newTextNode = document.createTextNode(entry);
+						var newlineNode = document.createElement("br");
+						$("error_log").appendChild(newTextNode);
+						$("error_log").appendChild(newlineNode);
 					}else
 					{
 						//Empty the table of indexes:	
@@ -64,7 +71,12 @@
 						}catch(e)
 						{
 							if(entry)
-							$("error_log").innerHTML += "An error seems to have occured<br/>";
+							{
+								var newTextNode = docuement.createTextNode(entry);
+								var newlineNode = document.createElement("br");
+								$("error_log").appendChild(newTextNode);
+								$("error_log").appendChild(newlineNode);
+							}
 						}
 						for( var i in list_all_result)
 						{
@@ -82,7 +94,8 @@
 							for(var ngramsize in list_all_result[i])
 							{
 								var header_text_node = document.createElement("h6");
-								header_text_node.innerHTML = ngramsize + "-grams";
+								var header_text_node_contents = document.createTextNode(ngramsize+"-grams");
+								header_text_node.appendChild(header_text_node_contents);
 								first_row_second_col.appendChild(header_text_node);
 								for(var attribute_name in list_all_result[i][ngramsize])
 								{
@@ -128,22 +141,49 @@
 			var query_request = new XMLHttpRequest;
 			query_request.onload = function()
 			{
-				results_area.innerHTML += "---------------------------------------\n";
-				results_area.innerHTML += "<br/>";
+				var lineNode = document.createElement("tr");
+				lineNode.appendChild(document.createElement("td"));
+				lineNode.firstChild.setAttribute("colspan",2);
+				lineNode.firstChild.appendChild(document.createElement("hr"));
+				lineNode.firstChild.firstChild.setAttribute("color","orange");
+				results_area.appendChild(lineNode);
 				query_request.responseText.split("\n").forEach(
 					function(cur)
 					{
 						if(cur[0] == "/")
 						{
-							$("error_log").innerHTML += cur;
-							$("error_log").innerHTML += "<br/>"
+							var currentTextNode = document.createTextNode(cur);
+							$("error_log").appendChild(currentTextNode);
+							$("error_log").appendChild(document.createElement("br"));
 						}else
 						{
-							$("results_area").innerHTML += cur;
-							$("results_area").innerHTML +="<br/>";
+							var re = /^(.+)\t([0-9]+)$/;
+							if(cur.match(re))
+							{
+								var currentResultsNode = document.createElement("tr");
+								currentResultsNode.appendChild(document.createElement("td"));
+								currentResultsNode.appendChild(document.createElement("td"));
+								currentResultsNode.firstChild.appendChild(
+									document.createTextNode(RegExp.$1)
+									);
+								currentResultsNode.firstChild.nextSibling.appendChild(
+									document.createTextNode(RegExp.$2)
+									);
+									console.log(cur);
+								$("results_area").appendChild(currentResultsNode);
 
+							}else
+							{
+								var currentResultsNode = document.createElement("tr");
+								currentResultsNode.appendChild(document.createElement("td"));
+								currentResultsNode.appendChild(document.createElement("td"));
+								currentResultsNode.firstChild.appendChild(
+									document.createTextNode(cur)
+									);
+								currentResultsNode.firstChild.setAttribute("colspan",2);
+								$("results_area").appendChild(currentResultsNode);
+							}
 						}
-
 					}
 					);
 			}
@@ -172,8 +212,9 @@
 			}
 			query_request.open("get",url);
 			query_request.send(null);
-			$("error_log").innerHTML += "Sent request, waiting for response... (this might take a while)<br/>";
-
+			var newTextNode = document.createTextNode("Sent request, waiting for response... (this might take a while)");
+			$("error_log").appendChild(newTextNode);
+			$("error_log").appendChild(document.createElement("br"));
 		}
 
 		for(var i in $("actions_part_of_table").getElementsByTagName("tr"))
@@ -208,11 +249,11 @@
 
 		$("clear_results_area").onclick = function()
 		{
-			$("results_area").innerHTML = "";
-			$("error_log").innerHTML = "";
+			while($("results_area").firstChild)
+				$("results_area").removeChild($("results_area").firstChild);
+			while($("error_log").firstChild)
+				$("error_log").removeChild($("error_log").firstChild);
 		}
-
-
 	};
 </script>
 </head>
@@ -264,7 +305,7 @@
 		<tr><td id="error_log"/></tr>
 		<th> Results</th>
 		<tr><td><input type="button" value="Clear Log and Results" id="clear_results_area"/></td></tr>
-		<tr><td id="results_area"</td></tr>
+		<tr><td><table id="results_area" style="border:none;"/></td></tr>
 
 	</table>
 	</table>
