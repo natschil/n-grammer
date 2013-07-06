@@ -52,7 +52,6 @@
 		var all_indexes_request = new XMLHttpRequest;
 		all_indexes_request.onload = function()
 		{
-
 			all_indexes_request.responseText.split("\n").forEach(
 				function(entry)
 				{
@@ -141,6 +140,11 @@
 			var query_request = new XMLHttpRequest;
 			query_request.onload = function()
 			{
+				var local_search_string = $("search_string").value;
+				if(query_type != "search")
+					local_search_string = "";
+				local_search_string = local_search_string.replace("[","");
+				local_search_string = local_search_string.replace("]","");
 				var lineNode = document.createElement("tr");
 				lineNode.appendChild(document.createElement("td"));
 				lineNode.firstChild.setAttribute("colspan",2);
@@ -163,13 +167,37 @@
 								var currentResultsNode = document.createElement("tr");
 								currentResultsNode.appendChild(document.createElement("td"));
 								currentResultsNode.appendChild(document.createElement("td"));
+
+								var ngram = RegExp.$1;
+								var frequency = RegExp.$2;
+								if((ngram.indexOf("|") != -1) && local_search_string)
+								{
+									var words = ngram.split(" ");
+									var new_words = [];
+									var search_string_words = local_search_string.split(" ");
+									for(var wordIndex in words)
+									{
+										var current_word = words[wordIndex];
+										var current_search_word = search_string_words[wordIndex];
+
+										if(current_search_word.indexOf("|") != -1)
+										{
+											new_words.push(current_word);
+										}else
+										{
+											current_word.match(/(^[^\|]+)\|([^\|]+)\|([^\|]+)$/)
+											new_words.push(RegExp.$3);
+										}
+									}
+									ngram = new_words.join(" ");
+								}
+
 								currentResultsNode.firstChild.appendChild(
-									document.createTextNode(RegExp.$1)
+									document.createTextNode(ngram)
 									);
 								currentResultsNode.firstChild.nextSibling.appendChild(
-									document.createTextNode(RegExp.$2)
+									document.createTextNode(frequency)
 									);
-									console.log(cur);
 								$("results_area").appendChild(currentResultsNode);
 
 							}else
@@ -283,8 +311,12 @@
     The POS notation above takes the form [type|lemma|word], where an asterisk
     means a wildcard.
 
-    Each word of the result of a search on a POS corpus has the form
-    [type|lemma|word] in the result.
+    Note that for POS corpora, the output of words from the search string not
+    in the [foo|bar|baz] notation is simplified to only show the word. Hence searching
+    POS corpora without using the square bracket notation may result in duplicate outputs.
+    For words with the search string in square bracket notation, each word of the result
+     of a search on a POS corpus has the form type|lemma|word in the result.
+
 (**) Use a search string with wildcards to determine the entropy of the wildcards (in bits).
 </pre>
 		</td></tr>
