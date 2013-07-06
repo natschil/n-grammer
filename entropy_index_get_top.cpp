@@ -1,26 +1,6 @@
 #include "entropy_index_get_top.h"
 
-static pair<vector<string>,long long int>  getNGramAtAddress(off_t address, void* mmaped_file, off_t mmaped_file_size)
-{
-	char* ptr = (char*)( mmaped_file) + address;
-	char* ptr2 = ptr;
-	vector<string> result;
-	while(1)
-	{
-		if(strchr(" \t",*ptr2))
-		{
-			result.push_back(string(ptr,ptr2));
-			if(*ptr2 == '\t')
-			{
-				char* endptr;
-				long long int frequency = strtoll(ptr2,&endptr,10);
-				return pair<vector<string>,long long int>(result,frequency);
-			}
-			ptr = ptr2 + 1;
-		}
-		ptr2++;
-	}
-}
+
 
 
 

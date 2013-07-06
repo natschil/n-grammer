@@ -15,6 +15,7 @@
 #include "manage_metadata.h"
 
 
+pair<vector<string>,long long int>  getNGramAtAddress(off_t address, void* mmaped_file, off_t mmaped_file_size);
 void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments);
 
 
