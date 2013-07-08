@@ -22,4 +22,4 @@ very_tiny.9.output
 *.[oa]
 merger
 ngram\.counting
-
+check_if_sorted
