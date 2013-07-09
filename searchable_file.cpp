@@ -274,7 +274,7 @@ bool searchable_file::string_matches_filter(string &result_s, string &filter_s,s
 
 		)
 	{
-		cerr<<"searchable_file: Result string has incorrect formatting"<<endl;
+		cerr<<"searchable_file: Result string '"<<result_s<<"' has incorrect formatting"<<endl;
 		exit(-1);
 	}else if(
 			strstr(filter_s.c_str(),"  ") ||
