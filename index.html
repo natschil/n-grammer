@@ -180,13 +180,19 @@
 										var current_word = words[wordIndex];
 										var current_search_word = search_string_words[wordIndex];
 
-										if(current_search_word.indexOf("|") != -1)
+										if((current_search_word.indexOf("|") != -1)|| (current_word === "$"))
 										{
 											new_words.push(current_word);
 										}else
 										{
-											current_word.match(/(^[^\|]+)\|([^\|]+)\|([^\|]+)$/)
-											new_words.push(RegExp.$3);
+											if(current_word.match(/(^[^\|]+)\|([^\|]+)\|([^\|]+)$/))
+												new_words.push(RegExp.$3);
+											else
+											{
+												$("error_log").appendChild(document.createTextNode(
+													"Error in web interface"));
+												$("error_log").appendChild(document.createElement("br"));
+											}
 										}
 									}
 									ngram = new_words.join(" ");
@@ -316,6 +322,13 @@
     POS corpora without using the square bracket notation may result in duplicate outputs.
     For words with the search string in square bracket notation, each word of the result
     of a search on a POS corpus has the form type|lemma|word in the result.
+
+    An output of "$" refers to a "null-word". This is generally either the start or end of
+    the corpus, a word that is longer than MAX_WORD_SIZE characters (or variations of this for
+    POS corpora), a word starting with &lt; for POS corpora (for xml tags which separate files)
+    or the special string ---END.OF.DOCUMENT---. Note that two "$"s in succession do not mean
+    that there were two null-words as all null-words are treated as if they were arbitarily long
+    sequences of null-words. "$" can be used in some search strings both in POS an non-POS corpora.
 
 (**) Use a search string with wildcards to determine the entropy of the wildcards (in bits).
 </pre>
