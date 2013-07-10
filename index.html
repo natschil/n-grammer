@@ -50,6 +50,12 @@
 	window.onload = function()
 	{
 		var all_indexes_request = new XMLHttpRequest;
+		all_indexes_request.timeout = 10000;
+		all_indexes_request.ontimeout = function()
+		{
+			$("error_log").appendChild(document.createTextNode("Request timed out");
+			$("error_log").appendChild(document.createElement("br"));
+		}
 		all_indexes_request.onload = function()
 		{
 			all_indexes_request.responseText.split("\n").forEach(
