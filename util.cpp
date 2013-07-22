@@ -44,4 +44,12 @@ string join(const vector<string> &to_join,const string &delim)
 	return result.str();
 }
 
+function<unsigned int(string)> string_to_unsigned_int = [](string in)
+{
+	return stoi(in);
+};
 
+function<string(unsigned int)> unsigned_int_to_string = [](unsigned int in)
+{
+	return to_string(in);
+};

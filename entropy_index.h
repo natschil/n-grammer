@@ -13,14 +13,16 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <math.h>
 
 #include <map>
 #include <vector>
 #include <string>
 #include <sstream>
+#include <functional>
 
 #include "manage_metadata.h"
-#include "math.h"
+#include "util.h"
 
 using namespace std;
 void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> arguments);

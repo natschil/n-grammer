@@ -12,8 +12,10 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
 #include "manage_metadata.h"
 #include "get_top.h"
+#include "util.h"
 
 
 void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments);

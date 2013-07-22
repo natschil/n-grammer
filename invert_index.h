@@ -15,10 +15,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/mman.h>
-
 #include <dirent.h>
 #include <fcntl.h>
+#include <functional>
+
 #include "manage_metadata.h"
+#include "util.h"
 
 void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &arguments);
 

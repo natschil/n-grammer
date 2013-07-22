@@ -1,21 +1,26 @@
 #include "get_top.h"
 
-/* This function creates a table of offsets.
- * The code is relatively self-explanatory, it should however be noted that
- * even for the last index result[i+1] - result[i]  = the size of file i
- *
+/*
+ * This function gets an n-gram at the specified offset from an mmaped file of size mmaped_file_size.
  */
+
 pair<vector<string>,long long int>  getNGramAtAddress(off_t address, void* mmaped_file, off_t mmaped_file_size)
 {
+	if(address >= mmaped_file_size)
+	{
+		cerr<<"Trying to get ngram from non-existant point in n-gram frequency index"<<endl;
+		exit(-1);
+	}
 	char* ptr = (char*)( mmaped_file) + address;
 	char* ptr2 = ptr;
 	vector<string> result;
 	while(1)
 	{
-		if(strchr(" \t",*ptr2))
+		if(*ptr2 == '\t')
 		{
 			result.push_back(string(ptr,ptr2));
-			if(*ptr2 == '\t')
+			//This relies on the fact that digit characters are not part of n-grams.
+			if(isdigit(*(ptr2+1)))
 			{
 				char* endptr;
 				long long int frequency = strtoll(ptr2,&endptr,10);
@@ -26,30 +31,6 @@ pair<vector<string>,long long int>  getNGramAtAddress(off_t address, void* mmape
 		ptr2++;
 	}
 }
-
-static off_t* offsets_table(string folder_name)
-{
-	off_t* result = (off_t*) malloc(sizeof(off_t) * 2);//NOTE: Update this if we ever deal with multiple input files again.
-	result[0] = 0;
-	struct stat cur;
-	char* filename = (char*) malloc(strlen(folder_name.c_str()) + 1 +  3 + 4 + 1);
-	strcpy(filename,folder_name.c_str());
-	strcat(filename,"/");
-	char* ptr = filename + strlen(filename);
-	for(size_t i = 0; i< 1; i++)
-	{
-		sprintf(ptr, "%u.out",(unsigned int) i);
-		if(stat(filename,&cur))
-		{
-			cerr<<"File "<<filename<<" does not exist"<<endl;
-			exit(-1);
-		}
-		result[i + 1] = result[i] +  cur.st_size;
-	}
-	free(filename);
-	return result;
-}
-
 
 void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 {
@@ -82,17 +63,14 @@ void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 
 	Metadata &relevant_metadata = relevant_metadata_itr->second;
 	vector<unsigned int> what_were_looking_for;
-	string filename = string("by");
-	stringstream filename_stream(filename);
-	filename_stream.seekp(0,std::ios::end);
-
-	for(size_t i = 0; i< ngramsize;i++)
-	{
+	for(size_t i= 0; i< ngramsize; i++)
 		what_were_looking_for.push_back(i);
-		filename_stream<<string("_");
-		filename_stream<<i;
-	}
-	filename = filename_stream.str();
+
+	function<string(unsigned int)> unsigned_to_string = [](unsigned int in) -> string { return to_string(in);};
+	string index_specification = join(functional_map(what_were_looking_for,unsigned_to_string),"_");
+
+	string frequency_index_filename = relevant_metadata.output_folder_name + "/by_" + index_specification + "/0.out";
+	string inverted_frequency_index_filename = relevant_metadata.output_folder_name + "/inverted_" + index_specification;
 
 	if(find(relevant_metadata.inverted_indices.begin(), relevant_metadata.inverted_indices.end(),what_were_looking_for) == relevant_metadata.inverted_indices.end())
 	{
@@ -100,43 +78,41 @@ void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 		exit(-1);
 	}
 
-	string folder_name = relevant_metadata.output_folder_name + "/" +  filename;
-	off_t *offsets = offsets_table(folder_name);
-
-	ifstream inverted_index_file((relevant_metadata.output_folder_name + string("/inverted_") + filename).c_str(),ios::in);
-	if(!inverted_index_file)
+	ifstream inverted_frequency_index_file(inverted_frequency_index_filename.c_str());
+	if(!inverted_frequency_index_file)
 	{
-		cerr<<"get_top:"<<"Unable to open index file inverted_"<<filename<<endl;
-		free(offsets);
+		cerr<<"get_top:"<<"Unable to open index file "<<inverted_frequency_index_filename<<endl;
 		exit(-1);
 	}
-	string currentline;
 
-	int fd = open((relevant_metadata.output_folder_name + "/"+filename+"/0.out").c_str(),O_RDONLY);
-	if(fd < 0)
+	int frequency_index_fd = open(frequency_index_filename.c_str(),O_RDONLY);
+	if(frequency_index_fd < 0)
 	{
-		cerr<<"get_top: Could not open file"<<(relevant_metadata.output_folder_name + "/" + filename + "/0.out")<<endl;
+		cerr<<"get_top: Could not open file"<<frequency_index_filename<<endl;
 		exit(-1);
 	}
-	off_t mmaped_file_size = lseek(fd, 0 , SEEK_END);
+	off_t frequency_index_file_size = lseek(frequency_index_fd, 0 , SEEK_END);
 
-	void* mmaped_file = mmap(NULL,mmaped_file_size,PROT_READ,MAP_SHARED,fd,0);
-	if(mmaped_file == (void*) -1)
+	void* mmaped_frequency_index = mmap(NULL,frequency_index_file_size,PROT_READ,MAP_SHARED,frequency_index_fd,0);
+	if(mmaped_frequency_index == (void*) -1)
 	{
-		cerr<<"get_top: Could not mmap file"<<(relevant_metadata.output_folder_name + "/" + filename + "/0.out")<<endl;
+		cerr<<"get_top: Could not mmap file"<<frequency_index_filename<<endl;
 		exit(-1);
 	}
 
 	cerr<<"N-gram\tFrequency"<<endl;
-	for(size_t i = 0; i< num_to_display && (getline(inverted_index_file,currentline) > 0);i++)
+	string currentline;
+	//TODO: Possible write it out if we reach EOF too soon.
+	for(size_t i = 0; i< num_to_display && getline(inverted_frequency_index_file,currentline);i++)
 	{
 		const char* to_work_with = currentline.c_str();
 		char* endptr;
 		long long frequency = strtoll(to_work_with,&endptr, 16);
 		to_work_with = endptr;
-		to_work_with++;
+		to_work_with++;//Get rid of the "space" character in between.
 		off_t address = strtoll(to_work_with, &endptr, 16);
-		auto this_ngram = getNGramAtAddress(address,mmaped_file,mmaped_file_size);
+		auto this_ngram = getNGramAtAddress(address,mmaped_frequency_index,frequency_index_file_size);
+
 		bool first = true;
 		for_each(this_ngram.first.begin(), this_ngram.first.end(), 
 				[&first](string &cur)
@@ -151,14 +127,13 @@ void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 		if(frequency != this_ngram.second)
 		{
 			cerr<<"get_top: Frequencies in inverted index by frequency do not match frequency of n-grams in the indexes by n-gram, probably one of the two indexes is out of date, exiting.."<<endl;
-			munmap(mmaped_file,mmaped_file_size);
-			close(fd);
+			munmap(mmaped_frequency_index,frequency_index_file_size);
+			close(frequency_index_fd);
 
 		}
 	}
-	munmap(mmaped_file,mmaped_file_size);
-	close(fd);
-	free(offsets);
+	munmap(mmaped_frequency_index,frequency_index_file_size);
+	close(frequency_index_fd);
 
 }
 

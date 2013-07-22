@@ -10,7 +10,7 @@
 #define NGRAM_ANALYSIS_UTILS
 using namespace std;
 vector<string> split_ignoring_empty(const string& inputstring,const char delim);
-vector<string> split(const string& inputstring);
+vector<string> split(const string& inputstring,const char delim);
 string join(const vector<string> &to_join,const string &delim);
 
 //Equivalent to a function that inductively defined, is so that:
@@ -41,5 +41,8 @@ vector<U> functional_map(vector<T> input, function<U(T)> mapper)
 	}
 	return result;
 }
+extern function<unsigned int(string)> string_to_unsigned_int;
+extern function<string(unsigned int)> unsigned_int_to_string;
+
 
 #endif

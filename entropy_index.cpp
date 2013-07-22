@@ -1,28 +1,19 @@
 #include "entropy_index.h"
 
+const char entropy_index_header[] = "Entropy Index File in Binary Format\n---Begin Binary Reference Info---\n";
+const char after_entropy_index_test[] = "\n---End Binary Reference Info---\n---Actual Index is in Binary Form Below---\n";
+
 static int compare_entries(const void* first, const void* second)
 {
 
-	const uint32_t *first_entropy = (const uint32_t*)first;
-	const uint32_t *second_entropy = (const uint32_t*) second;
+	const float *first_entropy = (const float*)first;
+	const float *second_entropy = (const float*) second;
 	return *first_entropy - *second_entropy;
 }
 
 void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 {
-	if(sizeof(float) != sizeof(uint32_t))
-	{
-		cerr<<"This machine does not have sizeof(float) == 8 , and hence this query won't work."<<endl;
-		exit(-1);
-	}
-
-	float to_check = 1.0;
-	uint32_t* to_float = (uint32_t*) &to_check;
-	if(*to_float != 0x3f800000)
-	{
-		cerr<<"This machine doesn't seem to be using ieee 754 floats, and hence we cannot radix sort its floats safely. Sorry."<<endl;
-		exit(-1);
-	}
+    //We deal with the arguments, making sure they have the correct format:
 	if(arguments.size() != 1)
 	{
 		cerr<<"Please give one and only one argument to entropy_index"<<endl;
@@ -33,46 +24,34 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 	{
 		cerr<<"Please give an argument like \"* = * = ="<<endl;
 	}
-	if(*search_string.rbegin() == ' ')
+	if(strspn(search_string.c_str()," *=") != search_string.length())
 	{
-		cerr<<"The argument should not end in ' '"<<endl;
-		exit(-1);
+		cerr<<"Please give an argument like \"* = * = ="<<endl;
 	}
-	bool last_was_space = true;
+
+	vector<string> tokenized_string = split_ignoring_empty(search_string,' ');
 	vector<unsigned int> known_words;
 	vector<unsigned int> unknown_words;
-	unsigned int current_position = 0;
-	for(auto i = search_string.begin(); i != search_string.end();i++)
+	for(size_t i = 0; i< tokenized_string.size(); i++)
 	{
-		if(!last_was_space)
+		string &cur = tokenized_string[i];
+		if(cur.length() != 1)
 		{
-			if(*i != ' ')
-			{
-				cerr<<"Argument was incorrectly formated"<<endl;
-				exit(-1);
-			}else
-				last_was_space = true;
-
-		}else
+			cerr<<"Token "<<cur<<" is too long"<<endl;
+			exit(-1);
+		}
+		switch(cur[0])
 		{
-			if(*i == ' ')
-			{
-				cerr<<"Do not use double spaces"<<endl;
-				exit(-1);
-			}else if (*i == '=')
-			{
-				known_words.push_back(current_position);
-			}else
-			{
-				unknown_words.push_back(current_position);
-			}
-			last_was_space = false;
-			current_position++;
+			case '*': unknown_words.push_back(i);
+			break;
+			case '=': known_words.push_back(i);
 		}
 	}
+
+    //We now get the relevant ngram frequency index to build this kind of entropy index.
 	unsigned int ngramsize = known_words.size() + unknown_words.size();
 
-	//Only build indexes which perfectly match for n-gram size, for now:
+	//Only build indexes which perfectly match for n-gram size, for now. TODO: Think about whether we can do so differently.
 	auto relevant_metadata_itr = metadatas.find(ngramsize);
 	if(relevant_metadata_itr == metadatas.end())
 	{
@@ -105,81 +84,85 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 		exit(-1);
 	}
 
-	stringstream index_filename_stringstream("");
-	index_filename_stringstream.seekp(0, std::ios::end);
- 	for(auto i : search_index_to_use)
-	{
-		index_filename_stringstream<<"_";
-		index_filename_stringstream<<i;
-	}
 
-	string index_filename = relevant_metadata.output_folder_name + "/by" +  index_filename_stringstream.str() + "/0.out";
-	stringstream number;
-	number<<known_words.size();
-	string output_filename = 
-		relevant_metadata.output_folder_name + string("/entropy_") + number.str() + string("_index") + index_filename_stringstream.str();
+	string index_specifier = join(functional_map(search_index_to_use,unsigned_int_to_string)," ");
+	string frequency_index_filename = relevant_metadata.output_folder_name + "/by_" +  index_specifier + "/0.out";
+	string entropy_index_filename = relevant_metadata.output_folder_name +
+	      			 	"/entropy_" + to_string(known_words.size()) + "_index_" + index_specifier;
 
-	//The input file:
-	int in_fd = open(index_filename.c_str(), O_RDWR);
-	off_t in_file_size = lseek(in_fd,0, SEEK_END);
-	if(in_fd < 0 )
+    //We now open all of the files and mmaped regions which we will need for the sorting.
+    
+	//The frequency index file:
+	int frequency_index_fd = open(frequency_index_filename.c_str(), O_RDWR);
+	off_t frequency_index_file_size = lseek(frequency_index_fd,0, SEEK_END);
+	if(frequency_index_fd < 0 )
 	{
-		cerr<<"Could not open the file "<<index_filename<<endl;
+		cerr<<"Could not open the file "<<frequency_index_filename<<endl;
 		exit(-1);
 	}
 
-
-	const char* mmaped_in_file = (const char*) mmap(NULL, in_file_size, PROT_READ, MAP_SHARED,in_fd, 0);
-	if(mmaped_in_file == (char*) -1)
+	const char* mmaped_frequency_index = (const char*) mmap(NULL, frequency_index_file_size, PROT_READ, MAP_SHARED,frequency_index_fd, 0);
+	if(mmaped_frequency_index == (const char*) -1)
 	{
-		cerr<<"Could not mmap the file "<<index_filename<<endl;
+		cerr<<"Could not mmap the file "<<frequency_index_filename<<endl;
+		exit(-1);
+	}
+	//The entropy index file, which we make sure to remove if it already exists:
+	unlink(entropy_index_filename.c_str());
+	FILE* entropy_index_file = fopen(entropy_index_filename.c_str(),"w+");
+	if(!entropy_index_file)
+	{
+		cerr<<"Could not open the file "<<entropy_index_filename<<" for writing"<<endl;
 		exit(-1);
 	}
 
-	unlink(output_filename.c_str());
-	FILE* output_file = fopen(output_filename.c_str(),"w+");
-	if(!output_file)
+    //We now write the header part of the index, useful for knowing what the file does and whether the same
+    //(nonportable) binary format was used for index creation as reading:
+	fwrite(entropy_index_header,sizeof(char),sizeof(entropy_index_header) - 1,entropy_index_file);
+	float test_value_float = 123.456;
+	uint64_t test_value_uint = 1234567890;
+	fwrite(&test_value_float,sizeof(test_value_float),1,entropy_index_file);
+	fwrite(&test_value_uint, sizeof(test_value_uint),1,entropy_index_file);
+	fwrite(after_entropy_index_test,sizeof(char),sizeof(after_entropy_index_test)-1,entropy_index_file);
+
+   //Some useful constants and variables
+   
+	const char* const mmaped_frequency_index_eof = mmaped_frequency_index + frequency_index_file_size;
+
+	//Refers to the first line which matches the same search string as the current line given the
+	//search string format given as a parameter to this file.
+	//The "significant_part" is that part of the string that matches the non-wildcard parts of the search string.
+	const char* first_line_start = mmaped_frequency_index;
+	const char* first_line_end_of_significant_part = find_nth(mmaped_frequency_index,mmaped_frequency_index_eof,'\t',known_words.size());
+	auto first_line_significant_part_length = first_line_end_of_significant_part - first_line_start;
+
+	//A kind of loop variable:
+	const char* current_line_start = mmaped_frequency_index;
+	const char* current_line_end_of_significant_part = NULL;
+	const char* current_line_iterator = NULL; //Gets initialized in for loop below.
+
+   //Here the actual fun begins:
+   
+	unsigned int num_words = 0; //How many spaces this line has had so far.
+	const unsigned int num_words_to_end_of_significant_part = known_words.size(); //After how many spaces the "significant_part" ends.
+	bool just_getting_total_frequency = true; //Is the current iteration only getting the frequencies to find out the total frequency?
+
+	long long int current_total_frequency = 0;//The total frequency of this particular search string.
+	long double current_negative_entropy = (long double)0; //Multiple by -1 to get the entropy (once done).
+
+	for(current_line_iterator = mmaped_frequency_index; current_line_iterator != mmaped_frequency_index_eof; current_line_iterator++)
 	{
-		cerr<<"Could not open the file "<<output_filename<<" for writing"<<endl;
-		exit(-1);
-	}
-	//TODO: posix_fallocate something here,possibly.
-
-	//Here the actual fun begins:
-	
-	//We determine the entropies:
-		
-	const char* eof = mmaped_in_file + in_file_size;
-
-	const char* first_line = mmaped_in_file;
-	size_t first_significant_part_length = 0;
-	const char* end_of_first_line_significant_part = NULL;
-
-	const char* current_line = mmaped_in_file;
-	const char* end_of_current_line;
-
-	const char* end_of_current_significant_part = NULL;
-	int num_spaces = 0;
-	const int num_spaces_to_end_of_significant_part = known_words.size();
-
-	int just_getting_total_frequency = 1;
-
-	long long int current_total_frequency = 0;
-	long double current_negative_entropy = (long double)0;
-
-	for(end_of_current_line = mmaped_in_file; end_of_current_line != eof; end_of_current_line++)
-	{
-		//We iterate over the mmaped_in_file.
-		switch(*end_of_current_line)
+		if(*current_line_iterator == '\t')
 		{
-			case '\t': 
+			num_words++;
+			if(num_words == ngramsize)//We're at just before the number.
 			{
 				//We get the number after the tab.
 				char* endptr;
-				long long int current_frequency = strtol(end_of_current_line+1,&endptr,10);
+				long long int current_frequency = strtol(current_line_iterator+1,&endptr,10);
 
 				//We want to continue after the newline after the number. Since the loop increments this, we leave it here.
-				end_of_current_line = endptr;
+				current_line_iterator = endptr;
 
 				//We update whatever field it is we're updating.
 				if(just_getting_total_frequency)
@@ -190,89 +173,80 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 					long double p = (long double) current_frequency / (long double) current_total_frequency;
 					current_negative_entropy += (p * log2l(p));
 				}
-				//Set the current line to after the newline.
-				current_line = end_of_current_line + 1;
-				num_spaces = 0;	
-			}
-			break;
-			case ' ':
-				//We want to keep track of where we are on the line.
-				num_spaces++;
+			//Set the current line to after the newline.
+				current_line_start = current_line_iterator + 1;
+				num_words = 0;	
+			}else
+			{
 				//Since we're looking for everything with the starts the same, we wait until this occurs:
-				if(num_spaces == num_spaces_to_end_of_significant_part)
+				if(num_words == num_words_to_end_of_significant_part)
 				{
 					//We update this variable, as we might need it later.
-					
-					end_of_current_significant_part = end_of_current_line;
-					//We set this variable if it hasn't been set. TODO: Do this only once, and not check every time.
-					if(!end_of_first_line_significant_part)
-					{
-						end_of_first_line_significant_part = end_of_current_line;
-						first_significant_part_length = end_of_first_line_significant_part - first_line;
-					}
+					current_line_end_of_significant_part = current_line_iterator;
 
+					//If this current significant part is different from the first one:
 					if(
-						(first_significant_part_length != (size_t)(end_of_current_significant_part - current_line)) 
+						(first_line_significant_part_length != (current_line_end_of_significant_part - current_line_start)) 
 								||
-						strncmp(first_line,current_line,first_significant_part_length)
+						strncmp(first_line_start,current_line_start,first_line_significant_part_length)
 							)
 					{
 						if(just_getting_total_frequency)
 						{
 							//We need to reset everything, except for the total frequency.
-							
-							current_line = first_line;
-							end_of_current_line = end_of_first_line_significant_part;
-							end_of_current_significant_part = end_of_first_line_significant_part;
-
+							current_line_start = first_line_start;
+							//We can skip the first part of the string here, as
+							//	a) There is always something after the significant part 
+							//	b) We only look at the frequencies at the end of the line.
+							current_line_end_of_significant_part = first_line_end_of_significant_part;
+							current_line_iterator = first_line_end_of_significant_part;
 						}else
 						{
 							float tmp_entropy = (-1 * current_negative_entropy);
 							if(tmp_entropy == -0.0)
 								tmp_entropy = 0;
-							//We output our floats as unsigned, 32 bit integers, as we do bitwise operations on them.
-							uint32_t tmp_entropy_as_uint = * (unsigned int*)&tmp_entropy;
-							if(!(tmp_entropy_as_uint << 1)) //Equate +0 and -1
-								tmp_entropy_as_uint = 0;
-							//We check that the sign bit is not set and that 
-							if(!((tmp_entropy_as_uint & 0x80000000) || ((tmp_entropy_as_uint >> 24) == 0xFF)))
+							int classification = fpclassify(tmp_entropy);
+							if(signbit(tmp_entropy))
 							{
-								fwrite((void*) &tmp_entropy_as_uint, sizeof(tmp_entropy_as_uint),1,output_file);
-								uint64_t offset = first_line - mmaped_in_file;
-								fwrite((void*) &offset, sizeof(offset), 1,output_file);
+								fprintf(stderr,"Found negative entropy value, looks like a bug\n");
+							}else if(!((classification == FP_ZERO) || (classification == FP_NORMAL) || (classification == FP_SUBNORMAL)))
+							{
+								fprintf(stderr,"Found non-finite entropy value, could be a bug\n");
 							}else
 							{
-								fprintf(stderr,"Found non-positive and real entropy\n");
+								fwrite((void*) &tmp_entropy,sizeof(tmp_entropy),1,entropy_index_file);	
+								uint64_t offset = first_line_start - mmaped_frequency_index;
+								fwrite((void*) &offset,sizeof(offset),1,entropy_index_file);
 							}
-							first_line = current_line;
-							end_of_first_line_significant_part = end_of_current_significant_part;
-							first_significant_part_length = end_of_first_line_significant_part - first_line;
-
+							first_line_start = current_line_start;
+							first_line_end_of_significant_part = current_line_end_of_significant_part;
+							first_line_significant_part_length = first_line_end_of_significant_part - first_line_start;
+	
 							current_total_frequency = 0;
 						 	current_negative_entropy = 0;
 						}
 						just_getting_total_frequency = !just_getting_total_frequency;
 					}
-					
+
 				}
-				
+			}
 		}
 	}
 	//Let's open the output file.
-	munmap((void*)mmaped_in_file,in_file_size);
-	close(in_fd);
-	fflush(output_file);
-	off_t output_file_size = ftell(output_file);
-	int output_file_fd = fileno(output_file);
-	char* mmaped_output_file = (char*)mmap(NULL,output_file_size, PROT_READ | PROT_WRITE, MAP_SHARED, output_file_fd, 0);
-	if(mmaped_output_file == (char*) -1)
+	munmap((void*)mmaped_frequency_index,frequency_index_file_size);
+	close(frequency_index_fd);
+	fflush(entropy_index_file);
+
+	off_t entropy_index_file_size = ftell(entropy_index_file);
+	int entropy_index_fd = fileno(entropy_index_file);
+	char* mmaped_entropy_index_file = (char*)mmap(NULL,entropy_index_file_size, PROT_READ | PROT_WRITE, MAP_SHARED, entropy_index_fd, 0);
+	if(mmaped_entropy_index_file == (char*) -1)
 	{
-		cerr<<"Could not mmap output file"<<output_filename<<endl;
+		cerr<<"Could not mmap output file"<<entropy_index_filename<<endl;
 		exit(-1);
 	}
-	char* outfile_eof = mmaped_output_file + output_file_size;
-	
-	qsort(mmaped_output_file,output_file_size/(sizeof(float)+sizeof(uint64_t)),(sizeof(float) + sizeof(uint64_t)),&compare_entries);
+
+	qsort(mmaped_entropy_index_file,entropy_index_file_size/(sizeof(float)+sizeof(uint64_t)),(sizeof(float) + sizeof(uint64_t)),&compare_entries);
 
 	/*
 	//We now american flag sort the whole thing. We know that all entropies should be positive, and we're assuming ieee 754 floats,which we 
@@ -387,7 +361,7 @@ void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> argumen
 	relevant_metadata.write();
 
 	cerr<<"Finished building entropy index"<<endl;	
-	munmap(mmaped_output_file,output_file_size);
-	fclose(output_file);
+	munmap(mmaped_entropy_index_file,entropy_index_file_size);
+	fclose(entropy_index_file);
 
 }

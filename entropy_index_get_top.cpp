@@ -1,18 +1,20 @@
 #include "entropy_index_get_top.h"
 
-
-
-
-
 void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 {
+    //First we open the arguments and check them
+    
 	//This function takes two arguments. The first is the n-gram number, and the second is the number of results to display.
 	if(!((arguments.size() == 2) || (arguments.size() == 3)))
 	{
-		cerr<<"entropy_index_get_top: Please give two arguments, where the first is a string like \"= *\" second is the number of results to display."<<endl;
+		cerr<<"entropy_index_get_top: Please give two arguments, where the first is a string like \"= *\"and the second is the number of results to display."<<endl;
 		exit(-1);
 	}
 	string search_string = arguments[0];
+	if(strspn(search_string.c_str()," *=") != search_string.length())
+	{
+		cerr<<"Please give an argument like \"* = * = ="<<endl;
+	}
 
 	unsigned int num_to_display = atoi(arguments[1].c_str());
 	if(!num_to_display)
@@ -30,39 +32,30 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 			exit(-1);
 		}
 	}
-	bool last_was_space = true;
+	vector<string> tokenized_search_string = split_ignoring_empty(search_string,' ');
 	vector<unsigned int> known_words;
 	vector<unsigned int> unknown_words;
-	unsigned int current_position = 0;
-	for(auto i = search_string.begin(); i != search_string.end();i++)
-	{
-		if(!last_was_space)
-		{
-			if(*i != ' ')
-			{
-				cerr<<"Argument was incorrectly formated"<<endl;
-				exit(-1);
-			}else
-				last_was_space = true;
 
-		}else
+	for(size_t i = 0; i<tokenized_search_string.size(); i++)
+	{
+		string cur = tokenized_search_string[i];
+		if(cur.length() != 1)
 		{
-			if(*i == ' ')
-			{
-				cerr<<"Do not use double spaces"<<endl;
-				exit(-1);
-			}else if (*i == '=')
-			{
-				known_words.push_back(current_position);
-			}else
-			{
-				unknown_words.push_back(current_position);
-			}
-			last_was_space = false;
-			current_position++;
+			cerr<<"entropy_index_get_top: Invalid search string format descriptor: "<<cur<<endl;
+			exit(-1);
+		}
+		switch(cur[0])
+		{
+			case '*':
+				unknown_words.push_back(i);
+			break;
+			case '=':
+				known_words.push_back(i);
+			break;
 		}
 	}
 
+    //We find the relevant indices for this:
 	unsigned int ngramsize = known_words.size() + unknown_words.size();
 	//We only build indexes which perfectly match for n-gram size, for now:
 	auto relevant_metadata_itr = metadatas.find(ngramsize);
@@ -98,56 +91,121 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 		exit(-1);
 	}
 
-	string index_filename("");
-	stringstream index_filename_stream("");
-	index_filename_stream.seekp(0,std::ios::end);
+    //We now open the relevant files
 
-	for(size_t i = 0; i< ngramsize;i++)
-	{
-		index_filename_stream<<"_";
-		index_filename_stream<<search_index_to_use.second[i];
-	}
-	index_filename = relevant_metadata.output_folder_name +"./by" + index_filename_stream.str() + "/0.out";
-	stringstream number("");
-	number<<known_words.size();
-	string entropy_index_filename = relevant_metadata.output_folder_name + "/entropy_" + number.str()+"_index"+index_filename_stream.str();
+	string index_specifier = join(functional_map(search_index_to_use.second,unsigned_int_to_string)," ");
+	string frequency_index_filename = relevant_metadata.output_folder_name + "/by_" +  index_specifier + "/0.out";
+	string entropy_index_filename = relevant_metadata.output_folder_name +
+	      			 	"/entropy_" + to_string(known_words.size()) + "_index_" + index_specifier;
 
 	FILE* entropy_index_file = fopen(entropy_index_filename.c_str(),"r");
 	if(!entropy_index_file)
 	{
 		cerr<<"Could not open file "<<entropy_index_filename<<endl;
 		exit(-1);
-
 	}
+
+	size_t header_line_size = 1024;
+	char* header_line = (char*)malloc(header_line_size);
+	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
+	{
+		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(strcmp(header_line,"Entropy Index File in Binary Format\n"))
+	{
+		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part one."<<endl;
+		exit(-1);
+	}
+	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
+	{
+		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(strcmp(header_line,"---Begin Binary Reference Info---\n"))
+	{
+		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part two."<<endl;
+		exit(-1);
+	}
+	float float_to_test;
+	uint64_t uint_to_test;
+	if(fread(&float_to_test,sizeof(float_to_test),1,entropy_index_file) != sizeof(float_to_test))
+	{
+		cerr<<"Could not read reference float from entropy index file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(fread(&uint_to_test,sizeof(uint_to_test),1,entropy_index_file) != sizeof(uint_to_test))
+	{
+		cerr<<"Could not read reference uint from entropy index file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if((float_to_test != 123.456) || (uint_to_test != 1234567890))
+	{
+		cerr<<"It seems like the entropy indexes were not generated on this machine, and this machine uses a different binary format"<<endl;
+		exit(-1);
+	}
+	if(getc(entropy_index_file) != '\n')
+	{
+		cerr<<"Expected newline in entropy index file, did not find it, exiting"<<endl;
+		exit(-1);
+	}
+	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
+	{
+		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(strcmp(header_line,"---End Binary Reference Info---\n"))
+	{
+		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part three."<<endl;
+		exit(-1);
+	}
+
+	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
+	{
+		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(strcmp(header_line,"---Actual Index is in Binary Form Below---\n"))
+	{
+		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part four."<<endl;
+		exit(-1);
+	}
+
 	string currentline;
 	cerr<<"N-gram\tEntropy(in bits)"<<endl;
-	int index_fd = open(index_filename.c_str(),  O_RDONLY);
-	if(index_fd < 0)
+	int frequency_index_fd = open(frequency_index_filename.c_str(),  O_RDONLY);
+	if(frequency_index_fd < 0)
 	{
-		cerr<<"Could not open file "<<index_filename<<endl;
+		cerr<<"Could not open file "<<frequency_index_filename<<endl;
 		exit(-1);
 	}
-	off_t index_file_size = lseek(index_fd,0,SEEK_END);
+	off_t frequency_index_file_size = lseek(frequency_index_fd,0,SEEK_END);
 
-	void* mmaped_index_file = mmap(NULL,index_file_size, PROT_READ,MAP_SHARED,index_fd,0);
-	if(mmaped_index_file == (void*) -1)
+	void* mmaped_frequency_index = mmap(NULL,frequency_index_file_size, PROT_READ,MAP_SHARED,frequency_index_fd,0);
+	if(mmaped_frequency_index == (void*) -1)
 	{
-		cerr<<"Could not mmap file"<<index_filename;
+		cerr<<"Could not mmap file"<<frequency_index_filename;
 		exit(-1);
 	}
-	posix_madvise(mmaped_index_file,index_file_size, POSIX_MADV_RANDOM);
+	posix_madvise(mmaped_frequency_index,frequency_index_file_size, POSIX_MADV_RANDOM);
 
 	for(int i = 0; i<(int) num_to_display;i++)
 	{
 		float current_entropy;
 		uint64_t current_offset;
 
-		fread(&current_entropy,sizeof(current_entropy),1,entropy_index_file);
-		size_t read = fread(&current_offset,sizeof(current_offset),1,entropy_index_file);
-		if(!read)
+		if(fread(&current_entropy,sizeof(current_entropy),1,entropy_index_file) != sizeof(current_entropy))
+		{
+			cerr<<"Reached end of file, exiting (but with zero exit status)"<<endl;
 			break;
+		}
+		if(fread(&current_offset,sizeof(current_offset),1,entropy_index_file) != sizeof(current_offset))
+		{
+			cerr<<"Reached premature eof, exiting (with non-zero exit status)"<<endl;	
+			exit(-1);
+		}
 
-		pair<vector<string>,long long int> ngram = getNGramAtAddress(current_offset,mmaped_index_file,index_file_size);
+		pair<vector<string>,long long int> ngram = getNGramAtAddress(current_offset,mmaped_frequency_index,frequency_index_file_size);
 		if((current_entropy == 0.0) && (ngram.second < minimum_frequency_to_show))
 		{
 			i--;
@@ -169,8 +227,8 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 			cout<<"\t"<<current_entropy<<endl;
 		}
 	}
-	munmap(mmaped_index_file,index_file_size);
-	close(index_fd);
-
+	munmap(mmaped_frequency_index,frequency_index_file_size);
+	close(frequency_index_fd);
+	return;
 }
 

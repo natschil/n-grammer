@@ -6,13 +6,17 @@
 
 #include <vector>
 #include <map>
+#include <functional>
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
 #include "manage_metadata.h"
+#include "util.h"
 
 
 pair<vector<string>,long long int>  getNGramAtAddress(off_t address, void* mmaped_file, off_t mmaped_file_size);

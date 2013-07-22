@@ -16,10 +16,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/mman.h>
-
 #include <dirent.h>
 #include <fcntl.h>
+
 #include "manage_metadata.h"
+#include "util.h"
 
 void make_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> &arguments);
 

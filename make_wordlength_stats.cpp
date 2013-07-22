@@ -33,52 +33,47 @@ void make_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 		exit(-1);
 	}
 
-	stringstream index_as_string_stream;
-	for(unsigned int i = 0; i< ngram_size; i++)
-	{
-		index_as_string_stream << "_";
-		index_as_string_stream << (*relevant_metadata.indices.begin())[i];
-	}
-	string filename = relevant_metadata.output_folder_name + string("/") + string("by") + index_as_string_stream.str() + string("/0.out"); 
-	string out_filename = relevant_metadata.output_folder_name +string("/"	) + arguments[0] + string("_grams_wordlength_stats");
+	auto first_index = *relevant_metadata.indices.begin();
+	string index_specification = join(functional_map(first_index,unsigned_int_to_string),"_");
+
+	string frequency_index_filename = relevant_metadata.output_folder_name + "/by_" + index_specification + "/0.out";
+	string out_filename = relevant_metadata.output_folder_name +"/"	+ to_string(ngram_size) + "_grams_wordlength_stats";
 
 
 	long long int *table = (long long int*) calloc(ngram_size * (relevant_metadata.max_word_size + 2),sizeof(*table));
 
-	//The first pass of a distribution sort.
-	const char* filename_c_str = filename.c_str();
-
+	//We simply count the number of occurances of n-grams of each length.
 	//A buffer for getline.
-	char* string_buf = (char*) malloc(1024);
-	size_t string_buf_size = 1024;
+	char* line_buf = (char*) malloc(1024);
+	size_t line_buf_size = 1024;
 
 	//For every possible word length, the output file has the format <number of characters> <aggregate frequency>
-	FILE* currentfile = fopen(filename_c_str,"r");
-	if(!currentfile)
+	FILE* frequency_index_file = fopen(frequency_index_filename.c_str(),"r");
+	if(!frequency_index_file)
 	{
-		free(string_buf); free(table);
-		cerr<<"Unable to open "<<filename<<" for reading"<<endl;
+		free(line_buf); free(table);
+		cerr<<"Unable to open "<<frequency_index_filename<<" for reading"<<endl;
 		exit(-1);
 	}
 	ssize_t num_read;
-	while((num_read = getline(&string_buf,&string_buf_size,currentfile)) > 0)
+	while((num_read = getline(&line_buf,&line_buf_size,frequency_index_file)) > 0)
 	{
-		const char* endptr = string_buf + num_read - 1; 
+		const char* endptr = line_buf + num_read - 1; 
 		endptr--; //Get rid of ending newline...
 		while(isdigit(*endptr))
 			endptr--;
-		char* errptr;
-		long long number = strtoll(endptr,&errptr,10);
-		if((*errptr) != '\n'|| !number)
+		char* endptr2;
+		long long number = strtoll(endptr,&endptr2,10);
+		if((*endptr) != '\n'|| !number)
 		{
-			free(string_buf); free(table);
+			free(line_buf); free(table);
 			fprintf(stderr,"make_wordlength_stats: Non-empty file to read has an invalid format\n");
 			exit(-1);
 		}
-		table[endptr - string_buf] += number;
+		table[endptr - line_buf] += number;
 	}
-	fclose(currentfile);
-	free(string_buf);
+	fclose(frequency_index_file);
+	free(line_buf);
 
 	FILE* outfile = fopen(out_filename.c_str(),"w");
 	if(!outfile)

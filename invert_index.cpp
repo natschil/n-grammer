@@ -8,11 +8,10 @@ static inline unsigned int integer_pow_10(unsigned int num)
 	return result;
 }
 
-static long long int get_max_frequency(Metadata &relevant_metadata, string &foldername)
+static long long int get_max_frequency(Metadata &relevant_metadata, string &filename)
 {
 	long long int max_freq = 0;
 
-	string filename = foldername + string("/0.out");
 	FILE* index_file = fopen(filename.c_str(),"r");
 	if(!index_file)
 	{
@@ -79,6 +78,11 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		exit(-1);
 	}
 
+	if(strspn(arguments[0].c_str(),"0123456789_") != arguments[0].length())
+	{
+		cerr<<"Invalid characters in first argument"<<endl;
+		exit(-1);
+	}
 	//Something like 0_1_2_3 as an argument has three '_' characters and therefore refers to a 4-gram index.
 	size_t ngram_size = (std::count(arguments[0].begin(), arguments[0].end(), '_') + 1);
 	
@@ -115,15 +119,8 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	Metadata &relevant_metadata = relevant_metadata_itr->second;
 
 	//Let's check whether the index to be inverted exists or not.
-	vector<unsigned int> index_as_vector;
-	stringstream argument_stream(arguments[0]);
-	for(size_t i = 0; i<ngram_size; i++)
-	{
-		unsigned int current_number;
-		argument_stream>>current_number;
-		index_as_vector.push_back(current_number);
-		argument_stream.get();
-	}
+	vector<unsigned int> index_as_vector = functional_map(split(arguments[0],'_'),string_to_unsigned_int);
+
 	auto index_in_question_itr = relevant_metadata.indices.find(index_as_vector);
 	if(index_in_question_itr == relevant_metadata.indices.end())
 	{
@@ -132,15 +129,13 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		exit(-1);
 	}
 
-	string foldername = relevant_metadata.output_folder_name + string("/") + string("by_") + arguments[0];
+	string frequency_index_filename = relevant_metadata.output_folder_name + string("/") + string("by_") + arguments[0] + "/0.out";
 	string out_filename = relevant_metadata.output_folder_name + string("/")+  string("inverted_by_") + arguments[0];
 
-	long long max_frequency = get_max_frequency(relevant_metadata,foldername);
+	long long max_frequency = get_max_frequency(relevant_metadata,frequency_index_filename);
 
 	long long int *table = (long long int*) calloc(max_frequency + 1,sizeof(*table));
 
-	//We use a type of counting sort
-	string filename  = foldername + string("/0.out");
 	//A buffer for getline.
 	char* line_buf = (char*) malloc(1024);
 	size_t line_buf_size = 1024;
@@ -148,15 +143,15 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 	size_t output_file_size = 0;
 
 	//We use C-style files and strings etc as this possibly optimizes the loop below.
-	FILE* currentfile = fopen(filename.c_str(),"r");
-	if(!currentfile)
+	FILE* frequency_index_file = fopen(frequency_index_filename.c_str(),"r");
+	if(!frequency_index_file)
 	{
 		free(line_buf); free(table);
-		cerr<<"Unable to open "<<filename<<" for reading"<<endl;
+		cerr<<"Unable to open "<<frequency_index_filename<<" for reading"<<endl;
 		exit(-1);
 	}
 	ssize_t read;
-	while((read = getline(&line_buf,&line_buf_size,currentfile)) > 0)
+	while((read = getline(&line_buf,&line_buf_size,frequency_index_file)) > 0)
 	{
 		//Set ptr to point to the newline after the number.
 		const char* ptr = line_buf + read - 1;
@@ -202,50 +197,39 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		output_file_size += (16 + 1 + 16 + 1);
 	}
 
-	fclose(currentfile);
-	free(line_buf);
 
 	//We sift down:
 	for(size_t i = max_frequency; i>1;i--)
 		table[i -1] += table[i];
 
 	//We open the output file, set it to the correct size and then mmap it.
-	int fd = open(out_filename.c_str(),O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-	if(fd == -1)
+	int out_fd = open(out_filename.c_str(),O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+	if(out_fd == -1)
 	{
-		free(table);
+		free(table);free(line_buf);
 		cerr<<"invert_index: Unable to open file "<<out_filename.c_str()<<endl;
 		exit(-1);
 	}
 
-	if(ftruncate(fd,output_file_size))
+	if(ftruncate(out_fd,output_file_size))
 	{
 		cerr<<"Unable to ftruncate output file"<<endl;
 	}
 
-	void* outfile_map = mmap(NULL,output_file_size,PROT_WRITE | PROT_READ,MAP_SHARED,fd,0);
-	if(outfile_map == MAP_FAILED)
+	void* outfile_map = mmap(NULL,output_file_size,PROT_WRITE | PROT_READ,MAP_SHARED,out_fd,0);
+	if(outfile_map == (void*)-1)
 	{
-		free(table);
+		free(table);free(line_buf);
 		cerr<<"invert_index: Unable to mmap file "<<out_filename.c_str()<<endl;
 		exit(-1);
 	}
 
 
 	long long current_offset = 0;
-	currentfile = fopen(filename.c_str(),"r");
-	if(!currentfile)
-	{
-		cerr<<"invert_index: Unable to open input index file:"<<filename<<endl;
-		free(table);
-		munmap(outfile_map,output_file_size);
-		exit(-1);
-	}
+	fseek(frequency_index_file,0,SEEK_SET);
 
 	//The last stage of the distribution sort
-	line_buf_size = 1024;
-	line_buf = (char*) malloc(line_buf_size);
-	while((read = getline(&line_buf,&line_buf_size,currentfile)) > 0)
+	while((read = getline(&line_buf,&line_buf_size,frequency_index_file)) > 0)
 	{
 		//Set ptr to point to the newline after the number.
 		const char* ptr = line_buf + read - 1;
@@ -289,18 +273,18 @@ void invert_index(map<unsigned int,Metadata> &metadatas,vector<string> &argument
 		write_pos[16 + 1 +16 +1 -1] = '\n';
 		current_offset += read;
 	}
-	fclose(currentfile);
+	fclose(frequency_index_file);
 	free(line_buf);
+	free(table);
 
 	munmap(outfile_map,output_file_size);
-	close(fd);
+	close(out_fd);
 
 	//We have the index_as_vector variable from before still lying around...
 	//We write the fact that we've made a new index to the n-gram metadata.
 	relevant_metadata.inverted_indices.insert(index_as_vector);
 	relevant_metadata.write();
 
-	free(table);
 	return;
 
 }
