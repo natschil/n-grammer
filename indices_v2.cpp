@@ -459,7 +459,7 @@ void Dict::writeOutNGram(word* ngram_start,long long int count)
 	{
 		ulc_fprintf(outfile,"%U",words_in_ngram[j]);
 		if(j != (ngramsize - 1))
-			fprintf(outfile," ");
+			fprintf(outfile,"\t");
 	}
 	fprintf(outfile,"\t%lld\n",count);
 	
