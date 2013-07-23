@@ -25,6 +25,8 @@ InputIt find_nth(InputIt begin, InputIt end, const T& value,size_t n)
 	while(n-- != 0)
 	{
 		result = find(result,end,value);
+		if(result != end)
+			++result;
 	}
 	return result;
 }
