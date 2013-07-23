@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <functional>
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -29,6 +30,7 @@
 
 #include "manage_metadata.h"
 #include "searchable_file.h"
+#include "util.h"
 
 using namespace std;
 void do_search( map<unsigned int,Metadata> &metadatas,vector<string> arguments);

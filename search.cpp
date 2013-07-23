@@ -204,7 +204,7 @@ static void normalize_and_check_search_string(string& search_string_str,const Me
 					exit(-1);
 				}
 
-				if(!finished)
+				if(ptr != eof)
 					final_search_str += "] ";
 				else
 					final_search_str += ']';
@@ -292,8 +292,8 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 							continue;//Too broad of a scope to search...
 						}else
 						{
-					   		string search_string = inflexion + " ";
-					 		string filter = search_string + "* *\t";
+					   		string search_string = inflexion + "\t";
+					 		string filter = search_string + "*\t*\t";
 							index_used = i_c_l;
 							i_c_l->search(search_string,tmp_result,filter);
 						}
@@ -301,14 +301,14 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 					{
 						if(inflexion == "*")
 						{
-							string search_string = lemma + " ";
-							string filter = search_string + "* *\t";
+							string search_string = lemma + "\t";
+							string filter = search_string + "*\t*\t";
 							index_used = l_i_c;
 							l_i_c->search(search_string,tmp_result,filter);
 						}else
 						{
 
-							string search_string = lemma + " " +  inflexion + " "; 
+							string search_string = lemma + "\t" +  inflexion + "\t"; 
 							string filter = search_string + "*\t";
 							index_used = l_i_c;
 							l_i_c->search(search_string,tmp_result,filter);
@@ -322,14 +322,14 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 						continue; //Still too broad of a scope to search
 					}else
 					{
-						string search_string = inflexion + " " +  classification + " ";
+						string search_string = inflexion + "\t" +  classification + "\t";
 						string filter = search_string + "*\t";
 						index_used = i_c_l;
 						i_c_l->search(search_string,tmp_result,filter);
 					}
 				}else if(inflexion == "*")
 				{
-					string search_string = classification + " " + lemma + " ";
+					string search_string = classification + "\t" + lemma + "\t";
 					string filter = search_string + "*\t";
 					index_used = c_l_i;
 					c_l_i->search(search_string,tmp_result,filter);
@@ -337,6 +337,10 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 
 				if(index_used)
 				{
+					if(tmp_result.empty())
+					{
+						cerr<<"search: Warning - at least one of the words used in this string doesn't seem to exist *at all* in the indexes"<<endl;
+					}
 					found_some = 1;
 					//TODO: optimize the following:
 					for(size_t j = 0; j < tmp_result.size(); j++)
@@ -344,8 +348,8 @@ static void flesh_partially_known_words(vector<string> &search_strings,string &f
 						string final_string("");
 						stringstream current_string(tmp_result[j]);
 						string first,second,third;	
-						getline(current_string,first,' ');
-						getline(current_string,second,' ');
+						getline(current_string,first,'\t');
+						getline(current_string,second,'\t');
 						getline(current_string,third,'\t');
 						if(index_used == c_l_i)
 						{
@@ -413,19 +417,18 @@ vector<pair<vector<string>, long long int> > internal_search(map<unsigned int, M
 	unsigned int original_ngramsize = 0;
 
 	//Vectors of word positions for words that we know, words that we partially know and words that are null:
-	vector<unsigned int> known_words;
 	vector<unsigned int> partially_known_words;
 	vector<unsigned int> null_words;
-	vector<string> tokenized_search_string;
+	vector<unsigned int> known_words;
+	vector<string> tokenized_search_string = split(original_search_string,' ');
 
-	//We tokenize the search string by spaces, and initialize the four variables above.
-	stringstream argumentstream(original_search_string);
-	string cur("");
-	while(getline(argumentstream,cur,' '))
+	for(auto &cur : tokenized_search_string)
 	{
-
 		if(cur == "")
-			continue;
+		{
+			cerr<<"This seems to be a bug (empty string in tokenized search string), exiting..."<<endl;
+			exit(-1);
+		}
 
 		if(!is_pos)
 		{
@@ -440,14 +443,14 @@ vector<pair<vector<string>, long long int> > internal_search(map<unsigned int, M
 		{
 			if(strchr(cur.c_str(), '*'))
 			{
-				//Matches *|*]
-		    		if((cur.substr(cur.length()-4,3) == "*|*" ))
+				//Matches |*|*]
+		    		if((cur.length() >= 5) &&(cur.substr(cur.length()-5,5) == "|*|*]" ))
 				{
 					if(cur.substr(1,1) != "*")
 						partially_known_words.push_back(ngramsize);
 				}else 
 				{
-					known_words.push_back(ngramsize);
+					known_words.push_back(ngramsize); //We treat [*|foo|*] or [*|*|bar] as a known word
 				}
 			}else
 			{
@@ -458,7 +461,6 @@ vector<pair<vector<string>, long long int> > internal_search(map<unsigned int, M
 					known_words.push_back(ngramsize);
 			}
 		}
-		tokenized_search_string.push_back(cur);						
 		ngramsize++;
 	}
 	original_ngramsize = ngramsize;
@@ -542,141 +544,56 @@ vector<pair<vector<string>, long long int> > internal_search(map<unsigned int, M
 		relevant_metadata_itr++;
 	}while(!matches);
 	//We output a little bit of info before we start the search
-	cerr<<"search: Searching with "<<matches<<" matches using index by";
-	for_each(search_index_to_use.begin(), search_index_to_use.end(),
-			[](const unsigned int &i) ->void
-			{
-			cerr<<"_"<<i;
-			}
-		);
-	cerr<<endl;
+	string index_specification = join(functional_map(search_index_to_use,unsigned_int_to_string),"_");
+	cerr<<"search: Searching with "<<matches<<" matches using index by_"<<index_specification<<endl;;
 
-	//We build a search string in the order that the index is in.
-	vector<string> tokenized_search_string_in_order;
-	for(size_t i = 0; i< ngramsize; i++)
-	{
-		tokenized_search_string_in_order.push_back(tokenized_search_string[search_index_to_use[i]]);
-	}
+	vector<string> all_search_strings{join(slice(permute(tokenized_search_string,search_index_to_use),0,matches),"\t") + '\t'};
 
-	vector<string> all_search_strings;
-	string tosearchfor;
-	for(size_t i = 0; i<matches; i++)
-	{
-		tosearchfor += tokenized_search_string_in_order[i];
-		if(i < (matches - 1))
-			tosearchfor += ' ';
-	}
-	if(matches == ngramsize)
-		tosearchfor += '\t';
-	else
-		tosearchfor += ' ';
-
-	all_search_strings.push_back(tosearchfor);
-
-	//At this point we remove all '[' s and ']'s as they were mainly there for aesthetic reasons anyways
 	if(is_pos)
 	{
 		flesh_partially_known_words(all_search_strings,relevant_metadata->output_folder_name);
-		for(auto i = all_search_strings.begin(); i != all_search_strings.end(); i++)
+		//At this point we remove all '[' s and ']'s as they were mainly there for aesthetic reasons anyways
+		function<bool(char)> is_square_bracket = [](char c) -> bool{return (c == '[') || (c == ']');};
+		for(auto &i :all_search_strings)
 		{
-			i->erase(remove_if(i->begin(),i->end(), [](char c){return (c == '[') || (c == ']');}), i->end());
+			i.erase(remove_if(i.begin(),i.end(), is_square_bracket), i.end());
 		}
-		for(auto i = tokenized_search_string.begin(); i != tokenized_search_string.end(); i++)
+		for(auto &i : tokenized_search_string)
 		{
-			i->erase(remove_if(i->begin(),i->end(), [](char c){return (c == '[') || (c == ']');}), i->end());
-		}
-
-		for(auto i = tokenized_search_string_in_order.begin(); i != tokenized_search_string_in_order.end(); i++)
-		{
-			i->erase(remove_if(i->begin(),i->end(), [](char c){return (c == '[') || (c == ']');}), i->end());
+			i.erase(remove_if(i.begin(),i.end(),is_square_bracket), i.end());
 		}
 	}
 	//We make a string which has the filename of the index:
-	string index_filename = relevant_metadata->output_folder_name + "/by";
-	stringstream index_filename_stream(index_filename);
-	index_filename_stream.seekp(0, std::ios::end);
-	for(size_t i = 0; i< search_index_to_use.size(); i++)
-	{
-		index_filename_stream<<"_";
-		index_filename_stream<<search_index_to_use[i];
-	}
-	index_filename_stream<<"/";
-	index_filename_stream<<"0.out";
-	index_filename= index_filename_stream.str();
+	string index_filename = relevant_metadata->output_folder_name + "/by_" + index_specification + "/0.out";
 
 	searchable_file* index_file = new searchable_file(index_filename,is_pos);
 
 
 	vector<string> results;
-	for(size_t current_search_string_index = 0; current_search_string_index < all_search_strings.size(); current_search_string_index++)
+	string filter_part_two  = join(slice(permute(tokenized_search_string,search_index_to_use),matches,ngramsize),"\t") + "\t";
+	for(auto &tosearchfor : all_search_strings)
 	{
 		//We make a filter
-		string tosearchfor = all_search_strings[current_search_string_index];
-		string filter = tosearchfor;
-		for(size_t i = matches; i < ngramsize; i++)
-		{
-			filter += tokenized_search_string_in_order[i];
-			if(i < (ngramsize - 1))
-				filter += ' ';
-		}
-
-		filter.erase(remove_if(filter.begin(),filter.end(), [](char c) {return ((c == '[') || (c == ']'));}),filter.end());
-		if(*(filter.rbegin()) != '\t')
-			filter += '\t';
-
+		string filter = tosearchfor + (filter_part_two == "\t" ? string("") :filter_part_two);
 		//We do the actual search
 		index_file->search(tosearchfor, results,filter);
 	}
 	
 		
 	vector<pair<vector<string>, long long int> > final_results_unreduced;
-	for(size_t i = 0; i < results.size(); i++)
+	vector<unsigned int> inverse_permutation;
+	for(auto i: range(0u,ngramsize))
 	{
-		vector<string> current_ngram_in_order_as_vector;
-
-		//We rearrange all of the strings we've found to be in the order that they are in the text.
-		string current_ngram = results[i];
-		stringstream current_ngram_stream(current_ngram);
-		vector<string> current_ngram_vector;
-		stringstream current_word;	
-		int c;
-		while(1)
-		{
-			c = current_ngram_stream.get();
-			if((c == ' ') || (c == '\t') || (c == EOF))
-			{
-				current_ngram_vector.push_back(current_word.str());
-				current_word.str("");
-				current_word.clear();
-				if(c == EOF)
-					break;
-			}else
-			{
-				current_word<<(char)c;
-			}
-		}
-		for(size_t i=0; i<search_index_to_use.size(); i++)
-		{
-			for(size_t j = 0; j < search_index_to_use.size(); j++)
-			{
-				if(search_index_to_use[j] == i)
-				{
-					current_ngram_in_order_as_vector.push_back(current_ngram_vector[j]);
-					break;
-				}
-			}
-		}
-		const char* startptr = current_ngram_vector[ngramsize].c_str();
-		char* endptr;
-		long long int number = strtol(startptr,&endptr,10);
-		if((startptr != endptr) && (*endptr != '\n'))
-		{
-			final_results_unreduced.push_back(pair<vector<string>,long long int>(current_ngram_in_order_as_vector,number));
-		}else
-		{
-			cerr<<"Received invalid result"<<endl;
-			exit(-1);
-		}
+		auto res = find(search_index_to_use.begin(), search_index_to_use.end(),i);
+		inverse_permutation.push_back(res - search_index_to_use.begin());
+	}
+	inverse_permutation.push_back(ngramsize);
+	for(auto &current_ngram : results)
+	{
+		vector<string> current_ngram_in_order_as_vector = permute(split(current_ngram,'\t'),inverse_permutation);
+		string last_number = current_ngram_in_order_as_vector.back();
+		current_ngram_in_order_as_vector.pop_back();
+		final_results_unreduced.push_back({move(current_ngram_in_order_as_vector),stoll(last_number)});
 	}
 
 	//We sort the unreduced result by the n-gram part.
@@ -761,23 +678,17 @@ vector<pair<vector<string>, long long int> > internal_search(map<unsigned int, M
 void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 {
 	vector<pair<vector<string>, long long int> > results = internal_search(metadatas,arguments);
+	//We return our results sorted by frequency, because it looks nice.
 	sort(results.begin(),results.end(),
 			[](const pair<vector<string>,long long int> &first,const pair<vector<string>, long long int> &second)->bool
 			{
 				return second.second < first.second;
 			}
 		    );
-	for_each(results.begin(),results.end(), 
-			[](const pair<vector<string>,long long int> &cur) -> void
-			{
-				for(auto i = cur.first.begin(); i != cur.first.end(); i++)
-				{
-					if(i != cur.first.begin())
-						cout<<" ";
-					cout<<*i;
-				}
-				cout<<"\t"<<cur.second<<"\n";
-			}
-		);
+	for( auto & cur: results)
+	{
+		//TODO: replace this with a tab one day.
+		cout<<join(cur.first," ")<<"\t"<<cur.second<<endl;
+	}
 }
 

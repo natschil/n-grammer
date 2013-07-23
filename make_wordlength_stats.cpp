@@ -64,7 +64,7 @@ void make_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 			endptr--;
 		char* endptr2;
 		long long number = strtoll(endptr,&endptr2,10);
-		if((*endptr) != '\n'|| !number)
+		if((*endptr2 != '\n') || (*endptr != '\t') || !number)
 		{
 			free(line_buf); free(table);
 			fprintf(stderr,"make_wordlength_stats: Non-empty file to read has an invalid format\n");

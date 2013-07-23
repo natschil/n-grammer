@@ -93,7 +93,7 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 
     //We now open the relevant files
 
-	string index_specifier = join(functional_map(search_index_to_use.second,unsigned_int_to_string)," ");
+	string index_specifier = join(functional_map(search_index_to_use.second,unsigned_int_to_string),"_");
 	string frequency_index_filename = relevant_metadata.output_folder_name + "/by_" +  index_specifier + "/0.out";
 	string entropy_index_filename = relevant_metadata.output_folder_name +
 	      			 	"/entropy_" + to_string(known_words.size()) + "_index_" + index_specifier;
@@ -129,17 +129,17 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 	}
 	float float_to_test;
 	uint64_t uint_to_test;
-	if(fread(&float_to_test,sizeof(float_to_test),1,entropy_index_file) != sizeof(float_to_test))
+	if(fread(&float_to_test,sizeof(float_to_test),1,entropy_index_file) != 1)
 	{
 		cerr<<"Could not read reference float from entropy index file "<<entropy_index_filename<<endl;
 		exit(-1);
 	}
-	if(fread(&uint_to_test,sizeof(uint_to_test),1,entropy_index_file) != sizeof(uint_to_test))
+	if(fread(&uint_to_test,sizeof(uint_to_test),1,entropy_index_file) != 1)
 	{
 		cerr<<"Could not read reference uint from entropy index file "<<entropy_index_filename<<endl;
 		exit(-1);
 	}
-	if((float_to_test != 123.456) || (uint_to_test != 1234567890))
+	if((float_to_test != 123.125) || (uint_to_test != 1234567890))
 	{
 		cerr<<"It seems like the entropy indexes were not generated on this machine, and this machine uses a different binary format"<<endl;
 		exit(-1);
@@ -194,12 +194,12 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 		float current_entropy;
 		uint64_t current_offset;
 
-		if(fread(&current_entropy,sizeof(current_entropy),1,entropy_index_file) != sizeof(current_entropy))
+		if(fread(&current_entropy,sizeof(current_entropy),1,entropy_index_file) != 1)
 		{
 			cerr<<"Reached end of file, exiting (but with zero exit status)"<<endl;
 			break;
 		}
-		if(fread(&current_offset,sizeof(current_offset),1,entropy_index_file) != sizeof(current_offset))
+		if(fread(&current_offset,sizeof(current_offset),1,entropy_index_file) != 1)
 		{
 			cerr<<"Reached premature eof, exiting (with non-zero exit status)"<<endl;	
 			exit(-1);

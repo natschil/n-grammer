@@ -1,12 +1,12 @@
 #include "searchable_file.h"
 
-searchable_file::searchable_file(string &index_filename,bool is_pos)
+searchable_file::searchable_file(const string &index_filename,bool is_pos)
 {
 	this->is_pos = is_pos;
 	this->index_filename = index_filename;
 	//Let's open the file,get its size, and then mmap it.
 	fd = open(index_filename.c_str(), O_RDONLY);
-	if(fd == -1)
+	if(fd < 0)
 	{
 		cerr<<"searchable_file: Unable to open index " << index_filename<<endl;
 		exit(-1);
@@ -18,8 +18,13 @@ searchable_file::searchable_file(string &index_filename,bool is_pos)
 		exit(-1);
 	}
 	this->mmaped_index_size = fileinfo.st_size;
+	if(fileinfo.st_size < 4)
+	{
+		cerr<<"searchable_file: Index with filename "<<index_filename<<" is a too-small file, exiting"<<endl;
+		exit(-1);
+	}
 
-	mmaped_index = (char*) mmap(NULL,mmaped_index_size,PROT_READ, MAP_PRIVATE,fd, 0);
+	this->mmaped_index = (char*) mmap(NULL,mmaped_index_size,PROT_READ, MAP_PRIVATE,fd, 0);
 	if(mmaped_index == (void*) -1)
 	{
 		cerr<<"searchable_file: Unable to mmap index " <<index_filename<<endl;
@@ -31,7 +36,6 @@ searchable_file::searchable_file(string &index_filename,bool is_pos)
 		exit(-1);
 	}
 
-	const char* ptr = mmaped_index;
 	
 	//We maintain a search tree to speedup running multiple searches on the file.
 	//The value of a string is somewhere within the string which is the key of the search string, or 0 for an artificially low "" key.
@@ -39,44 +43,40 @@ searchable_file::searchable_file(string &index_filename,bool is_pos)
 	       
 	//The lowest key in the search tree.
 	//Let ptr2 point to just past the end of the first key.
-	const char *ptr2 = ptr+1;
-	while(*ptr2 != '\t')
+	const char* ptr = mmaped_index;
+	const char* const mmaped_index_eof = mmaped_index + mmaped_index_size;
+	int (*isdigit)(int) = std::isdigit;
+	const char *ptr2 = find_if((const char*)mmaped_index,mmaped_index_eof,isdigit);
+	if(ptr2 == (mmaped_index_eof))
 	{
-		if(ptr2 == (mmaped_index + mmaped_index_size))
-		{
-			cerr<<"searchable_file: The file "<<index_filename<<" has incorrect formatting"<<endl;
-			exit(-1);
-		}
-		ptr2++;
+		cerr<<"searchable_file: The file "<<index_filename<<" has incorrect formatting"<<endl;
+		exit(-1);
 	}
 
 	search_tree[string(ptr,ptr2)] = 0;
 
 	//Find the last string in the file. We subtract one to make ptr point to the newline and then another one to point just before the newline.
-	ptr = mmaped_index + mmaped_index_size - 2;
-	//Point to just after second to last newline or to the start of the file, whichever comes first.
-	while((ptr >= 0) && (*ptr != '\n'))
-		ptr--;
-	ptr++;
+	ptr = mmaped_index_eof - 2;
 
-	//Let ptr2 point to the tab.
-	ptr2 = ptr + 1;
-	while(*ptr2 != '\t')
+	//Point to just after second to last newline or to the start of the file, whichever comes first.
+	while((ptr != mmaped_index ) && (*(ptr-1) != '\n'))
+		ptr--;
+
+	ptr2 = find_if(ptr,mmaped_index_eof,isdigit);
+	if(ptr2 == mmaped_index_eof)
 	{
-		if(ptr2 == (mmaped_index + mmaped_index_size))
-		{
-			cerr<<"searchable_file: The file "<<index_filename<<" has incorrect formatting"<<endl;
-			exit(-1);
-		}
-		ptr2++;
+		cerr<<"searchable_file: The file "<<index_filename<<" has incorrect formatting"<<endl;
+		exit(-1);
 	}
+	ptr2--;
+
 	//The string between ptr2 and ptr is the largest key in the file. 
 	search_tree[string(ptr, ptr2) ] = ptr - mmaped_index;
 }
 
-void searchable_file::search(string &search_str,vector<string> &results,string &filter)
+//Note that search_str must include the final tab character for the search string.
+void searchable_file::search(const string &search_str,vector<string> &results,const string &filter)
 {
-
 	const char* search_string = search_str.c_str();
 	int search_string_length = strlen(search_string);
 
@@ -85,148 +85,179 @@ void searchable_file::search(string &search_str,vector<string> &results,string &
 		return;
 	}
 	
+	//Note that these quantities are signed, to allow upper to be set to -1 meaning the search finishes unsucessfully.
 	int64_t upper, lower, i;
 
+	//lower_bound "Returns an iterator pointing to the first element that is not less than key."
+	//->returns search_tree.end() iff there is no element that is not less than search key,
+	//->returns search_tree.end() iff all elements are not not less than search key
+	//->returns search_tree.end() iff all elements are less than search key.
+	//The largest element in the index is part of the search tree (see constructor)
+	//=>return search_tree.end() iff there is no element in the index greater than or equal to the search key:
 	auto itr = search_tree.lower_bound(search_str);
 	if(itr == search_tree.end())
-		return;
-
-	upper = (*itr).second;
-
-	if(itr == search_tree.begin())
-		lower = 0;
+		return;//Nothing found.
 	else
+		upper = itr->second;
+	//Given the upper is the first lement that is not less than key, the key before upper must be the first element
+	//that is less than key. Note that in the case that upper is equal to the first key, i.e. upper == 0 (i.e. itr == search_tree.begin),
+	//we set lower to 0 as our search function searches for the values inclusive.
+
+	if(itr != search_tree.begin())
 	{
 		itr--;
-		lower = (*itr).second;
-	}
+		lower = itr->second;
+	}else
+		lower = 0;
 
+	//Here we do the actual binary search.
 	while(1)
 	{
-		if(upper<lower)
+		if(upper < lower) //The algorithm terminates, having found nothing.
 		{
 			break;
 		}else
 		{
+			//We ignore any integer overflow issues here as we're using 64-bit integers and checking for overflow would be overkill.
 			i = (upper + lower)/2;
-			while((i >= lower) && (mmaped_index[i] != '\n'))
-				i--;
+
 			//Go to the first character after the \n before (upper + lower)/2, or to lower, whichever comes first.
-			i++;
+			while((i != lower) && (mmaped_index[i-1] != '\n'))
+				i--;
 
+			//Set this to right after the tab character, or the end of the line.
+			int64_t end_of_string_starting_at_i;
+			for(
+			     end_of_string_starting_at_i = i;
+			     ((end_of_string_starting_at_i+1) < mmaped_index_size) && (!isdigit(mmaped_index[end_of_string_starting_at_i+1]));
+			      end_of_string_starting_at_i++
+			)
+				;
 
-			int64_t end_of_string_starting_at_i = i;
-			for(end_of_string_starting_at_i = i;end_of_string_starting_at_i < mmaped_index_size; end_of_string_starting_at_i++)
-			{
-				if(mmaped_index[end_of_string_starting_at_i] == '\t')
-				{
-					break;
-				}
-			}
-			if(end_of_string_starting_at_i == mmaped_index_size)
+			//We should never be reaching the end of the file
+			if((end_of_string_starting_at_i == mmaped_index_size) || (mmaped_index[end_of_string_starting_at_i] != '\t'))
 			{
 				cerr<<"searchable_file: Input file "<<index_filename<<" has incorrect formatting."<<endl;
 				exit(-1);
 			}
 
-			search_tree[string(mmaped_index +i,mmaped_index + end_of_string_starting_at_i)] = i;
+			//Add this string to our small index.
+			search_tree[string(mmaped_index + i,mmaped_index + end_of_string_starting_at_i)] = i;
 
+			//This works because both strings contain tabs (including at the end of the strings),
+			//as delimiters.
 			int cmp = strncmp(mmaped_index + i,search_string,search_string_length);
-			if(cmp == 0)
+			
+			if(cmp == 0)//We've found a match.
 			{
-				int64_t  itr;
-				string result_string;
-				stringstream foundstring;
-
-				//At first get the strings matching the filter after i
-				for(itr = i; ;itr++)
+				//We now get those strings which are at and after the match, later, below, we also get those from before the match.
+				int64_t  itr,start_of_string_ending_at_itr; //Some loop iterators, where the latter follows the former.
+				for(itr = start_of_string_ending_at_itr = i; ;itr++)
 				{
 					if(itr == mmaped_index_size)
 					{
 						cerr<<"searchable_file: File "<<index_filename<<" has incorrect formatting"<<endl;
 						exit(-1);
 					}
-					if(mmaped_index[itr] != '\n')
-						foundstring<<mmaped_index[itr];
-					else
+					if(mmaped_index[itr] == '\n')
 					{
-						result_string = foundstring.str();
-
+						string result_string(mmaped_index + start_of_string_ending_at_itr,mmaped_index + itr);
+						//We can use std::move below, as we never use result_string again.
 						if(string_matches_filter(result_string,filter,search_str))
-							results.push_back(result_string);
-
-						foundstring.str("");
-
-						itr++;//Point to after the newline.
-						if((itr + search_string_length > mmaped_index_size) 
-								|| strncmp(mmaped_index + itr, search_string,search_string_length))
-						{
+							results.push_back(move(result_string));
+						itr++; //We're now at just after the newline.
+						if(itr + search_string_length > mmaped_index_size) //Nothing long enough here.
 							break;
+
+						//Here we check if the next string matches, if it does, we continue.
+						if(strncmp(mmaped_index + itr, search_string,search_string_length))
+							break;
+						else
+						{
+							start_of_string_ending_at_itr = itr;
+							itr += search_string_length;
 						}
-						itr--;//Point to before the newline again, as the loop increments this.
 					}
 				}
 				
-				//Now get the matching strings before i.
-				while(i)
-				{
-					//Start just before the newline, go backwards until the start of an n-gram.
-					for(itr = i - 2; itr > 0; itr--)
-					{
-						if(mmaped_index[itr] == '\n')
-						{
-							itr++;
-							break;
-						}
-					}
-					//If it doesn't match, we stop looping
-					if((itr + search_string_length > mmaped_index_size) 
-							|| strncmp(mmaped_index + itr, search_string,search_string_length))
-						break;
-					else
-					{
-						//We go until the newline.
-						int64_t j;
-						for(j = itr; mmaped_index[j] != '\n';j++)
-						{
-							if(j == mmaped_index_size)
-							{
-								cerr<<"searchable_file: File "<<index_filename<<" has incorrect format"<<endl;
-							}
-							foundstring<<mmaped_index[j];
-						}
-					}
-					result_string = foundstring.str();
-					if(string_matches_filter(result_string,filter,search_str))
-						results.push_back(result_string);
+				//Here we get the strings before i.
+				
 
-					foundstring.str("");
-					i = itr;
+				//Make sure there is something before i.
+				//The minimum number of bytes for an n-gram is 4.(e.g. a\t1\n)
+				if(i < 4)
+					break;
+				for(start_of_string_ending_at_itr = (i-2), itr = (i - 1); ;start_of_string_ending_at_itr--)
+				{
+					//Note that we know that in this loop, start_of_string_ending_at_itr starts at >= 2
+					//and itr starts at >= 3
+					if((start_of_string_ending_at_itr == 0) || (mmaped_index[start_of_string_ending_at_itr-1] == '\n'))
+					{
+						//We've reached the start of this string:
+						if(strncmp(mmaped_index+start_of_string_ending_at_itr,search_string,search_string_length))
+						{
+							//The start of the string no longer matches what we're looking for.
+							break;
+						}else
+						{
+							string result_string(mmaped_index + start_of_string_ending_at_itr,mmaped_index + itr);
+							if(string_matches_filter(result_string,filter,search_str))
+								results.push_back(move(result_string));	
+							if(start_of_string_ending_at_itr < 4)
+								break;
+							else
+								itr = start_of_string_ending_at_itr-1;
+						}
+					}
+
 				}
 				//Exit the loop, we've added all of our results.
 				break;
 
-			}else if (cmp < 0)
+			}
+			//This binary search searches all of the index file because:	
+			//a) If upper == lower then that location is searched.
+			//c) Ranges like [first,second] where first < second result in the search exiting unsuccessfully.
+			//b) At this point in the program, the location at i has already been searched (i points to the start of a line).
+			//c) Where cmp < 0, the region [next(i),upper] is searched.
+			//d) Where cmp > 0, the region [lower,prev(i)] is searched unless if i == 0, in which case the search exits unsuccessfully.
+			//e) i is always either lower or between upper and lower. 
+			//f) It is clear that if the key is in the index, it is within all of the ranges searched.
+			//g) As the ranges are always decreasing in size, and the range where both limits are equal results in
+			//	either the element being found or not, we can conclude that this search finds the element if
+			//	it is in the index and the index is sorted.
+			else if (cmp < 0)
 			{
 				//Set lower forwards to the start of the next string after i.
 				lower = i;
-				while(mmaped_index[lower] != '\n')
+				while((lower != mmaped_index_size) && mmaped_index[lower] != '\n')
 					lower++;
+				if(lower == mmaped_index_size)
+				{
+					cerr<<"searchable_file: File "<<index_filename<<" has incorrect formatting"<<endl;
+					exit(-1);
+				}
 				lower++;
 			}else if(cmp > 0)
 			{
-				//Set upper backwards to the start of the next string before i.
-				upper = i - 2;
-				if(upper > 0)
+				//If i is at the start of the file.
+				if(i < 4)
 				{
-					while(upper >= 0)
+					//This means we have not found anything, we set upper to -1  which means we exit.
+					if(i == 0)
+						upper = -1;
+					else
 					{
-						if(mmaped_index[upper] == '\n')
-							break;
-						upper--;
+						cerr<<"searchable_file: File "<<index_filename<<" seems to have too short n-grams at start"<<endl;
 					}
-					upper++;
+				}else
+				{
+					//Set upper backwards to the start of the next string before i.
+					upper = i - 2; //Point to just before the newline
+					while((upper != 0) && (mmaped_index[upper-1] != '\n'))
+						upper--;
 				}
+				//Now upper points to the start of a line, or to -1, which causes the search to end unsucessfully.
 			}
 			
 		}
@@ -234,6 +265,7 @@ void searchable_file::search(string &search_str,vector<string> &results,string &
 
 }
 
+//A destructor.
 searchable_file::~searchable_file()
 {
 	munmap(mmaped_index, mmaped_index_size);
@@ -251,13 +283,16 @@ searchable_file::~searchable_file()
  * 	For POS corpora:
  * 		"*|something|somethingorother np|something|*\t"
  * 			where the * in this case matches a while word or lemma or type, as appropriate.
- * 	All three strings must *not* have duplicate whitespace, where whitespace in this case is spaces and tabs.
+ *  	Note that the filter string must end in a tab character.
+ *  	The search string must also end in a tab character.
+ * 	All three strings must *not* have duplicate tab characters in them.
  * The result string must also, as its beginning, have the search string.
  * 	The result string must end in "\t<some_number>"
  */
-bool searchable_file::string_matches_filter(string &result_s, string &filter_s,string &search_string_s)
+bool searchable_file::string_matches_filter(const string &result_s, const string &filter_s,const string &search_string_s)
 {
-	/* Make sure that the arguments are correctly formatted*/
+	/* Make sure that the arguments are correctly formatted,doing so helps find bugs in other areas of the code.*/
+
 	if(filter_s.length() < search_string_s.length())
 	{
 		cerr<<"searchable_file: Filter string length does not match search string length"<<endl;
@@ -266,39 +301,23 @@ bool searchable_file::string_matches_filter(string &result_s, string &filter_s,s
 	{
 		cerr<<"searchable_file: Result string length does not match search string length"<<endl;
 		exit(-1);
-	}else if(
-			strstr(result_s.c_str(),"  ") ||
-			strstr(result_s.c_str()," \t") || 
-		       	strstr(result_s.c_str(),"\t ") ||
-			count(result_s.begin(),result_s.end(), '\t') != 1
-
-		)
+	}else if( strstr(result_s.c_str(),"\t\t"))
 	{
 		cerr<<"searchable_file: Result string '"<<result_s<<"' has incorrect formatting"<<endl;
 		exit(-1);
-	}else if(
-			strstr(filter_s.c_str(),"  ") ||
-			strstr(filter_s.c_str()," \t") || 
-		       	strstr(filter_s.c_str(),"\t ") ||
-			count(filter_s.begin(),filter_s.end(),'\t') != 1
-		)
+	}else if( strstr(filter_s.c_str(),"\t\t") || (*filter_s.rbegin() != '\t'))
 	{
 		cerr<<"searchable_file: Filter string'"<<filter_s<<"'has incorrect formatting"<<endl,
 		exit(-1);
-	}else if(
-			strstr(search_string_s.c_str(),"  ") ||
-			strstr(search_string_s.c_str()," \t") || 
-		       	strstr(search_string_s.c_str(),"\t ") ||
-		       	strstr(search_string_s.c_str(),"\t\t") ||
-			(strchr(search_string_s.c_str(),'\t') && (*(search_string_s.rbegin()) != '\t'))
-		)
+	}else if( strstr(search_string_s.c_str(),"\t\t") || (*search_string_s.rbegin() != '\t'))
 	{
+		//Search strings *must* end in a tab.
 		cerr<<"searchable_file: Search string has incorrect formatting";
 		exit(-1);
 	}else if(
-			!strchr(result_s.c_str(),'\t')
+			!strrchr(result_s.c_str(),'\t')
 		       	|| 
-			! all_of(strchr(result_s.c_str(),'\t') + 1, result_s.c_str() + result_s.length(),
+			! all_of(strrchr(result_s.c_str(),'\t') + 1, result_s.c_str() + result_s.length(),
 				[](const char &input)->bool
 				{
 					return (bool) isdigit(input);	
@@ -332,42 +351,63 @@ bool searchable_file::string_matches_filter(string &result_s, string &filter_s,s
 	{
 		switch(*filter_ptr)
 		{
-		//If there's a too early end of string.
-		case '\0': return false;
+		case '\0':
+			if(!isdigit(*result_ptr))
+			{
+				cerr<<"N-grams of incorrect length found in this index, exiting"<<endl;
+				exit(-1);
+			}else
+			{
+				return true;
+			}
 		break;
 		case '*':
 			 if(!is_pos)
 			 {
 				//We skip forward to the next whitespace.
-				result_ptr = strpbrk(result_ptr, " \t");
+				result_ptr = strchr(result_ptr, '\t');
+				if(!result_ptr)
+				{
+					cerr<<"Expected to find tab character, did not find one"<<endl;
+					exit(-1);
+				}
 			 }else
 			 {
 				 switch(current_pos_part)
 				 {
-					 case CLASSIFICATION:
-					 case LEMMA:
-					//In the case of a null word we simply increment result_ptr, as MARKER1 below doesn't check current_pos_part
+					 case CLASSIFICATION: 
 					 if(*result_ptr != '$')	
-					 	result_ptr = strchr(result_ptr,'|');
-					 else
 					 {
+					 case LEMMA://Structural programmers gonna hate.
+					 	result_ptr = strchr(result_ptr,'|');
+						if(!result_ptr)
+						{
+							cerr<<"Expected to find '|' in result string, but didn't"<<endl;
+							exit(-1);
+						}
+					 }else
+					 {
+						//In the case of a null word we simply increment result_ptr, as MARKER1 below doesn't check current_pos_part
 						result_ptr++;
-						filter_ptr = strpbrk(filter_ptr," \t");
-						filter_ptr--;
-					 }
-
-
-					 if(!result_ptr)
-					 {	
-						cerr<<"searchable_file: Looking for '|' in pos index, but didn't find it, exiting"<<endl;
-						exit(-1);
+						if(*result_ptr != '\t')
+						{
+							cerr<<"Expected tab character in result"<<endl;
+							exit(-1);
+						}
+						filter_ptr = strchr(filter_ptr,'\t');
+						if(!filter_ptr)
+						{
+							cerr<<"String that should have contained tab character didn't"<<endl;
+							exit(-1);
+						}
+						filter_ptr--;//As this gets incremented in the next iteration.
 					 }
 					break;
 					case INFLEXION:
-					result_ptr = strpbrk(result_ptr," \t");
+					result_ptr = strchr(result_ptr,'\t');
 					if(!result_ptr)
 					{
-						cerr<<"searchable_file: Expecting whitespace but did not find it, exiting"<<endl;
+						cerr<<"searchable_file: Expecting tab but did not find it, exiting"<<endl;
 						exit(-1);
 					}
 				 }
@@ -380,24 +420,26 @@ bool searchable_file::string_matches_filter(string &result_s, string &filter_s,s
 				return false;
 			}else
 			{
-				if(*filter_ptr == '\t')
-				{
-					return true;
-				}else if(is_pos && (*filter_ptr == '|'))
+				if(is_pos && (*filter_ptr == '|'))
 				{
 					if(current_pos_part == CLASSIFICATION)
 						current_pos_part = LEMMA;
 					else if(current_pos_part == LEMMA)
 						current_pos_part = INFLEXION;
-				}else if(is_pos && (*filter_ptr == ' '))
+				}else if(is_pos && (*filter_ptr == '\t'))
 				{
 					//MARKER1: Do not check current_pos_part before setting it.
 					current_pos_part = CLASSIFICATION;
-				}else if(is_pos && (*result_ptr == '$'))
+				}else if(is_pos && (*filter_ptr == '$'))
 				{
-					current_pos_part = CLASSIFICATION;
+					if(*(filter_ptr+1) && (*(filter_ptr+1) != '\t'))
+					{
+						cerr<<"Poorly constructed filter string, exiting"<<endl;
+						exit(-1);
+					}
+					//Given that the next character in the filter string is a tab, 
+					//we can rely on the fact that MARKER1 resets any POS states above.
 				}
-
 				result_ptr++;
 			}
 		}

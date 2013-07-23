@@ -70,7 +70,7 @@ void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 	string index_specification = join(functional_map(what_were_looking_for,unsigned_to_string),"_");
 
 	string frequency_index_filename = relevant_metadata.output_folder_name + "/by_" + index_specification + "/0.out";
-	string inverted_frequency_index_filename = relevant_metadata.output_folder_name + "/inverted_" + index_specification;
+	string inverted_frequency_index_filename = relevant_metadata.output_folder_name + "/inverted_by_" + index_specification;
 
 	if(find(relevant_metadata.inverted_indices.begin(), relevant_metadata.inverted_indices.end(),what_were_looking_for) == relevant_metadata.inverted_indices.end())
 	{

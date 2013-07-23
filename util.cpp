@@ -3,30 +3,41 @@
 
 vector<string> split_ignoring_empty(const string& input_string,const char delim)
 {
-	istringstream ss(input_string);
-	string cur;
 	vector<string> result;
-	while(getline(ss,cur,delim))
+	auto itr = input_string.begin();
+	auto eow = itr;
+	for(;;itr++)
 	{
-		if(!cur.empty())
-			result.push_back(cur);
-	}
-	if(!cur.empty())
-		result.push_back(cur);
+		if((itr == input_string.end()) || (*itr == delim))
+		{
+			if(itr - eow)
+			{
+				result.push_back(string(eow,itr));
+			}
+
+			eow = (itr == input_string.end())? itr : itr+1;
+		}
+		if(itr == input_string.end())
+			break;
+	}	
 	return result;
 }
 
 vector<string> split(const string &input_string, const char delim)
 {
-	istringstream ss(input_string);
-	string cur;
 	vector<string> result;
-	while(getline(ss,cur,delim))
+	auto itr = input_string.begin();
+	auto eow = itr;
+	for(;;itr++)
 	{
-		result.push_back(cur);
-	}
-	if(!cur.empty())
-		result.push_back(cur);
+		if((itr == input_string.end()) || (*itr == delim))
+		{
+			result.push_back(string(eow,itr));
+			eow = (itr == input_string.end())? itr : itr+1;
+		}
+		if(itr == input_string.end())
+			break;
+	}	
 	return result;
 }
 
