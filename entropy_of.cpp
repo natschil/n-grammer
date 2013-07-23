@@ -24,6 +24,9 @@ void entropy_of( map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 			}
 			);
 	cerr<<"Entropy (in bits)\n";
-	cout<<(-1)*entropy<<endl;
+	entropy *= -1;
+	if(entropy == 0)
+		entropy = 0;
+	cout<<entropy<<endl;
 	return;
 }

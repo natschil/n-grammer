@@ -6,9 +6,9 @@ const char after_entropy_index_test[] = "\n---End Binary Reference Info---\n---A
 static int compare_entries(const void* first, const void* second)
 {
 
-	const float *first_entropy = (const float*)first;
+	const float  *first_entropy = (const float*)first;
 	const float *second_entropy = (const float*) second;
-	return *first_entropy - *second_entropy;
+	return (*first_entropy > *second_entropy) - (*first_entropy < *second_entropy);
 }
 
 void entropy_index( map<unsigned int,Metadata> &metadatas,vector<string> arguments)
@@ -269,8 +269,8 @@ write_out_last_value:
 		cerr<<"Could not mmap output file"<<entropy_index_filename<<endl;
 		exit(-1);
 	}
-	constexpr size_t how_many_to_skip = sizeof(entropy_index_header) + sizeof(float) + sizeof(uint64_t) + sizeof(after_entropy_index_test);
 	constexpr size_t unit_size = (sizeof(float) + sizeof(uint64_t));
+	constexpr size_t how_many_to_skip = sizeof(entropy_index_header) -1 + unit_size + sizeof(after_entropy_index_test) -1;
 	char* to_sort_start = mmaped_entropy_index_file + how_many_to_skip;
 	qsort(to_sort_start,(entropy_index_file_size - how_many_to_skip)/unit_size,unit_size,&compare_entries);
 
