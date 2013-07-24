@@ -23,11 +23,6 @@ $(MERGER) :  $(MERGER_OBJS)
 $(SORTED_CHECK) : check_if_sorted.o
 	$(CC) $(CFLAGS) -o $@ check_if_sorted.o
 
-
-
-
-
-
 .PHONY: clean test
 
 .cpp.o:
@@ -37,4 +32,7 @@ $(SORTED_CHECK) : check_if_sorted.o
 
 clean:
 	rm -f *.o test/*.o *~ ngram.counting
+test:
+	./run_largescale_tests.sh ./corpora/very_tiny
+	./run_largescale_tests.sh ./corpora/pos_very_very_tiny
 
