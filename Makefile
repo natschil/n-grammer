@@ -24,3 +24,7 @@ ngram.analysis : $(OBJECTS)
 
 clean:
 	rm -rf ./*.o ngram.analysis
+
+test:
+	./run_largescale_tests.pl very_tiny
+	./run_largescale_tests.pl pos_very_tiny

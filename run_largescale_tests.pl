@@ -238,7 +238,7 @@ for my $i (1 .. 4)
 				}
 				if(compare("$tests_dir/${j}_grams_${function}_first_out","$reference_dir/${j}_grams_${function}_first_out"))
 				{
-					die "Search (without wildcards) produced wrong results";
+					die "$function (without wildcards) produced wrong results";
 				
 				}
 		
@@ -270,7 +270,7 @@ for my $i (1 .. 4)
 				}
 				if(compare("$tests_dir/${j}_grams_${function}_first_out","$reference_dir/${j}_grams_${function}_first_out"))
 				{
-					die "Search (without wildcards) produced wrong results";
+					die "$function (without wildcards) produced wrong results";
 				
 				}
 		
@@ -285,7 +285,7 @@ for my $i (1 .. 4)
 				if(compare("$tests_dir/${j}_grams_${function}_second_out","$reference_dir/${j}_grams_${function}_second_out"))
 		
 				{
-					die "Search (with wildcards) produced wrong results";
+					die "$function (with wildcards) produced wrong results";
 				
 				}
 			}
