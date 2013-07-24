@@ -242,8 +242,49 @@ static unsigned int howManyWordsAreEqualInCombination(const unsigned int* first_
 
 void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_word)
 {
+	for(size_t i = 0;;)
+	{
+		word* previous_word = begin;
+		long long current_ngram_count = 0;
+		for(word* current_word = begin; ; current_word++)
+		{
+			if(current_word == end)
+			{
+				if(current_ngram_count)
+					dictionaries[i].writeOutNGram(previous_word,current_ngram_count);
+				break;
+			}else if(ngramcmp<true>(ngramsize,current_word,previous_word,&optimized_combinations[i],combinations[i],null_word,0,NULL))
+			{
+				if(current_ngram_count)
+					dictionaries[i].writeOutNGram(previous_word,current_ngram_count);
+				current_ngram_count = 0;
+				previous_word = current_word;
+			}
+			if(!(current_word->flags & NON_STARTING_WORD))
+			{
+				current_ngram_count++;
+			}
+		}	
+		i++;
+		if(i != numcombos)
+		{
+			sort(begin,end,ngram_cmp(
+						ngramsize,
+						combinations[i],
+						&optimized_combinations[i],
+						null_word,
+						0
+						));
+
+		}else
+			break;
+	}
+
+	/*
+	 * The algorithm below probably does what the code above does, however, because I'm not 100% sure it works in completely all
+	 * cases, it's commented out. However, (if it works), it should offer a speedup when creating many n-gram indexes at once
+	 * where n is larger than 3.
 	//beginnings_stack[i] holds a pointer to where reading should start if i words are equal to the previous combination
-	
 	word* beginnings_stack[ngramsize + 1];
 
 	for(size_t i = 0; i < ngramsize + 1; i++)
@@ -269,7 +310,8 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 	//Iterate over all words.
 	for(word* current_word_ptr = begin; ; current_word_ptr++)
 	{
-		unsigned int equal_words; //The number of words that are equal under this ordering to the last n-gram encountered.
+		//The number of words that are equal under the current ordering to beginnings_stack[ngramsize]
+		unsigned int equal_words; 
 		if(current_word_ptr == end)
 			equal_words = 0;
 		else
@@ -354,6 +396,7 @@ void DictCollection::writeRangeToDisk(word* begin, word* end,const word* null_wo
 			wordcount++;
 		}
 	}
+*/
 }
 
 void DictCollection::cleanUp(void)
