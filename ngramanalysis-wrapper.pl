@@ -9,20 +9,19 @@ use JSON;
 use IPC::Open3;
 use Email::Send;
 use Email::Send::SMTP;
+use POSIX ":sys_wait_h"; #For waitpid and WNOHANG support.
 
 use perl_metadata_management;
 
 
 my $ngram_indexes_dir = "/home/nat/ngram_indexes";
-my $ngram_analysis_location = "/home/nat/ngramanalysis/ngram.analysis";
-my $sending_email_account = 'ngramanalysis.cyserver@gmail.com';
+my $ngram_analysis_location = "/home/nat/ngramanalysis/ngram.analysis"
 
 binmode STDOUT,":utf8";
 my $q = CGI->new;
 print $q->header(-type=>'text/plain',-charset=>"utf-8");
 
 my $all_indexes = load_all_indexes($ngram_indexes_dir);
-
 
 
 my $action = $q->param("action");
@@ -35,6 +34,10 @@ given ($action)
 	when("get_top")
 	{
 		get_top($q,$all_indexes);
+	};
+	when("entropy_index_get_top")
+	{
+		entropy_index_get_top($q,$all_indexes);
 	};
 	when("view_wordlength_stats")
 	{
@@ -58,6 +61,34 @@ sub list_all
 {
 	my ($query,$indexes) = @_;
 	print encode_json $indexes;
+}
+sub entropy_index_get_top
+{
+	my ($query,$indexes) = @_;
+	my $folder = $query->param("folder");
+	unless(exists($indexes->{$folder}))
+	{
+		say "/Folder $folder does not exist";
+		print "/Query did not execute successfully" and die;
+	}
+	my $howmany = scalar($query->param("howmany"));	
+	my $ngramsize = scalar($query->param("ngramsize"));
+	my $search_string_pattern = $query->param("search_string_pattern");
+	my $threshold = scalar($query->param("zero_entropy_frequency_threshold"));
+	if(!$howmany or !$ngramsize)
+	{
+		say "/Invalid query";
+		say "/Query did not execute successfully" and die;
+	}
+	my $pid = open3(my $analysis_stdin,my $analysis_stdout,my $analysis_stderr = "lvaluable",
+		"$ngram_analysis_location","$ngram_indexes_dir/$folder", "entropy_index_get_top","$search_string_pattern","$howmany","$threshold");
+
+	binmode $analysis_stdout, ":utf8";
+	binmode $analysis_stderr, ":utf8";
+
+	close($analysis_stdin);
+
+	output_results($query,$folder,$analysis_stdout,$analysis_stderr,$pid);
 }
 
 sub get_top
@@ -83,9 +114,8 @@ sub get_top
 	binmode $analysis_stderr, ":utf8";
 
 	close($analysis_stdin);
-	waitpid($pid,0);
 
-	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
+	output_results($query,$folder,$analysis_stdout,$analysis_stderr,$pid);
 }
 
 sub view_wordlength_stats
@@ -111,8 +141,7 @@ sub view_wordlength_stats
 	binmode $analysis_stderr, ":utf8";
 
 	close($analysis_stdin);
-	waitpid($pid,0);
-	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
+	output_results($query,$folder,$analysis_stdout,$analysis_stderr,$pid);
 }
 
 sub search
@@ -137,8 +166,7 @@ sub search
 	binmode $analysis_stdout, ":utf8";
 	binmode $analysis_stderr, ":utf8";
 	close($analysis_stdin);
-	waitpid($pid,0);
-	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
+	output_results($query,$folder,$analysis_stdout,$analysis_stderr,$pid);
 
 }
 sub entropy_of
@@ -163,19 +191,21 @@ sub entropy_of
 	binmode $analysis_stdout, ":utf8";
 	binmode $analysis_stderr, ":utf8";
 	close($analysis_stdin);
-	waitpid($pid,0);
-	output_results($query,$folder,$analysis_stdout,$analysis_stderr);
+	output_results($query,$folder,$analysis_stdout,$analysis_stderr,$pid);
 
 
 }
 sub output_results
 {
-	my ($query,$folder,$analysis_stdout,$analysis_stderr) = @_;
+	my ($query,$folder,$analysis_stdout,$analysis_stderr,$pid) = @_;
+
+	waitpid $pid, 0;
+
 	my $notification_type = $query->param("notification_type");
 
 	if(($notification_type eq "email") and !($query->param("email_address")))
 	{
-		print "/"."Please enter an email address" and die;
+		say "/"."Please enter an email address" and die;
 	}
 
 	my $hours = (localtime)[2];
@@ -207,6 +237,21 @@ HEREDOC
 Here are your results for your query about entropy on the database $folder for "$search_string".
 
 Log messages output during this search:
+---------------------
+HEREDOC
+		}
+		when("entropy_index_get_top")
+		{
+			my $ngramsize = scalar($query->param("ngramsize"));
+			my $howmany = scalar($query->param("howmany"));
+			my $search_string_pattern = $query->param("search_string_pattern");
+			my $threshold = scalar($query->param("zero_entropy_frequency_threshold"));
+			$message .= <<HEREDOC;
+Here are your results for your query about the $howmany search strings of lowest entropy in database $folder which
+match the search string pattern "$search_string_pattern" and where search strings of entropy 0 are only shown if
+their frequency is greater than $threshold.
+
+Log messages output during this earch:
 ---------------------
 HEREDOC
 		}
@@ -278,6 +323,15 @@ HEREDOC
 				my $search_string = $query->param("search_string");
 				$subject .= "results for entropy of '$search_string' in folder $folder";
 			};
+			when("entropy_index_get_top")
+			{
+				my $ngramsize = scalar($query->param("ngramsize"));
+				my $howmany = scalar($query->param("howmany"));
+				my $search_string_pattern = $query->param("search_string_pattern");
+				my $threshold = scalar($query->param("zero_entropy_frequency_threshold"));
+	
+				$subject .= "list of $howmany search strings of lowest entropy in folder $folder for search string pattern $search_string_pattern, threshold $threshold";
+			}
 
 			when("get_top")
 			{

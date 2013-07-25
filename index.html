@@ -53,7 +53,7 @@
 		all_indexes_request.timeout = 10000;
 		all_indexes_request.ontimeout = function()
 		{
-			$("error_log").appendChild(document.createTextNode("Request timed out");
+			$("error_log").appendChild(document.createTextNode("Request timed out"));
 			$("error_log").appendChild(document.createElement("br"));
 		}
 		all_indexes_request.onload = function()
@@ -77,7 +77,7 @@
 						{
 							if(entry)
 							{
-								var newTextNode = docuement.createTextNode(entry);
+								var newTextNode = document.createTextNode(entry);
 								var newlineNode = document.createElement("br");
 								$("error_log").appendChild(newTextNode);
 								$("error_log").appendChild(newlineNode);
@@ -236,9 +236,15 @@
 				case "search":
 					url+= "&search_string=" + encodeURIComponent($("search_string").value);
 				break;
+				case "entropy_index_get_top":
+					url+= "&ngramsize=" + encodeURIComponent($("ngram_number_entropy_index_get_top").value);
+					url+= "&howmany=" + encodeURIComponent($("howmany_entropy_index_get_top").value);
+					url+="&search_string_pattern=" + encodeURIComponent($("search_string_pattern").innerHTML);
+					url+="&zero_entropy_frequency_threshold=" + encodeURIComponent($("zero_entropy_frequency_threshold").value);
+				break;
 				case "get_top":
 					url+="&ngramsize=" + encodeURIComponent($("ngram_number_get_top").value);
-					url+="&howmany=" + encodeURIComponent($("howmany").value);
+					url+="&howmany=" + encodeURIComponent($("howmany_get_top").value);
 				break;
 				case "view_wordlength_stats":
 					url+="&ngramsize=" + encodeURIComponent($("ngram_number_wordlength_stats").value);
@@ -307,9 +313,23 @@
 		<tbody id="actions_part_of_table">
 		<tr><td><input type="radio" name="action_result" value="search" checked />Search(*)</td></tr>
 		<tr><td><input type="radio" name="action_result" value="entropy_of" />Entropy (**)</td></tr>
+		<tr><td><input type="radio" name="action_result" value="entropy_index_get_top" />Show wildcards with lowest entropy (***)</td></tr>
 		<tr><td><input type="radio" name="action_result" value="get_top"/>Show most frequent n-grams</td></tr>
 		<tr><td><input type="radio" name="action_result" value="view_wordlength_stats"/>Show wordlength statistics (in utf8 code units)</td></tr>
 		</tbody>
+		<th> Important Info (Please read at least once)<input type="button" id="show_help" value="Show it!" onclick="
+			var help_area = document.getElementById('help_area');
+			if(help_area.style.visibility === 'visible')
+			{
+				help_area.style.visibility = 'collapse';
+				document.getElementById('show_help').value = 'Show it!';
+			}else
+			{
+				help_area.style.visibility = 'visible';
+				document.getElementById('show_help').value = 'Hide it!';
+			}
+			"></th>
+		<tbody id="help_area" style="visibility:collapse;">
 		<tr><td>
 <pre>
 (*) Entering a search string like "Piece * cake" would probably find
@@ -337,14 +357,74 @@
     sequences of null-words. "$" can be used in some search strings both in POS an non-POS corpora.
 
 (**) Use a search string with wildcards to determine the entropy of the wildcards (in bits).
+
+(***) This function uses precalculated entropy indexes to show a certain number of search
+    strings matching a certain pattern that have the lowest entropy in the corpus.
+    It takes as the first paramter the n-gram size.
+    The second parameter can be entered by clicking the appropriate buttons to declare
+    which words in the n-gram should be treated as wild-cards.
+    The third parameter is the minum frequency search strings with entropy of 0 may have
+    to be shown. This is to, for example, discard something like "asdfasdfasdfasdf *" from 
+    the results which has 0 entropy but only occurs rarely in the corpus.
 </pre>
 		</td></tr>
+	</tbody>
 		<th> Parameters </th>
 		<tbody id="params_part_of_table">
 		<tr id="search_param_row"><td >Search String:<input type="text" id="search_string"></td> </tr>
+		<tr id="entropy_index_get_top_param_row" style="visibility:collapse"><td>
+				N-gram number (i.e 2 for 2-grams) <input type="text" id="ngram_number_entropy_index_get_top"/> 
+				<input type="button" value="ok" onclick="
+					var words = $('entropy_index_get_top_param_row_words');
+					var search_string_array = [];
+					while(words.firstChild)
+						words.removeChild(words.firstChild);
+					var ngramsize = Number($('ngram_number_entropy_index_get_top').value);
+					if(isNaN(ngramsize))
+					{
+						$('error_log').appendChild(document.createTextNode('Invalid n-gram size'));
+						$('error_log').appendChild(document.createElement('br'));
+					}
+					for(var i = 0; i<ngramsize;i++)
+					{
+						search_string_array[i] = '=';
+						(function()
+						{
+							var i_copy = i;
+							var new_button = document.createElement('input');
+							new_button.type = 'button';
+							new_button.value = 'known';
+							new_button.onclick = function()
+							{
+								if(new_button.value == 'known')
+								{
+									new_button.value = '*';
+									search_string_array[i_copy] = '*';
+								} else
+								{
+									new_button.value = 'known';
+									search_string_array[i_copy] = '=';
+								}
+								$('search_string_pattern').innerHTML = search_string_array.join(' ');
+							}
+							$('search_string_pattern').innerHTML = search_string_array.join(' ');
+							words.appendChild(new_button);
+						})();
+					}
+				"/>
+				<br/>
+				Known and Unknown words: <span id="entropy_index_get_top_param_row_words"></span>
+				<br/>
+				Inner representation of search string pattern:&nbsp;<span id="search_string_pattern"></span>
+				<br/>
+				Frequency threshold below which 0-entropy n-grams aren't shown: <input type="text" id="zero_entropy_frequency_threshold" value="0">
+				<br/>
+				Number of results to show: <input type="text" id="howmany_entropy_index_get_top"/>
+			</td>
+		</tr>
 		<tr id="get_top_param_row" style="visibility:collapse"><td>
-				N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_get_top"><br/>
-				Number of results to show: <input type="text" id="howmany"/>
+				N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_get_top"/><br/>
+				Number of results to show: <input type="text" id="howmany_get_top"/>
 		</td> </tr>
 		<tr id="view_wordlength_stats_param_row" style="visibility:collapse"><td>N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_wordlength_stats"></td> </tr>
 		</tbody>

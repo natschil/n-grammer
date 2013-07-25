@@ -89,6 +89,19 @@ sub parse_metadata_file
 			{
 				$current_metadata{"WordlengthStatsExist"} = "";
 			}
+		}elsif( $currentline =~ /^EntropyInvertedIndexes:\n$/)
+		{
+			$current_metadata{"EntropyInvertedIndexes"} = [];
+			while(my $index_line = <METADATA_FILE>)
+			{
+				unless($index_line =~ /^\t/)
+				{
+					seek(METADATA_FILE, -length($index_line),1);
+					last;
+				}
+				$index_line =~ /^\t(entropy_[0-9]+_index_.*)\n$/;;
+				push $current_metadata{"EntropyInvertedIndexes"},$1;
+			}
 		}else
 		{
 			say "I don't know what to do with $currentline";
