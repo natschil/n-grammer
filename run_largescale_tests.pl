@@ -114,7 +114,6 @@ for my $i (1 .. 4)
 			last if $entropy_search_string_pattern[$j];
 		}
 		last if($j == @entropy_search_string_pattern);
-=head
 		if(system("./ngram.analysis $tests_dir/$i entropy_index \"$search_string_pattern\">/dev/null 2>/dev/null"))
 		{
 			die "Failed to create entropy index for search string \"$search_string_pattern\"";
@@ -130,9 +129,7 @@ for my $i (1 .. 4)
 		{
 			die "Failed on test entropy_index_get_top for pattern $search_string_pattern";
 		}
-=cut
 	}
-=head
 	unless($reference_metadata->{"isPos"} or ($i == 1))
 	{
 		for my $current_entropy_index_name (@{$reference_metadata->{"EntropyInvertedIndexes"}})
@@ -143,7 +140,6 @@ for my $i (1 .. 4)
 			}
 		}
 	}
-=cut
 	say "Finished testing entropy indexes for $i-grams";
 
 	#Test the wordlength stat generation and reading.
