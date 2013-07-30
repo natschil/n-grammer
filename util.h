@@ -22,11 +22,9 @@ template<class InputIt,class T>
 InputIt find_nth(InputIt begin, InputIt end, const T& value,size_t n)
 {
 	InputIt result = begin;
-	while(n-- != 0)
+	while((n-- != 0) && (result != end))
 	{
-		result = find(result,end,value);
-		if(result != end)
-			++result;
+		result = find(result+1,end,value);
 	}
 	return result;
 }

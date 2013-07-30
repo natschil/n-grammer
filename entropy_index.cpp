@@ -221,7 +221,7 @@ write_out_last_value:
 						int classification = fpclassify(tmp_entropy);
 						if(signbit(tmp_entropy))
 						{
-							fprintf(stderr,"Found negative entropy value, looks like a bug\n");
+							fprintf(stderr,"Found negative entropy value %f, looks like a bug\n",tmp_entropy);
 						}else if(!((classification == FP_ZERO) || (classification == FP_NORMAL) || (classification == FP_SUBNORMAL)))
 						{
 							fprintf(stderr,"Found non-finite entropy value %f , could be a bug\n",tmp_entropy);
