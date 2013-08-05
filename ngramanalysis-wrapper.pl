@@ -13,7 +13,6 @@ use POSIX ":sys_wait_h"; #For waitpid and WNOHANG support.
 
 use perl_metadata_management;
 
-
 my $ngram_indexes_dir = "/home/nat/ngram_indexes";
 my $ngram_analysis_location = "/home/nat/ngramanalysis/ngram.analysis"
 
@@ -198,14 +197,16 @@ sub entropy_of
 sub output_results
 {
 	my ($query,$folder,$analysis_stdout,$analysis_stderr,$pid) = @_;
-
-	waitpid $pid, 0;
-
 	my $notification_type = $query->param("notification_type");
 
 	if(($notification_type eq "email") and !($query->param("email_address")))
 	{
 		say "/"."Please enter an email address" and die;
+	}
+	my $analysis_stdout_to_var ="";
+	while(<$analysis_stdout>)
+	{
+		($notification_type eq "email") ? ($analysis_stdout_to_var .= $_) : (print $_);
 	}
 
 	my $hours = (localtime)[2];
@@ -279,12 +280,12 @@ Log messages output during this query:
 HEREDOC
 		}
 	}
-
 	while(<$analysis_stderr>)
 	{
-		$message .= "\t$_" if $notification_type eq "email";
 		print "/",$_;
+		$message .= "\t$_" if $notification_type eq "email";
 	}
+
 	if($?)
 	{
 		$message .= "\tQuery did not execute successfully" if $notification_type eq "email";
@@ -297,10 +298,8 @@ HEREDOC
 	$message .="\n---------------------\n";
 	$message .= "Here are the results:\n";
 	$message .="\n---------------------\n";
-	while(<$analysis_stdout>)
-	{
-		($notification_type eq "email") ? ($message .= $_) : (print $_);
-	}
+	$message .= $analysis_stdout_to_var;
+
 	$message .="\n---------------------\n";
 	if($notification_type eq "email")
 	{
@@ -355,8 +354,7 @@ HEREDOC
 		$mailer->send($finished_email);
 		say "/Sent email successfully to ". $query->param("email_address");
 	}
-
-
+	waitpid $pid, 0;
 }
 
 
