@@ -24,8 +24,9 @@ void print_usage(char* argv[])
 int main (int argc, char* argv[])
 {
 
-  if((argc < 3) || (argc > 7))
+  if((argc < 3) || (argc > 8))
   {
+	  cerr<<"Not the right number of arguments"<<endl;
 	  print_usage(argv);
           exit(1);
   }
