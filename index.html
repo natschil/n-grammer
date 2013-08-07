@@ -37,270 +37,332 @@
 	Welcome!
 </title>
 <script>
-	"use strict;"
+"use strict;"
 
-	var query_folder = "";
-	var query_type = "search";
-	var notification_type = "web";
+var query_folder = "";
+var query_type = "search";
+var notification_type = "web";
 
-	var $ = function(value)
+var metadata_key_to_number = function(key)
+{
+	switch(key)
 	{
-		return document.getElementById(value);
+		case "Filename": return 0;
+		case "Numwords": return 1;
+		case "Indexes": return 2;
+		case "InvertedIndexes": return 3;
+		case "EntropyInvertedIndexes": return 4;
+		case "WorldengthStatsExist": return 5;
+		default: return 100;
+	}	
+}
+
+var $ = function(value)
+{
+	return document.getElementById(value);
+}
+window.onload = function()
+{
+	var all_indexes_request = new XMLHttpRequest;
+	all_indexes_request.timeout = 10000;
+	all_indexes_request.ontimeout = function()
+	{
+		$("error_log").appendChild(document.createTextNode("Request timed out"));
+		$("error_log").appendChild(document.createElement("br"));
 	}
-	window.onload = function()
+	all_indexes_request.onload = function()
 	{
-		var all_indexes_request = new XMLHttpRequest;
-		all_indexes_request.timeout = 10000;
-		all_indexes_request.ontimeout = function()
-		{
-			$("error_log").appendChild(document.createTextNode("Request timed out"));
-			$("error_log").appendChild(document.createElement("br"));
-		}
-		all_indexes_request.onload = function()
-		{
-			all_indexes_request.responseText.split("\n").forEach(
-				function(entry)
+		all_indexes_request.responseText.split("\n").forEach(
+			function(entry)
+			{
+				if(entry[0] == "/")				
 				{
-					if(entry[0] == "/")				
+					var newTextNode = document.createTextNode(entry);
+					var newlineNode = document.createElement("br");
+					$("error_log").appendChild(newTextNode);
+					$("error_log").appendChild(newlineNode);
+				}else
+				{
+					//Empty the table of indexes:	
+					try
 					{
-						var newTextNode = document.createTextNode(entry);
-						var newlineNode = document.createElement("br");
-						$("error_log").appendChild(newTextNode);
-						$("error_log").appendChild(newlineNode);
-					}else
+						var list_all_result = JSON.parse(entry);
+					}catch(e)
 					{
-						//Empty the table of indexes:	
-						try
+						if(entry)
 						{
-							var list_all_result = JSON.parse(entry);
-						}catch(e)
-						{
-							if(entry)
-							{
-								var newTextNode = document.createTextNode(entry);
-								var newlineNode = document.createElement("br");
-								$("error_log").appendChild(newTextNode);
-								$("error_log").appendChild(newlineNode);
-							}
+							var newTextNode = document.createTextNode(entry);
+							var newlineNode = document.createElement("br");
+							$("error_log").appendChild(newTextNode);
+							$("error_log").appendChild(newlineNode);
 						}
-						for( var i in list_all_result)
-						{
-							var first_row = document.createElement("tr");
-							var first_row_first_col = first_row.appendChild(document.createElement("td"));
-							var radio_button = first_row_first_col.appendChild(document.createElement("input"));
-							radio_button.type="radio";
-							radio_button.name = "select_corpus";
-							radio_button.value = i;
-							radio_button.checked = true;
-							query_folder = i;
-							first_row_first_col.appendChild(document.createTextNode(i));
+					}
+					for( var i in list_all_result)
+					{
+						var first_row = document.createElement("tr");
+						var first_row_first_col = first_row.appendChild(document.createElement("td"));
+						var radio_button = first_row_first_col.appendChild(document.createElement("input"));
+						radio_button.type="radio";
+						radio_button.name = "select_corpus";
+						radio_button.value = i;
+						radio_button.checked = true;
+						query_folder = i;
+						first_row_first_col.appendChild(document.createTextNode(i));
 
-							var first_row_second_col = first_row.appendChild(document.createElement("td"));
-							for(var ngramsize in list_all_result[i])
+						var first_row_second_col = first_row.appendChild(document.createElement("td"));
+						for(var ngramsize in list_all_result[i])
+						{
+							var header_text_node = document.createElement("h6");
+							var header_text_node_contents = document.createTextNode(ngramsize+"-grams");
+							header_text_node.appendChild(header_text_node_contents);
+							first_row_second_col.appendChild(header_text_node);
+							var metadata_file_attrs = list_all_result[i][ngramsize];
+							var keys = [];
+							for(var attribute_name in metadata_file_attrs)
+								keys.push(attribute_name);
+								keys.sort(function(a,b) { return metadata_key_to_number(a) - metadata_key_to_number(b)});
+							for(var attribute_index in keys)
 							{
-								var header_text_node = document.createElement("h6");
-								var header_text_node_contents = document.createTextNode(ngramsize+"-grams");
-								header_text_node.appendChild(header_text_node_contents);
-								first_row_second_col.appendChild(header_text_node);
-								for(var attribute_name in list_all_result[i][ngramsize])
+								var attribute_name = keys[attribute_index];
+								switch(attribute_name)
 								{
-									if(["Filename","WorldlengthStatsExist","Numwords"].indexOf(attribute_name) > -1)
+								case "Filename":
+								case "WordlengthStatsExist":
+								case "Numwords":
+									first_row_second_col.appendChild(document.createTextNode(
+									"\u00A0\u00A0\u00A0" + attribute_name + ":\u00A0\u00A0" + list_all_result[i][ngramsize][attribute_name]
+									));
+									first_row_second_col.appendChild(document.createElement("br"));
+								break;
+								case "Indexes":
+								case "InvertedIndexes":
+									first_row_second_col.appendChild(document.createTextNode(
+										"\u00A0\u00A0\u00A0" + attribute_name
+									));
+									first_row_second_col.appendChild(document.createElement("br"));
+									for(var index in list_all_result[i][ngramsize][attribute_name])
 									{
 										first_row_second_col.appendChild(document.createTextNode(
-										"\u00A0\u00A0\u00A0" + attribute_name + ":\u00A0\u00A0" + list_all_result[i][ngramsize][attribute_name]
+										"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + index
 										));
 										first_row_second_col.appendChild(document.createElement("br"));
-									}else if(["InvertedIndexes","Indexes"].indexOf(attribute_name) > -1)
+									}
+								break;
+								case "EntropyInvertedIndexes":
+									first_row_second_col.appendChild(document.createTextNode(
+									"\u00A0\u00A0\u00A0" + attribute_name 
+									));
+									first_row_second_col.appendChild(document.createElement("br"));
+									for(var index in list_all_result[i][ngramsize][attribute_name])
 									{
-										first_row_second_col.appendChild(document.createTextNode(
-											"\u00A0\u00A0\u00A0" + attribute_name
-										));
-										first_row_second_col.appendChild(document.createElement("br"));
-										for(var index in list_all_result[i][ngramsize][attribute_name])
+										var entropy_inverted_index_name = list_all_result[i][ngramsize][attribute_name][index];
+										if(!entropy_inverted_index_name.match(
+											/^entropy_([0-9]+)_index((_[0-9]+)+)$/
+										))
 										{
-											first_row_second_col.appendChild(document.createTextNode(
-											"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + index
-											));
-											first_row_second_col.appendChild(document.createElement("br"));
+
+											$("error_log").appendChild(document.createTextNode(
+												"Received invalid value from server")
+											);
+											$("error_log").appendChild(document.createElement("br"));
 										}
+										var known = RegExp.$1;
+										var order = RegExp.$2.split("_").slice(1);
+										var finished_string = [];
+										var current_order;
+										for(current_order = 0; current_order < known; current_order++)
+										{
+											finished_string[order[current_order]] = "=";
+										}
+										for(current_order = known; current_order < order.length;current_order++)
+										{
+											finished_string[order[current_order]] = "*";
+										}
+										first_row_second_col.appendChild(document.createTextNode(
+										"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + 
+										finished_string.join(" ")
+										));
+
+										first_row_second_col.appendChild(document.createElement("br"));
 									}
 								}
 							}
+						}
 
-							radio_button.onclick = function()
+						radio_button.onclick = function()
+						{
+							query_folder = this.value;					
+						}
+
+						$("all_indexes_table").appendChild(first_row);
+					}
+				}
+			}
+			);
+	};
+	all_indexes_request.open("GET","/cgi-bin/ngramanalysis-wrapper.pl?action=list_all");
+	all_indexes_request.send(null);
+
+	$("run_query").onclick = function()
+	{
+		var query_request = new XMLHttpRequest;
+		query_request.onload = function()
+		{
+			var local_search_string = $("search_string").value;
+			if(query_type != "search")
+				local_search_string = "";
+			local_search_string = local_search_string.replace("[","");
+			local_search_string = local_search_string.replace("]","");
+			var lineNode = document.createElement("tr");
+			lineNode.appendChild(document.createElement("td"));
+			lineNode.firstChild.setAttribute("colspan",2);
+			lineNode.firstChild.appendChild(document.createElement("hr"));
+			lineNode.firstChild.firstChild.setAttribute("color","orange");
+			results_area.appendChild(lineNode);
+			query_request.responseText.split("\n").forEach(
+				function(cur)
+				{
+					if(cur[0] == "/")
+					{
+						var currentTextNode = document.createTextNode(cur);
+						$("error_log").appendChild(currentTextNode);
+						$("error_log").appendChild(document.createElement("br"));
+					}else
+					{
+						var re = /^(.+)\t([0-9]+)$/;
+						if(cur.match(re))
+						{
+							var currentResultsNode = document.createElement("tr");
+							currentResultsNode.appendChild(document.createElement("td"));
+							currentResultsNode.appendChild(document.createElement("td"));
+
+							var ngram = RegExp.$1;
+							var frequency = RegExp.$2;
+							if((ngram.indexOf("|") != -1) && local_search_string)
 							{
-								query_folder = this.value;					
+								var words = ngram.split(" ");
+								var new_words = [];
+								var search_string_words = local_search_string.split(" ");
+								for(var wordIndex in words)
+								{
+									var current_word = words[wordIndex];
+									var current_search_word = search_string_words[wordIndex];
+
+									if((current_search_word.indexOf("|") != -1)|| (current_word === "$"))
+									{
+										new_words.push(current_word);
+									}else
+									{
+										if(current_word.match(/(^[^\|]+)\|([^\|]+)\|([^\|]+)$/))
+											new_words.push(RegExp.$3);
+										else
+										{
+											$("error_log").appendChild(document.createTextNode(
+												"Error in web interface"));
+											$("error_log").appendChild(document.createElement("br"));
+										}
+									}
+								}
+								ngram = new_words.join(" ");
 							}
 
-							$("all_indexes_table").appendChild(first_row);
+							currentResultsNode.firstChild.appendChild(
+								document.createTextNode(ngram)
+								);
+							currentResultsNode.firstChild.nextSibling.appendChild(
+								document.createTextNode(frequency)
+								);
+							$("results_area").appendChild(currentResultsNode);
+
+						}else
+						{
+							var currentResultsNode = document.createElement("tr");
+							currentResultsNode.appendChild(document.createElement("td"));
+							currentResultsNode.appendChild(document.createElement("td"));
+							currentResultsNode.firstChild.appendChild(
+								document.createTextNode(cur)
+								);
+							currentResultsNode.firstChild.setAttribute("colspan",2);
+							$("results_area").appendChild(currentResultsNode);
 						}
 					}
 				}
 				);
+		}
+		var url ="/cgi-bin/ngramanalysis-wrapper.pl?";
+		url += "folder=" + encodeURIComponent(query_folder);
+		url += "&action=" + encodeURIComponent(query_type);
+		switch(query_type)
+		{
+			case "entropy_of":
+			case "search":
+				url+= "&search_string=" + encodeURIComponent($("search_string").value);
+			break;
+			case "entropy_index_get_top":
+				url+= "&ngramsize=" + encodeURIComponent($("ngram_number_entropy_index_get_top").value);
+				url+= "&howmany=" + encodeURIComponent($("howmany_entropy_index_get_top").value);
+				url+="&search_string_pattern=" + encodeURIComponent($("search_string_pattern").innerHTML);
+				url+="&zero_entropy_frequency_threshold=" + encodeURIComponent($("zero_entropy_frequency_threshold").value);
+			break;
+			case "get_top":
+				url+="&ngramsize=" + encodeURIComponent($("ngram_number_get_top").value);
+				url+="&howmany=" + encodeURIComponent($("howmany_get_top").value);
+			break;
+			case "view_wordlength_stats":
+				url+="&ngramsize=" + encodeURIComponent($("ngram_number_wordlength_stats").value);
+			break;
+		}
+
+		url+="&notification_type=" + encodeURIComponent(notification_type);
+		if(notification_type == "email")
+		{
+			url +="&email_address=" + encodeURIComponent($("email_input").value);
+		}
+		query_request.open("get",url);
+		query_request.send(null);
+		var newTextNode = document.createTextNode("Sent request, waiting for response... (this might take a while)");
+		$("error_log").appendChild(newTextNode);
+		$("error_log").appendChild(document.createElement("br"));
+	}
+
+	for(var i in $("actions_part_of_table").getElementsByTagName("tr"))
+	{
+		var updateQueryType = function()
+		{
+			for(var j in $("params_part_of_table").getElementsByTagName("tr"))
+			{
+				if($("params_part_of_table").getElementsByTagName("tr")[j].style)
+					$("params_part_of_table").getElementsByTagName("tr")[j].style.visibility = "collapse";
+			}
+
+			if(this.value != "entropy_of")
+				$(this.value + "_param_row").style.visibility = "visible";
+			else
+				$("search_param_row").style.visibility = "visible";
+			query_type = this.value;
+
 		};
-		all_indexes_request.open("GET","/cgi-bin/ngramanalysis-wrapper.pl?action=list_all");
-		all_indexes_request.send(null);
+		if($("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName)
+			$("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName("input")[0].onclick = updateQueryType;
+	}
 
-		$("run_query").onclick = function()
-		{
-			var query_request = new XMLHttpRequest;
-			query_request.onload = function()
-			{
-				var local_search_string = $("search_string").value;
-				if(query_type != "search")
-					local_search_string = "";
-				local_search_string = local_search_string.replace("[","");
-				local_search_string = local_search_string.replace("]","");
-				var lineNode = document.createElement("tr");
-				lineNode.appendChild(document.createElement("td"));
-				lineNode.firstChild.setAttribute("colspan",2);
-				lineNode.firstChild.appendChild(document.createElement("hr"));
-				lineNode.firstChild.firstChild.setAttribute("color","orange");
-				results_area.appendChild(lineNode);
-				query_request.responseText.split("\n").forEach(
-					function(cur)
-					{
-						if(cur[0] == "/")
-						{
-							var currentTextNode = document.createTextNode(cur);
-							$("error_log").appendChild(currentTextNode);
-							$("error_log").appendChild(document.createElement("br"));
-						}else
-						{
-							var re = /^(.+)\t([0-9]+)$/;
-							if(cur.match(re))
-							{
-								var currentResultsNode = document.createElement("tr");
-								currentResultsNode.appendChild(document.createElement("td"));
-								currentResultsNode.appendChild(document.createElement("td"));
+	$("notification_web").onclick = function()
+	{
+		notification_type = "web";
+	}
+	$("notification_email").onclick = function()
+	{
+		notification_type = "email";
+	}
 
-								var ngram = RegExp.$1;
-								var frequency = RegExp.$2;
-								if((ngram.indexOf("|") != -1) && local_search_string)
-								{
-									var words = ngram.split(" ");
-									var new_words = [];
-									var search_string_words = local_search_string.split(" ");
-									for(var wordIndex in words)
-									{
-										var current_word = words[wordIndex];
-										var current_search_word = search_string_words[wordIndex];
-
-										if((current_search_word.indexOf("|") != -1)|| (current_word === "$"))
-										{
-											new_words.push(current_word);
-										}else
-										{
-											if(current_word.match(/(^[^\|]+)\|([^\|]+)\|([^\|]+)$/))
-												new_words.push(RegExp.$3);
-											else
-											{
-												$("error_log").appendChild(document.createTextNode(
-													"Error in web interface"));
-												$("error_log").appendChild(document.createElement("br"));
-											}
-										}
-									}
-									ngram = new_words.join(" ");
-								}
-
-								currentResultsNode.firstChild.appendChild(
-									document.createTextNode(ngram)
-									);
-								currentResultsNode.firstChild.nextSibling.appendChild(
-									document.createTextNode(frequency)
-									);
-								$("results_area").appendChild(currentResultsNode);
-
-							}else
-							{
-								var currentResultsNode = document.createElement("tr");
-								currentResultsNode.appendChild(document.createElement("td"));
-								currentResultsNode.appendChild(document.createElement("td"));
-								currentResultsNode.firstChild.appendChild(
-									document.createTextNode(cur)
-									);
-								currentResultsNode.firstChild.setAttribute("colspan",2);
-								$("results_area").appendChild(currentResultsNode);
-							}
-						}
-					}
-					);
-			}
-			var url ="/cgi-bin/ngramanalysis-wrapper.pl?";
-			url += "folder=" + encodeURIComponent(query_folder);
-			url += "&action=" + encodeURIComponent(query_type);
-			switch(query_type)
-			{
-				case "entropy_of":
-				case "search":
-					url+= "&search_string=" + encodeURIComponent($("search_string").value);
-				break;
-				case "entropy_index_get_top":
-					url+= "&ngramsize=" + encodeURIComponent($("ngram_number_entropy_index_get_top").value);
-					url+= "&howmany=" + encodeURIComponent($("howmany_entropy_index_get_top").value);
-					url+="&search_string_pattern=" + encodeURIComponent($("search_string_pattern").innerHTML);
-					url+="&zero_entropy_frequency_threshold=" + encodeURIComponent($("zero_entropy_frequency_threshold").value);
-				break;
-				case "get_top":
-					url+="&ngramsize=" + encodeURIComponent($("ngram_number_get_top").value);
-					url+="&howmany=" + encodeURIComponent($("howmany_get_top").value);
-				break;
-				case "view_wordlength_stats":
-					url+="&ngramsize=" + encodeURIComponent($("ngram_number_wordlength_stats").value);
-				break;
-			}
-
-			url+="&notification_type=" + encodeURIComponent(notification_type);
-			if(notification_type == "email")
-			{
-				url +="&email_address=" + encodeURIComponent($("email_input").value);
-			}
-			query_request.open("get",url);
-			query_request.send(null);
-			var newTextNode = document.createTextNode("Sent request, waiting for response... (this might take a while)");
-			$("error_log").appendChild(newTextNode);
-			$("error_log").appendChild(document.createElement("br"));
-		}
-
-		for(var i in $("actions_part_of_table").getElementsByTagName("tr"))
-		{
-			var updateQueryType = function()
-			{
-				for(var j in $("params_part_of_table").getElementsByTagName("tr"))
-				{
-					if($("params_part_of_table").getElementsByTagName("tr")[j].style)
-						$("params_part_of_table").getElementsByTagName("tr")[j].style.visibility = "collapse";
-				}
-
-				if(this.value != "entropy_of")
-					$(this.value + "_param_row").style.visibility = "visible";
-				else
-					$("search_param_row").style.visibility = "visible";
-				query_type = this.value;
-
-			};
-			if($("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName)
-				$("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName("input")[0].onclick = updateQueryType;
-		}
-
-		$("notification_web").onclick = function()
-		{
-			notification_type = "web";
-		}
-		$("notification_email").onclick = function()
-		{
-			notification_type = "email";
-		}
-
-		$("clear_results_area").onclick = function()
-		{
-			while($("results_area").firstChild)
-				$("results_area").removeChild($("results_area").firstChild);
-			while($("error_log").firstChild)
-				$("error_log").removeChild($("error_log").firstChild);
-		}
-	};
+	$("clear_results_area").onclick = function()
+	{
+		while($("results_area").firstChild)
+			$("results_area").removeChild($("results_area").firstChild);
+		while($("error_log").firstChild)
+			$("error_log").removeChild($("error_log").firstChild);
+	}
+};
 </script>
 </head>
 <body>
