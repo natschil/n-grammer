@@ -14,7 +14,7 @@ use POSIX ":sys_wait_h"; #For waitpid and WNOHANG support.
 use perl_metadata_management;
 
 my $ngram_indexes_dir = "/home/nat/ngram_indexes";
-my $ngram_analysis_location = "/home/nat/ngramanalysis/ngram.analysis"
+my $ngram_analysis_location = "/home/nat/ngramanalysis/ngram.analysis";
 
 binmode STDOUT,":utf8";
 my $q = CGI->new;
