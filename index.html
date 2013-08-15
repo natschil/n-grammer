@@ -323,7 +323,7 @@ window.onload = function()
 				for(var ngram_number = 0; ngram_number < ngrams.length; ngram_number++)
 					sorting_permutation.push(ngram_number);
 
-				sorting_permutation.sort(function(a,b){return ngrams[a] > ngrams[b] - ngrams[a] < ngrams[b];});
+				sorting_permutation.sort(function(a,b){return (ngrams[a] > ngrams[b]) - (ngrams[a] < ngrams[b]);});
 				var sorted_ngrams = [];
 				var sorted_frequencies = [];
 				for(var ngram_number in ngrams)
@@ -345,8 +345,8 @@ window.onload = function()
 					{
 						reduced_ngrams.push(current_ngram);
 						reduced_frequencies.push(current_frequency);
-						current_ngram = Number(sorted_ngrams[ngram_number]);
-						current_frequency = sorted_frequencies[ngram_number];
+						current_ngram = sorted_ngrams[ngram_number];
+						current_frequency = Number(sorted_frequencies[ngram_number]);
 					}
 				}
 				reduced_ngrams.push(current_ngram);
@@ -360,7 +360,7 @@ window.onload = function()
 				//And we sort our reduced stuff in descending order.
 				final_permutation.sort(function(a,b)
 				{
-					return reduced_frequencies[b] > reduced_frequencies[a] - reduced_frequencies[b] < reduced_frequencies[a];
+					return (reduced_frequencies[b] > reduced_frequencies[a]) - (reduced_frequencies[b] < reduced_frequencies[a]);
 				});
 				for(var ngram_number in reduced_ngrams)
 				{
