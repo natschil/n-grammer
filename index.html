@@ -48,6 +48,7 @@ var metadata_key_to_number = function(key)
 	switch(key)
 	{
 		case "Filename": return 0;
+		case "isPos": return 0.5;
 		case "Numwords": return 1;
 		case "Indexes": return 2;
 		case "InvertedIndexes": return 3;
@@ -109,6 +110,17 @@ window.onload = function()
 						radio_button.checked = true;
 						query_folder = i;
 						this_row_first_col.appendChild(document.createTextNode(i));
+						var some_ngramsize_that_exists;
+						for(var ngramsize in list_all_result[i])
+							some_ngramsize_that_exists = ngramsize;
+						if(list_all_result[i][some_ngramsize_that_exists]["isPos"])
+						{
+							this_row_first_col.appendChild(document.createElement("br"));
+							var pos_flair = document.createElement("div");
+							pos_flair.appendChild(document.createTextNode( "\u00A0\u00A0\u00A0\u00A0[POS]"));
+							pos_flair.style.color="green";
+							this_row_first_col.appendChild(pos_flair);
+						}
 
 						var this_row_second_col = this_row.appendChild(document.createElement("td"));
 						hidable_info_cols.forEach(function(cur){cur.hidden = true;});
@@ -129,6 +141,7 @@ window.onload = function()
 								var attribute_name = keys[attribute_index];
 								switch(attribute_name)
 								{
+								case "isPos":
 								case "Filename":
 								case "WordlengthStatsExist":
 								case "Numwords":
