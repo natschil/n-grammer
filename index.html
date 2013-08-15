@@ -445,6 +445,10 @@ window.onload = function()
     sequences of null-words. "$" can be used in some search strings both in POS an non-POS corpora.
 
 (**) Use a search string with wildcards to determine the entropy of the wildcards (in bits).
+    Note that for POS corpora, all search strings are treated as if they were fully in the
+    [type|lemma|word] notation (see above). Hence entropies here may result in unexpected
+    values - searching for the entropy of "the" may result in a non-zero value, as what the
+    program is actually doing is looking for the entropy of "[*|*|the]"
 
 (***) This function uses precalculated entropy indexes to show a certain number of search
     strings matching a certain pattern that have the lowest entropy in the corpus.
