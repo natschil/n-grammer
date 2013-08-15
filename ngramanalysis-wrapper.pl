@@ -222,10 +222,10 @@ sub output_results
 	{
 		when("search")
 		{
-			my $search_string = $query->param("search_string");
-		$message .= <<HEREDOC;
-
-Here are your results for your search on the database $folder for "$search_string".
+			my $search_string = decode("utf-8",$query->param("search_string"));
+		$message .= 
+<<HEREDOC
+"Here are your results for your search on the database $folder for "$search_string"
 
 Log messages output during this search:
 ---------------------
@@ -233,7 +233,7 @@ HEREDOC
 		}
 		when("entropy_of")
 		{
-			my $search_string = $query->param("search_string");
+			my $search_string = decode("utf-8",$query->param("search_string"));
 		$message .= <<HEREDOC;
 Here are your results for your query about entropy on the database $folder for "$search_string".
 
@@ -314,12 +314,12 @@ HEREDOC
 		{
 			when("search")
 			{
-				my $search_string = $query->param("search_string");
+				my $search_string = decode("utf-8",$query->param("search_string"));
 				$subject .= "results for search '$search_string' in folder $folder";
 			};
 			when("search")
 			{
-				my $search_string = $query->param("search_string");
+				my $search_string = decode("utf-8",$query->param("search_string"));
 				$subject .= "results for entropy of '$search_string' in folder $folder";
 			};
 			when("entropy_index_get_top")
@@ -344,13 +344,13 @@ HEREDOC
 				$subject .= "wordlength information for $ngramsize-grams in folder $folder";
 			}
 		}
-		my $email_to = $query->param("email_address");
-		my $finished_email = <<HEREDOC;
-To: $email_to
-From: ngrams\@cyserver.sfs.uni-tuebingen.de
-Subject: $subject
-$message
-HEREDOC
+		my $email_to = decode("utf-8",$query->param("email_address"));
+		my $finished_email =
+	       	"To:".  encode("MIME-Header", $email_to) ."\n". 
+		"From: ngrams\@cyserver.sfs.uni-tuebingen.de\n".
+		"Subject:". encode("MIME-Header",$subject) . "\n".
+		"MIME-Version: 1.0\nContent-Type: text/plain; charset=\"utf-8\"\nContent-Transfer-Encoding: quoted-printable\n".
+		$message;
 		$mailer->send($finished_email);
 		say "/Sent email successfully to ". $query->param("email_address");
 	}
