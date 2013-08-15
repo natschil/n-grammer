@@ -71,6 +71,7 @@ window.onload = function()
 		$("error_log").appendChild(document.createTextNode("Request timed out"));
 		$("error_log").appendChild(document.createElement("br"));
 	}
+	var list_all_result = {};
 	all_indexes_request.onload = function()
 	{
 		all_indexes_request.responseText.split("\n").forEach(
@@ -87,7 +88,7 @@ window.onload = function()
 					//Empty the table of indexes:	
 					try
 					{
-						var list_all_result = JSON.parse(entry);
+						list_all_result = JSON.parse(entry);
 					}catch(e)
 					{
 						if(entry)
@@ -245,6 +246,17 @@ window.onload = function()
 			lineNode.firstChild.appendChild(document.createElement("hr"));
 			lineNode.firstChild.firstChild.setAttribute("color","orange");
 			results_area.appendChild(lineNode);
+
+			var ngrams = [];
+			var frequencies = [];
+			var current_query_is_pos = false;
+			var relevant_metadata = list_all_result[query_folder];
+			var relevant_metadata_some_index;
+			for(var yetanothervariablename in relevant_metadata)
+				relevant_metadata_some_index = yetanothervariablename;
+			if(relevant_metadata[relevant_metadata_some_index]["isPos"])
+				current_query_is_pos = true;
+
 			query_request.responseText.split("\n").forEach(
 				function(cur)
 				{
@@ -258,10 +270,6 @@ window.onload = function()
 						var re = /^(.+)\t([0-9]+)$/;
 						if(cur.match(re))
 						{
-							var currentResultsNode = document.createElement("tr");
-							currentResultsNode.appendChild(document.createElement("td"));
-							currentResultsNode.appendChild(document.createElement("td"));
-
 							var ngram = RegExp.$1;
 							var frequency = RegExp.$2;
 							if((ngram.indexOf("|") != -1) && local_search_string)
@@ -291,14 +299,8 @@ window.onload = function()
 								}
 								ngram = new_words.join(" ");
 							}
-
-							currentResultsNode.firstChild.appendChild(
-								document.createTextNode(ngram)
-								);
-							currentResultsNode.firstChild.nextSibling.appendChild(
-								document.createTextNode(frequency)
-								);
-							$("results_area").appendChild(currentResultsNode);
+							ngrams.push(ngram);
+							frequencies.push(frequency);
 
 						}else
 						{
@@ -310,10 +312,96 @@ window.onload = function()
 								);
 							currentResultsNode.firstChild.setAttribute("colspan",2);
 							$("results_area").appendChild(currentResultsNode);
-						}
+						} 
+	
 					}
 				}
-				);
+			);
+			if((query_type == "search") && current_query_is_pos && ngrams.length)
+			{
+				var sorting_permutation = [];
+				for(var ngram_number = 0; ngram_number < ngrams.length; ngram_number++)
+					sorting_permutation.push(ngram_number);
+
+				sorting_permutation.sort(function(a,b){return ngrams[a] > ngrams[b] - ngrams[a] < ngrams[b];});
+				var sorted_ngrams = [];
+				var sorted_frequencies = [];
+				for(var ngram_number in ngrams)
+				{
+					sorted_ngrams[ngram_number] = ngrams[sorting_permutation[ngram_number]];
+					sorted_frequencies[ngram_number] = frequencies[sorting_permutation[ngram_number]];
+				}
+
+				var reduced_ngrams = [];
+				var reduced_frequencies = [];
+				var current_ngram = sorted_ngrams[0];
+				var current_frequency = Number(sorted_frequencies[0]);
+				for(var ngram_number = 1;ngram_number < ngrams.length; ngram_number++)
+				{
+					if(sorted_ngrams[ngram_number] === current_ngram)
+					{
+						current_frequency += Number(sorted_frequencies[ngram_number]);
+					}else
+					{
+						reduced_ngrams.push(current_ngram);
+						reduced_frequencies.push(current_frequency);
+						current_ngram = Number(sorted_ngrams[ngram_number]);
+						current_frequency = sorted_frequencies[ngram_number];
+					}
+				}
+				reduced_ngrams.push(current_ngram);
+				reduced_frequencies.push(current_frequency);
+
+				var final_permutation = [];
+				var ngrams_finally_permuted = [];
+				var frequencies_finally_permuted = [];
+				for(var ngram_number = 0; ngram_number < reduced_ngrams.length; ngram_number++)
+					final_permutation.push(ngram_number);
+				//And we sort our reduced stuff in descending order.
+				final_permutation.sort(function(a,b)
+				{
+					return reduced_frequencies[b] > reduced_frequencies[a] - reduced_frequencies[b] < reduced_frequencies[a];
+				});
+				for(var ngram_number in reduced_ngrams)
+				{
+					ngrams_finally_permuted[ngram_number] = reduced_ngrams[final_permutation[ngram_number]];
+					frequencies_finally_permuted[ngram_number] = reduced_frequencies[final_permutation[ngram_number]];
+				}
+
+				for(var ngram_number in ngrams_finally_permuted)
+				{
+					var currentResultsNode = document.createElement("tr");
+					currentResultsNode.appendChild(document.createElement("td"));
+					currentResultsNode.appendChild(document.createElement("td"));
+
+
+					currentResultsNode.firstChild.appendChild(
+						document.createTextNode(ngrams_finally_permuted[ngram_number])
+						);
+					currentResultsNode.firstChild.nextSibling.appendChild(
+						document.createTextNode(frequencies_finally_permuted[ngram_number])
+						);
+					$("results_area").appendChild(currentResultsNode);
+				}
+			}else
+			{
+				for(var ngram_number in ngrams)
+				{
+					var currentResultsNode = document.createElement("tr");
+					currentResultsNode.appendChild(document.createElement("td"));
+					currentResultsNode.appendChild(document.createElement("td"));
+	
+	
+					currentResultsNode.firstChild.appendChild(
+						document.createTextNode(ngrams[ngram_number])
+						);
+					currentResultsNode.firstChild.nextSibling.appendChild(
+						document.createTextNode(frequencies[ngram_number])
+						);
+					$("results_area").appendChild(currentResultsNode);
+				}
+			}
+
 		}
 		var url ="/cgi-bin/ngramanalysis-wrapper.pl?";
 		url += "folder=" + encodeURIComponent(query_folder);
