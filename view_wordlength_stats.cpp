@@ -23,7 +23,7 @@ void view_wordlength_stats(map<unsigned int,Metadata> &metadatas,vector<string> 
 	auto relevant_metadata_itr = metadatas.find(ngram_size);
 	if(relevant_metadata_itr == metadatas.end())
 	{
-		cerr<<"Unable to find metadata for n-gram collection of size " <<ngram_size;
+		cerr<<"Unable to find metadata for n-gram collection of size " <<ngram_size<<endl;
 		exit(-1);
 	}
 	Metadata &relevant_metadata = relevant_metadata_itr->second;
