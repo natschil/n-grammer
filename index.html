@@ -1,5 +1,9 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
 "http://www.w3.org/TR/html4/strict.dtd">
+<!-- This provides a simple web interface for the n-gram analysis program. If you're trying to change something here, be wary that the 
+javascript etc used is probably of *very* poor quality, and it might be worth reading through *everything* before making any changes. The reason
+that it is written poorly is that browsers are different, and hence I've done things such as call onclick() instead of click() because I do not know
+whether everything supports click(). You have been warned.-->
 <html>
 <head>
 	<meta charset='utf-8'/> 
@@ -64,6 +68,7 @@ var $ = function(value)
 }
 window.onload = function()
 {
+   /*First we get the list of all corpora we have indexes on */
 	var all_indexes_request = new XMLHttpRequest;
 	all_indexes_request.timeout = 10000;
 	all_indexes_request.ontimeout = function()
@@ -74,6 +79,8 @@ window.onload = function()
 	var list_all_result = {};
 	all_indexes_request.onload = function()
 	{
+		$("needs_id_because_firefox_is_buggy").checked = true;
+		$("notification_web").checked = true;
 		all_indexes_request.responseText.split("\n").forEach(
 			function(entry)
 			{
@@ -223,6 +230,8 @@ window.onload = function()
 
 						$("all_indexes_table").appendChild(this_row);
 					}
+
+					respondToAnchor();
 				}
 			}
 			);
@@ -230,7 +239,7 @@ window.onload = function()
 	all_indexes_request.open("GET","/cgi-bin/ngramanalysis-wrapper.pl?action=list_all");
 	all_indexes_request.send(null);
 
-	$("run_query").onclick = function()
+	var runQuery = function()
 	{
 		var query_request = new XMLHttpRequest;
 		query_request.onload = function()
@@ -476,6 +485,202 @@ window.onload = function()
 		while($("error_log").firstChild)
 			$("error_log").removeChild($("error_log").firstChild);
 	}
+	var respondToAnchor = function()
+	{
+		var original_anchorvalue =location.href.split("#")[1] ;
+		if(!original_anchorvalue)
+			return;
+		var anchorvalue = original_anchorvalue[0] == '#' ? original_anchorvalue.substr(1) : original_anchorvalue;	
+		if(!anchorvalue)
+			return;
+		var keyvaluepairs = anchorvalue.split("&");
+		var hash_keyvaluepairs = {};
+		for(var i in keyvaluepairs)
+		{
+			if(!keyvaluepairs[i].match(/^([^=]+)=([^=]+)$/))
+			{
+				$("error_log").appendChild(document.createTextNode("Error in anchor string"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+			}
+			var key = decodeURIComponent(RegExp.$1);
+			var value = decodeURIComponent(RegExp.$2);
+			hash_keyvaluepairs[key] = value;
+		}
+		if(!("query_folder" in hash_keyvaluepairs) || !(hash_keyvaluepairs["query_folder"] in list_all_result))
+		{
+			console.log(list_all_result);
+			$("error_log").appendChild(document.createTextNode("Invalid or no query folder in anchor string"));
+			$("error_log").appendChild(document.createElement("br"));
+			return;
+		}
+		var folders_radiobuttons = document.getElementsByName("select_corpus");
+		var checked_folder = null;
+		for(var i in folders_radiobuttons)
+		{
+			if(folders_radiobuttons[i].value == hash_keyvaluepairs["query_folder"])
+			{
+				checked_folder = folders_radiobuttons[i];
+				break;
+			}
+		}
+		if(!checked_folder)
+		{
+
+			$("error_log").appendChild(document.createTextNode("No valid query folder (collection of indexes on a corpus) in anchor string"));
+			$("error_log").appendChild(document.createElement("br"));
+			return;
+		}
+		checked_folder.onclick();
+		checked_folder.checked = true;
+		query_folder = hash_keyvaluepairs["query_folder"];
+
+		if(!("query_type" in hash_keyvaluepairs))
+		{
+			$("error_log").appendChild(document.createTextNode("No query type in anchor string"));
+			$("error_log").appendChild(document.createElement("br"));
+			return;
+		}
+		var actions_radiobuttons = document.getElementsByName("action_result");
+		var checked_button = null;
+		for(var i in actions_radiobuttons)
+		{
+			if(actions_radiobuttons[i].value == hash_keyvaluepairs["query_type"])
+			{
+				checked_button = actions_radiobuttons[i];
+				break;
+			}
+		}
+		if(!checked_button)
+		{
+				$("error_log").appendChild(document.createTextNode("Invalid query type in anchor"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+		}
+		checked_button.checked = true;
+		checked_button.onclick();
+		query_type = hash_keyvaluepairs["query_type"];
+
+		switch(hash_keyvaluepairs["query_type"])
+		{
+			case "search":
+			case "entropy_of":
+			if(!("search_string" in  hash_keyvaluepairs))
+			{
+				$("error_log").appendChild(document.createTextNode("No search string in anchor string"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+			}
+			$("search_string").value = hash_keyvaluepairs["search_string"];
+			break;
+			case "entropy_index_get_top":
+			if(!("ngramsize" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["ngramsize"]))
+			{
+				$("error_log").appendChild(document.createTextNode("No n-gram number in anchor string"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+			}
+			$("ngram_number_entropy_index_get_top").value = Number(hash_keyvaluepairs["ngramsize"]);
+			$("entropy_index_get_top_set_ngramsize").onclick();
+
+
+			if(!("search_string_pattern" in hash_keyvaluepairs))
+			{
+				$("error_log").appendChild(document.createTextNode("No search string pattern in anchor string"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+			}
+			var words = $('entropy_index_get_top_param_row_words').children;
+			$('search_string_pattern').innerHTML = hash_keyvaluepairs["search_string_pattern"];
+			var split_search_string_pattern = hash_keyvaluepairs["search_string_pattern"].split(" ");
+			for(var j in words)
+			{
+				if(split_search_string_pattern[j] == "*")
+					words[j].value = "*";	
+				else
+					words[j].value = "known";
+			}
+
+			if(!("threshold" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["threshold"]))
+			{
+				$("error_log").appendChild(document.createTextNode("No threshold in anchor string"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+			}
+			$("zero_entropy_frequency_threshold").value = hash_keyvaluepairs["threshold"];
+			if(!("howmany" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["howmany"]))
+			{
+				$("error_log").appendChild(document.createTextNode("No howmany in anchor string"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+			}
+			$("howmany_entropy_index_get_top").value = hash_keyvaluepairs["howmany"];
+			break;
+			case "get_top":
+			if(!("ngramsize" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["ngramsize"]))
+			{
+				$("error_log").appendChild(document.createTextNode("No ngramsize in anchor string"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+			}
+			$("ngram_number_get_top").value = Number(hash_keyvaluepairs["ngramsize"]);
+			if(!("howmany" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["howmany"]))
+			{
+				$("error_log").appendChild(document.createTextNode("No howmany in anchor string"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+			}
+			$("howmany_get_top").value = Number(hash_keyvaluepairs["howmany"]);
+			break;
+			case "view_wordlength_stats":
+			if(!("ngramsize" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["ngramsize"]))
+			{
+				$("error_log").appendChild(document.createTextNode("No ngramsize in anchor string"));
+				$("error_log").appendChild(document.createElement("br"));
+				return;
+			}
+			$("ngram_number_wordlength_stats").value = Number(hash_keyvaluepairs["ngramsize"]);
+			break;
+			default:
+			$("error_log").appendChild(document.createTextNode("Invalid query type in anchor string"));
+			$("error_log").appendChild(document.createElement("br"));
+			return;
+		}
+	runQuery();
+	}
+	if("onhashchange" in window)
+		window.onhashchange = respondToAnchor;
+	$("run_query").onclick = function()
+	{
+		//We needs to build the anchor tag, set it, and then (if the system doesn't support onhashchange) call runQuery
+		var anchor_tag = "#";
+		anchor_tag += "query_folder=" + encodeURIComponent(query_folder);
+		anchor_tag += "&query_type=" + encodeURIComponent(query_type);
+		switch(query_type)
+		{
+		case "search":
+		case "entropy_of":
+			anchor_tag += "&search_string=" + encodeURIComponent($("search_string").value);
+		break;
+		case "entropy_index_get_top":
+			anchor_tag += "&ngramsize=" + encodeURIComponent($("ngram_number_entropy_index_get_top").value);
+			anchor_tag += "&search_string_pattern=" + encodeURIComponent($("search_string_pattern").innerHTML);
+			anchor_tag +="&howmany=" + encodeURIComponent($("howmany_entropy_index_get_top").value);
+			anchor_tag += "&threshold=" + encodeURIComponent($("zero_entropy_frequency_threshold").value);
+		break;
+		case "get_top":
+			anchor_tag += "&ngramsize=" + encodeURIComponent($("ngram_number_get_top").value);
+			anchor_tag += "&howmany=" + encodeURIComponent($("howmany_get_top").value);
+		break;
+		case "view_wordlength_stats":
+			anchor_tag += "&ngramsize=" + encodeURIComponent($("ngram_number_wordlength_stats").value);
+		break;
+		}
+		window.location.hash = anchor_tag;
+		if(!("onhashchange" in window))
+			respondToAnchor();	
+	}
+
 };
 </script>
 </head>
@@ -487,7 +692,7 @@ window.onload = function()
 	<table id="actions_table">
 		<th>Action</th>
 		<tbody id="actions_part_of_table">
-		<tr><td><input type="radio" name="action_result" value="search" checked="checked"/>Search(*)</td></tr>
+		<tr><td><input type="radio" name="action_result" value="search" id="needs_id_because_firefox_is_buggy" />Search(*)</td></tr>
 		<tr><td><input type="radio" name="action_result" value="entropy_of" />Entropy (**)</td></tr>
 		<tr><td><input type="radio" name="action_result" value="entropy_index_get_top" />Show wildcards with lowest entropy (***)</td></tr>
 		<tr><td><input type="radio" name="action_result" value="get_top"/>Show most frequent n-grams</td></tr>
@@ -554,7 +759,7 @@ window.onload = function()
 		<tr id="search_param_row"><td >Search String:<input type="text" id="search_string"></td> </tr>
 		<tr id="entropy_index_get_top_param_row" style="visibility:collapse"><td>
 				N-gram number (i.e 2 for 2-grams) <input type="text" id="ngram_number_entropy_index_get_top"/> 
-				<input type="button" value="ok" onclick="
+				<input type="button" id="entropy_index_get_top_set_ngramsize" value="ok" onclick="
 					var words = $('entropy_index_get_top_param_row_words');
 					var search_string_array = [];
 					while(words.firstChild)
@@ -599,7 +804,7 @@ window.onload = function()
 				<br/>
 				Frequency threshold below which 0-entropy n-grams aren't shown: <input type="text" id="zero_entropy_frequency_threshold" value="0">
 				<br/>
-				Number of results to show: <input type="text" id="howmany_entropy_index_get_top"/>
+				Number of results to show: <input type="text" id="howmany_entropy_index_get_top" value="10"/>
 			</td>
 		</tr>
 		<tr id="get_top_param_row" style="visibility:collapse"><td>

@@ -286,6 +286,7 @@ HEREDOC
 		$message .= "\t$_" if $notification_type eq "email";
 	}
 
+	waitpid $pid, 0;
 	if($?)
 	{
 		$message .= "\tQuery did not execute successfully" if $notification_type eq "email";
@@ -354,7 +355,6 @@ HEREDOC
 		$mailer->send($finished_email);
 		say "/Sent email successfully to ". $query->param("email_address");
 	}
-	waitpid $pid, 0;
 }
 
 
