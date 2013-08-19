@@ -443,7 +443,7 @@ window.onload = function()
 		}
 		query_request.open("get",url);
 		query_request.send(null);
-		var newTextNode = document.createTextNode("Sent request, waiting for response... (this might take a while)");
+		var newTextNode = document.createTextNode("Sent request on folder" + query_folder+", waiting for response... (this might take a while)");
 		$("error_log").appendChild(newTextNode);
 		$("error_log").appendChild(document.createElement("br"));
 	}
@@ -455,13 +455,13 @@ window.onload = function()
 			for(var j in $("params_part_of_table").getElementsByTagName("tr"))
 			{
 				if($("params_part_of_table").getElementsByTagName("tr")[j].style)
-					$("params_part_of_table").getElementsByTagName("tr")[j].style.visibility = "collapse";
+					$("params_part_of_table").getElementsByTagName("tr")[j].style.display = "none";
 			}
 
 			if(this.value != "entropy_of")
-				$(this.value + "_param_row").style.visibility = "visible";
+				$(this.value + "_param_row").style.display = "inline";
 			else
-				$("search_param_row").style.visibility = "visible";
+				$("search_param_row").style.display = "inline";
 			query_type = this.value;
 
 		};
@@ -601,7 +601,7 @@ window.onload = function()
 					words[j].value = "known";
 			}
 
-			if(!("threshold" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["threshold"]))
+			if(!("threshold" in hash_keyvaluepairs) || isNaN(Number(hash_keyvaluepairs["threshold"])))
 			{
 				$("error_log").appendChild(document.createTextNode("No threshold in anchor string"));
 				$("error_log").appendChild(document.createElement("br"));
@@ -700,17 +700,17 @@ window.onload = function()
 		</tbody>
 		<th> Important Info (Please read at least once)<input type="button" id="show_help" value="Show it!" onclick="
 			var help_area = document.getElementById('help_area');
-			if(help_area.style.visibility === 'visible')
+			if(help_area.style.display === 'inline')
 			{
-				help_area.style.visibility = 'collapse';
+				help_area.style.display = 'none';
 				document.getElementById('show_help').value = 'Show it!';
 			}else
 			{
-				help_area.style.visibility = 'visible';
+				help_area.style.display = 'inline';
 				document.getElementById('show_help').value = 'Hide it!';
 			}
 			"></th>
-		<tbody id="help_area" style="visibility:collapse;">
+		<tbody id="help_area" style="display:none">
 		<tr><td>
 <pre>
 (*) Entering a search string like "Piece * cake" would probably find
@@ -757,7 +757,7 @@ window.onload = function()
 		<th> Parameters </th>
 		<tbody id="params_part_of_table">
 		<tr id="search_param_row"><td >Search String:<input type="text" id="search_string"></td> </tr>
-		<tr id="entropy_index_get_top_param_row" style="visibility:collapse"><td>
+		<tr id="entropy_index_get_top_param_row" style="display:none"><td>
 				N-gram number (i.e 2 for 2-grams) <input type="text" id="ngram_number_entropy_index_get_top"/> 
 				<input type="button" id="entropy_index_get_top_set_ngramsize" value="ok" onclick="
 					var words = $('entropy_index_get_top_param_row_words');
@@ -807,11 +807,11 @@ window.onload = function()
 				Number of results to show: <input type="text" id="howmany_entropy_index_get_top" value="10"/>
 			</td>
 		</tr>
-		<tr id="get_top_param_row" style="visibility:collapse"><td>
+		<tr id="get_top_param_row" style="display:none"><td>
 				N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_get_top"/><br/>
 				Number of results to show: <input type="text" id="howmany_get_top"/>
 		</td> </tr>
-		<tr id="view_wordlength_stats_param_row" style="visibility:collapse"><td>N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_wordlength_stats"></td> </tr>
+		<tr id="view_wordlength_stats_param_row" style="display:none"><td>N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_wordlength_stats"></td> </tr>
 		</tbody>
 		<th> Notification Type </th>
 		<tr><td><input type="radio" name="notification_type" value="web" checked="true" id="notification_web"/>On this website (results will appear below)</td></tr>
