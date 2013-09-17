@@ -165,19 +165,14 @@ var add_corpus_to_left_sidebar = function(corpus_folder_name,corpus_description,
 	//We set a callback to unhide the current item once the current radio button is clicked.
 	radio_button.onclick = function()
 	{
-		var local_second_col = new_row_second_col;
-		var function_with_local_scope = function()
+		query_folder = this.value;					
+		//Because arrays aren't immutable in javascript, the following does *not* work with a local copy of hidable_info_items
+		for(var hidable_info_index in hidable_info_items)
 		{
-			query_folder = this.value;					
-			//Because arrays aren't immutable in javascript, the following does *not* work with a local copy of hidable_info_items
-			for(var hidable_info_items in hidable_info_items)
-			{
-				hidable_info_items[hidable_info_index].hidden = true;
-			}
-			local_second_col.hidden = false;
+			hidable_info_items[hidable_info_index].hidden = true;
 		}
-		return function_with_local_scope;
-	}();//Note that the function is executed to get local scope.
+		new_row_second_col.hidden = false;
+	};
 
 	$("all_indexes_table").appendChild(new_row);
 }
