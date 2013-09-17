@@ -113,17 +113,7 @@ void get_top(map<unsigned int,Metadata> &metadatas,vector<string> &arguments)
 		off_t address = strtoll(to_work_with, &endptr, 16);
 		auto this_ngram = getNGramAtAddress(address,mmaped_frequency_index,frequency_index_file_size);
 
-		bool first = true;
-		for_each(this_ngram.first.begin(), this_ngram.first.end(), 
-				[&first](string &cur)
-				{
-					if(!first)
-						cout<<" ";
-					cout<<cur;
-					first = false;
-				}
-			);
-		cout<<"\t"<<this_ngram.second<<endl;
+		cout<<join(this_ngram.first,"\t")<<"\t"<<this_ngram.second<<endl;
 		if(frequency != this_ngram.second)
 		{
 			cerr<<"get_top: Frequencies in inverted index by frequency do not match frequency of n-grams in the indexes by n-gram, probably one of the two indexes is out of date, exiting.."<<endl;

@@ -687,8 +687,7 @@ void do_search(map<unsigned int,Metadata> &metadatas,vector<string> arguments)
 		    );
 	for( auto & cur: results)
 	{
-		//TODO: replace this with a tab one day.
-		cout<<join(cur.first," ")<<"\t"<<cur.second<<endl;
+		cout<<join(cur.first,"\t")<<"\t"<<cur.second<<endl;
 	}
 }
 

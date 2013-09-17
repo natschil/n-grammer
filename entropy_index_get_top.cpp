@@ -222,7 +222,7 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 				auto position = find(search_index_to_use.second.begin(),search_index_to_use.second.end(), i);
 				cout<<ngram.first[position - search_index_to_use.second.begin()];
 				if(i != (ngramsize-1))
-					cout<<" ";
+					cout<<'\t';
 			}
 			cout<<"\t"<<current_entropy<<endl;
 		}

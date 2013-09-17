@@ -371,7 +371,6 @@ write_out_last_value:
 				}
 
 			}
-			cout<<"yeah";
 			cout.flush();
 		}
 		depth++;//Go deeper to the next level.
