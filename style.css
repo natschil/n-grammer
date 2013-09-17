@@ -1,0 +1,29 @@
+table
+{
+	margin-right: 10px;
+	font-family: arial
+}
+table, th,td
+{
+	border: 1px solid grey;
+}
+td
+{
+	width: 0%;
+}
+
+#actions_table
+{
+	float:center;
+}
+
+#all_indexes_table
+{
+	float: left;
+}
+#results_area td
+{
+	width:100%;
+	border: none;
+}
+
