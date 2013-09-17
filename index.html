@@ -179,7 +179,11 @@ var add_corpus_to_left_sidebar = function(corpus_folder_name,corpus_description,
 
 window.onload = function()
 {
-   /*First we get the list of all corpora we have indexes on */
+	//Since we default to query_type of search and notification type of web...
+	$("search_radio_button_id").checked = true;
+	$("notification_web").checked = true;
+
+   /*To start with, we get the list of all corpora we have indexes on */
    	//We put this list into the variable list_all_result.
 	var list_all_result = {};
 	var all_indexes_request = new XMLHttpRequest;
@@ -217,23 +221,16 @@ window.onload = function()
 				}
 			});
 	};
-
 	all_indexes_request.open("GET","/cgi-bin/ngramanalysis-wrapper.pl?action=list_all");
 	all_indexes_request.send(null);
 
-	$("search_radio_button_id").checked = true;
-	$("notification_web").checked = true;
-
+	//This function runs the actual query. It gets its parameters from the global variables defined above..
 	var runQuery = function()
 	{
 		var query_request = new XMLHttpRequest;
 		query_request.onload = function()
 		{
-			var local_search_string = $("search_string").value;
-			if(query_type != "search")
-				local_search_string = "";
-			local_search_string = local_search_string.replace("[","");
-			local_search_string = local_search_string.replace("]","");
+			//Let's put a horizonal orange line below the output we have so far, to separate it from previous outputs.
 			var lineNode = newElem("tr");
 			lineNode.appendChild(newElem("td"));
 			lineNode.firstChild.setAttribute("colspan",2);
@@ -241,79 +238,94 @@ window.onload = function()
 			lineNode.firstChild.firstChild.setAttribute("color","orange");
 			results_area.appendChild(lineNode);
 
+			//Our results generally take the following form:
+				//foo bar baz 2
+				//bar baz foo 32
+			//So we let ngrams contain the first part (that is not the number), and frequencies contain the numbers.
 			var ngrams = [];
 			var frequencies = [];
-			var current_query_is_pos = false;
+
+			//The code below sets current_query_is_pos to whether or not the current query is on POS data.
+			var current_query_is_pos;
 			var relevant_metadata = list_all_result[query_folder];
 			var relevant_metadata_some_index;
 			for(var yetanothervariablename in relevant_metadata)
 				relevant_metadata_some_index = yetanothervariablename;
 			if(relevant_metadata[relevant_metadata_some_index]["isPos"])
 				current_query_is_pos = true;
+			else
+				current_query_is_pos = false;
 
-			query_request.responseText.split("\n").forEach(
-				function(cur)
+			//We split or query and handle each of the rows separately.
+			this.responseText.split("\n").forEach(function(cur)
+			{
+				if(cur[0] == "/")
 				{
-					if(cur[0] == "/")
+					log_error(cur);
+				}else
+				{
+					var re = /^(.+)\t([0-9]+)$/;
+					if(cur.match(re))
 					{
-						log_error(cur);
-					}else
-					{
-						var re = /^(.+)\t([0-9]+)$/;
-						if(cur.match(re))
+						var ngram = RegExp.$1;
+						var frequency = RegExp.$2;
+						//For searches with results in POS form.
+						if((query_type == "search") && (current_query_is_pos) && $("make_pos_results_look_nicer").checked)
 						{
-							var ngram = RegExp.$1;
-							var frequency = RegExp.$2;
-							if((ngram.indexOf("|") != -1) && local_search_string)
+							var words = ngram.split("\t");
+							var new_words = [];
+							var search_string_words = $("search_string").value.replace(/[\[\]]/g,"").split(" ");
+							for(var wordIndex in words)
 							{
-								var words = ngram.split(" ");
-								var new_words = [];
-								var search_string_words = local_search_string.split(" ");
-								for(var wordIndex in words)
-								{
-									var current_word = words[wordIndex];
-									var current_search_word = search_string_words[wordIndex];
+								var current_word = words[wordIndex];
+								var current_search_word = search_string_words[wordIndex];
 
-									if((current_search_word.indexOf("|") != -1)|| (current_word === "$"))
+								if((current_search_word.indexOf("|") != -1)|| (current_word == "$"))
+								{
+									new_words.push(current_word);
+								}else
+								{
+									//We simply return the word part of the POS object.
+									if(current_word.match(/^([^\|]+)\|([^\|]+)\|([^\|]+)$/))
+										new_words.push(RegExp.$3);
+									else
 									{
-										new_words.push(current_word);
-									}else
-									{
-										if(current_word.match(/(^[^\|]+)\|([^\|]+)\|([^\|]+)$/))
-											new_words.push(RegExp.$3);
-										else
-										{
-											log_error("Error in web interface");
-										}
+										log_error("Error in web interface. Don't trust its output.");
 									}
 								}
-								ngram = new_words.join(" ");
 							}
-							ngrams.push(ngram);
-							frequencies.push(frequency);
-
+							ngram = new_words.join(" ");
 						}else
 						{
-							var currentResultsNode = newElem("tr");
-							currentResultsNode.appendChild(newElem("td"));
-							currentResultsNode.appendChild(newElem("td"));
-							currentResultsNode.firstChild.appendChild(
-								asText(cur)
-								);
-							currentResultsNode.firstChild.setAttribute("colspan",2);
-							$("results_area").appendChild(currentResultsNode);
-						} 
-	
-					}
+							ngram = ngram.replace("\t"," ");
+						}
+						ngrams.push(ngram);
+						frequencies.push(frequency);
+
+					}else //Maybe our query_type returns a different kind of result. Let's just display that.
+					{
+						var currentResultsNode = newElem("tr");
+						currentResultsNode.appendChild(newElem("td"));
+						currentResultsNode.appendChild(newElem("td"));
+						currentResultsNode.firstChild.appendChild(
+							asText(cur.replace("\t"," "))
+							);
+						currentResultsNode.firstChild.setAttribute("colspan",2);
+						$("results_area").appendChild(currentResultsNode);
+					} 
+
 				}
-			);
-			if((query_type == "search") && current_query_is_pos && ngrams.length)
+			});
+			//Let's group POS results strings that look equal.
+			if((query_type == "search") && current_query_is_pos && ngrams.length && $("make_pos_results_look_nicer").checked)
 			{
+				//Sorting permutation should contain the permutation that would make ngrams be sorted by the n-gram part.
 				var sorting_permutation = [];
 				for(var ngram_number = 0; ngram_number < ngrams.length; ngram_number++)
 					sorting_permutation.push(ngram_number);
 
 				sorting_permutation.sort(function(a,b){return (ngrams[a] > ngrams[b]) - (ngrams[a] < ngrams[b]);});
+				//With this, we can sort *both* n-grams and frequencies by the n-gram:
 				var sorted_ngrams = [];
 				var sorted_frequencies = [];
 				for(var ngram_number in ngrams)
@@ -321,10 +333,10 @@ window.onload = function()
 					sorted_ngrams[ngram_number] = ngrams[sorting_permutation[ngram_number]];
 					sorted_frequencies[ngram_number] = frequencies[sorting_permutation[ngram_number]];
 				}
-
-				var reduced_ngrams = [];
-				var reduced_frequencies = [];
-				var current_ngram = sorted_ngrams[0];
+				//We now group the n-grams.
+				var grouped_ngrams = [];
+				var grouped_frequencies = [];
+				var current_ngram = sorted_ngrams[0]; //Note that we know we have some results as we test for that above.
 				var current_frequency = Number(sorted_frequencies[0]);
 				for(var ngram_number = 1;ngram_number < ngrams.length; ngram_number++)
 				{
@@ -333,37 +345,37 @@ window.onload = function()
 						current_frequency += Number(sorted_frequencies[ngram_number]);
 					}else
 					{
-						reduced_ngrams.push(current_ngram);
-						reduced_frequencies.push(current_frequency);
+						grouped_ngrams.push(current_ngram);
+						grouped_frequencies.push(current_frequency);
 						current_ngram = sorted_ngrams[ngram_number];
 						current_frequency = Number(sorted_frequencies[ngram_number]);
 					}
 				}
-				reduced_ngrams.push(current_ngram);
-				reduced_frequencies.push(current_frequency);
+				grouped_ngrams.push(current_ngram);
+				grouped_frequencies.push(current_frequency);
 
+				//Finally, we sort by frequency:
 				var final_permutation = [];
 				var ngrams_finally_permuted = [];
 				var frequencies_finally_permuted = [];
-				for(var ngram_number = 0; ngram_number < reduced_ngrams.length; ngram_number++)
+				for(var ngram_number = 0; ngram_number < grouped_ngrams.length; ngram_number++)
 					final_permutation.push(ngram_number);
-				//And we sort our reduced stuff in descending order.
 				final_permutation.sort(function(a,b)
 				{
-					return (reduced_frequencies[b] > reduced_frequencies[a]) - (reduced_frequencies[b] < reduced_frequencies[a]);
+					return (grouped_frequencies[b] > grouped_frequencies[a]) - (grouped_frequencies[b] < grouped_frequencies[a]);
 				});
-				for(var ngram_number in reduced_ngrams)
+				for(var ngram_number in grouped_ngrams)
 				{
-					ngrams_finally_permuted[ngram_number] = reduced_ngrams[final_permutation[ngram_number]];
-					frequencies_finally_permuted[ngram_number] = reduced_frequencies[final_permutation[ngram_number]];
+					ngrams_finally_permuted[ngram_number] = grouped_ngrams[final_permutation[ngram_number]];
+					frequencies_finally_permuted[ngram_number] = grouped_frequencies[final_permutation[ngram_number]];
 				}
 
+				//We now display the whole thing:
 				for(var ngram_number in ngrams_finally_permuted)
 				{
 					var currentResultsNode = newElem("tr");
 					currentResultsNode.appendChild(newElem("td"));
 					currentResultsNode.appendChild(newElem("td"));
-
 
 					currentResultsNode.firstChild.appendChild(
 						asText(ngrams_finally_permuted[ngram_number])
@@ -373,7 +385,7 @@ window.onload = function()
 						);
 					$("results_area").appendChild(currentResultsNode);
 				}
-			}else
+			}else //We simply show what we got from the server:
 			{
 				for(var ngram_number in ngrams)
 				{
@@ -391,7 +403,6 @@ window.onload = function()
 					$("results_area").appendChild(currentResultsNode);
 				}
 			}
-
 		}
 		var url ="/cgi-bin/ngramanalysis-wrapper.pl?";
 		url += "folder=" + encodeURIComponent(query_folder);
@@ -426,7 +437,7 @@ window.onload = function()
 		query_request.send(null);
 		log_error("Sent request on folder" + query_folder + " , waiting for response... (this might take a while)");
 	}
-
+	//We make sure that clicking the search radio button updates the query_type to "search", etc...
 	for(var i in $("actions_part_of_table").getElementsByTagName("tr"))
 	{
 		var updateQueryType = function()
@@ -447,7 +458,7 @@ window.onload = function()
 		if($("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName)
 			$("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName("input")[0].onclick = updateQueryType;
 	}
-
+	//The same goes for the notification_type...
 	$("notification_web").onclick = function()
 	{
 		notification_type = "web";
@@ -456,17 +467,18 @@ window.onload = function()
 	{
 		notification_type = "email";
 	}
-
+	//Set a simple callback for the button that says "clear results area"...
 	$("clear_results_area").onclick = clear_log_and_results;
 
+	//This function gets called whenever the page anchor gets changed.
 	var respondToAnchor = function()
 	{
-		var original_anchorvalue =location.href.split("#")[1] ;
-		if(!original_anchorvalue)
-			return;
-		var anchorvalue = original_anchorvalue[0] == '#' ? original_anchorvalue.substr(1) : original_anchorvalue;	
+		var anchorvalue =location.href.split("#")[1] ;
+		console.log(anchorvalue);
 		if(!anchorvalue)
+		{
 			return;
+		}
 		var keyvaluepairs = anchorvalue.split("&");
 		var hash_keyvaluepairs = {};
 		for(var i in keyvaluepairs)
@@ -480,6 +492,10 @@ window.onload = function()
 			var key = decodeURIComponent(RegExp.$1);
 			var value = decodeURIComponent(RegExp.$2);
 			hash_keyvaluepairs[key] = value;
+		}
+		if("make_pos_results_look_nicer" in hash_keyvaluepairs)
+		{
+			$("make_pos_results_look_nicer").checked = (hash_keyvaluepairs["make_pos_results_look_nicer"] == "true");
 		}
 		if(!("query_folder" in hash_keyvaluepairs) || !(hash_keyvaluepairs["query_folder"] in list_all_result))
 		{
@@ -505,6 +521,7 @@ window.onload = function()
 			$("error_log").appendChild(newElem("br"));
 			return;
 		}
+		//Appparently calling click() isn't compatible accross browsers...
 		checked_folder.onclick();
 		checked_folder.checked = true;
 		query_folder = hash_keyvaluepairs["query_folder"];
@@ -556,7 +573,6 @@ window.onload = function()
 			}
 			$("ngram_number_entropy_index_get_top").value = Number(hash_keyvaluepairs["ngramsize"]);
 			$("entropy_index_get_top_set_ngramsize").onclick();
-
 
 			if(!("search_string_pattern" in hash_keyvaluepairs))
 			{
@@ -650,9 +666,17 @@ window.onload = function()
 			anchor_tag += "&ngramsize=" + encodeURIComponent($("ngram_number_wordlength_stats").value);
 		break;
 		}
+		anchor_tag += "&make_pos_results_look_nicer="+encodeURIComponent($("make_pos_results_look_nicer").checked ? "true" : "false");
+		console.log(anchor_tag,window.location.hash);
+		var old_anchor_tag = window.location.hash;
 		window.location.hash = anchor_tag;
+		if(window.location.hash == old_anchor_tag)
+		{
+			respondToAnchor();
+		}
 		if(!("onhashchange" in window))
 			respondToAnchor();	
+
 	}
 
 };
@@ -699,10 +723,17 @@ window.onload = function()
     means a wildcard.
 
     Note that for POS corpora, the output of words from the search string not
-    in the [foo|bar|baz] notation is simplified to only show the word. Hence searching
-    POS corpora without using the square bracket notation may result in duplicate outputs.
-    For words with the search string in square bracket notation, each word of the result
-    of a search on a POS corpus has the form type|lemma|word in the result.
+    in the [foo|bar|baz] notation is simplified to only show the word if the "Show POS tags
+    only for words containing wildcards in web interface" field is checked. If this field is
+    checked, n-grams that are equal in terms of what is shown are grouped with their
+    frequencies added. For example, if searching for "[*|the|the]" results in
+	dt|the|the	4841
+	np|the|the	38
+	nn|the|the	7
+    then searching for "the" would collate these items to find
+	the	4886
+
+    Each expanded word in a search on a POS corpus has the form type|lemma|word in the result.
 
     An output of "$" refers to a "null-word". This is generally either the start or end of
     the corpus, a word that is longer than MAX_WORD_SIZE characters (or variations of this for
@@ -789,6 +820,8 @@ window.onload = function()
 		</tbody>
 		<th> Notification Type </th>
 		<tr><td><input type="radio" name="notification_type" value="web" checked="true" id="notification_web"/>On this website (results will appear below)</td></tr>
+
+		<tr><td>Show POS tags only for words containing wildcards in web interface?<input type="checkbox" checked="true" id="make_pos_results_look_nicer"/></td></tr>
 		<tr><td><input type="radio" name="notification_type" value="email" id="notification_email"/>Per email to <input type="text" id="email_input"/></td></tr>
 		<tr><td><input type="button" value="Go!" id="run_query"/></td></tr>
 		<th> Log </th>
