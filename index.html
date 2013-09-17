@@ -1,95 +1,207 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
 "http://www.w3.org/TR/html4/strict.dtd">
-<!-- This provides a simple web interface for the n-gram analysis program. If you're trying to change something here, be wary that the 
-javascript etc used is probably of *very* poor quality, and it might be worth reading through *everything* before making any changes. The reason
-that it is written poorly is that browsers are different, and hence I've done things such as call onclick() instead of click() because I do not know
-whether everything supports click(). You have been warned.-->
 <html>
 <head>
 	<meta charset='utf-8'/> 
-	<style>
-		table
-		{
-			margin-right: 10px;
-			font-family: arial
-		}
-		table, th,td
-		{
-			border: 1px solid grey;
-		}
-		td
-		{
-			width: 0%;
-		}
-
-		#actions_table
-		{
-			float:center;
-		}
-
-		#all_indexes_table
-		{
-			float: left;
-		}
-		#results_area td
-		{
-			width:100%;
-			border: none;
-		}
-	</style>
+	<link rel="stylesheet" type="text/css" href="style.css"></link>
 <title>
 	Welcome!
 </title>
 <script>
 "use strict;"
 
+//We partially communicate info between different functions via global variables. Ugly, but it gets the job done.
 var query_folder = "";
 var query_type = "search";
 var notification_type = "web";
 
-var metadata_key_to_number = function(key)
+//A few small aliases for much-used functions.
+var $ = function(x){ return document.getElementById(x);};
+var asText = function(x){ return document.createTextNode(x);};
+var newElem = function(x){return document.createElement(x);};
+
+var log_error = function(value)
 {
-	switch(key)
-	{
-		case "Filename": return 0;
-		case "isPos": return 0.5;
-		case "Numwords": return 1;
-		case "Indexes": return 2;
-		case "InvertedIndexes": return 3;
-		case "EntropyInvertedIndexes": return 4;
-		case "WorldengthStatsExist": return 5;
-		default: return 100;
-	}	
+	$("error_log").insertBefore(newElem("br"),$("error_log").firstChild);
+	$("error_log").insertBefore(asText(value),$("error_log").firstChild);
+}
+var clear_log_and_results = function()
+{
+	while($("error_log").firstChild)
+		$("error_log").removeChild($("error_log").firstChild);
+
+	while($("results_area").firstChild)
+		$("results_area").removeChild($("results_area").firstChild);
 }
 
-var $ = function(value)
+//This function takes the corpus_folder_name, a hash describing the corpus and an array containing
+//nodes of all of the shown descriptions (where only the current selected one should be shown).
+var add_corpus_to_left_sidebar = function(corpus_folder_name,corpus_description,hidable_info_items)
 {
-	return document.getElementById(value);
+	//We create a new row to add to the table containing the corpora on the left
+	var new_row = newElem("tr");
+	var new_row_first_col = new_row.appendChild(newElem("td"));
+	var radio_button = new_row_first_col.appendChild(newElem("input"));
+	radio_button.type="radio";
+	radio_button.name = "select_corpus";
+	radio_button.value = corpus_folder_name;
+	//To make sure that query_folder and the checked corpus correspond, we simply set each new corpus that comes along as checked.
+	radio_button.checked = true;
+	query_folder = corpus_folder_name;
+	new_row_first_col.appendChild(asText(corpus_folder_name));
+	var some_ngramsize_that_exists;
+		for(var ngramsize in corpus_description)
+			some_ngramsize_that_exists = ngramsize;
+	//We rely on all of the indexes in the folder to have the same POS-ness. This is documented somewhere.
+	if(corpus_description[some_ngramsize_that_exists]["isPos"])
+	{
+		new_row_first_col.appendChild(newElem("br"));
+		var pos_flair = newElem("div");//The small green box saying "[POS!]"
+		pos_flair.appendChild(asText( "\u00A0\u00A0\u00A0\u00A0[POS]"));//Note that \u00A0 is simply a space.
+		pos_flair.style.color="green";
+		new_row_first_col.appendChild(pos_flair);
+	}
+
+	//All of the corpus details go in here:
+	var new_row_second_col = new_row.appendChild(newElem("td"));
+	
+	//We make all of the previous hidable items hidden
+	hidable_info_items.forEach(function(cur){cur.hidden = true;});
+	//And we add the current (checked) item, which should not be hidden.
+	hidable_info_items.push(new_row_second_col);
+
+	for(var ngramsize in corpus_description)
+	{
+		var header_text_node = newElem("h6");
+		var header_text_node_contents = asText(ngramsize+"-grams");
+		header_text_node.appendChild(header_text_node_contents);
+		new_row_second_col.appendChild(header_text_node);
+		var metadata_file_attrs = corpus_description[ngramsize];
+		//A small sorting function which governs in what order the results are shown.
+		var metadata_key_to_number = function(key)
+		{
+			switch(key)
+			{
+				case "Filename": return 0;
+				case "isPos": return 0.5;
+				case "Numwords": return 1;
+				case "Indexes": return 2;
+				case "InvertedIndexes": return 3;
+				case "EntropyInvertedIndexes": return 4;
+				case "WorldengthStatsExist": return 5;
+				default: return 100;
+			}	
+		}
+		//We sort all of the keys using the metadata_key_to_number function.
+		var keys = [];
+		for(var attribute_name in metadata_file_attrs)
+			keys.push(attribute_name);
+		keys.sort(function(a,b) { return metadata_key_to_number(a) - metadata_key_to_number(b)});
+		//Then we append each individual key and its value to the description part.
+		for(var attribute_index in keys)
+		{
+			var attribute_name = keys[attribute_index];
+			switch(attribute_name)
+			{
+			case "isPos":
+			case "Filename":
+			case "WordlengthStatsExist":
+			case "Numwords":
+				new_row_second_col.appendChild(asText(
+				"\u00A0\u00A0\u00A0" + attribute_name + ":\u00A0\u00A0" + corpus_description[ngramsize][attribute_name]
+				));
+				new_row_second_col.appendChild(newElem("br"));
+			break;
+			case "Indexes":
+			case "InvertedIndexes":
+				new_row_second_col.appendChild(asText(
+					"\u00A0\u00A0\u00A0" + attribute_name
+				));
+				new_row_second_col.appendChild(newElem("br"));
+				for(var index in corpus_description[ngramsize][attribute_name])
+				{
+					new_row_second_col.appendChild(asText(
+					"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + index
+					));
+					new_row_second_col.appendChild(newElem("br"));
+				}
+			break;
+			case "EntropyInvertedIndexes":
+				new_row_second_col.appendChild(asText(
+				"\u00A0\u00A0\u00A0" + attribute_name 
+				));
+				new_row_second_col.appendChild(newElem("br"));
+				for(var index in corpus_description[ngramsize][attribute_name])
+				{
+					var entropy_inverted_index_name = corpus_description[ngramsize][attribute_name][index];
+					if(!entropy_inverted_index_name.match(
+						/^entropy_([0-9]+)_index((_[0-9]+)+)$/
+					))
+					{
+						log_error("Received invalid value from server");
+					}
+					var known = RegExp.$1;
+					var order = RegExp.$2.split("_").slice(1);
+					var finished_string = [];
+					var current_order;
+					for(current_order = 0; current_order < known; current_order++)
+					{
+						finished_string[order[current_order]] = "=";
+					}
+					for(current_order = known; current_order < order.length;current_order++)
+					{
+						finished_string[order[current_order]] = "*";
+					}
+					new_row_second_col.appendChild(asText(
+					"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + 
+					finished_string.join(" ")
+					));
+
+					new_row_second_col.appendChild(newElem("br"));
+				}
+			}
+		}
+	}
+	//We set a callback to unhide the current item once the current radio button is clicked.
+	radio_button.onclick = function()
+	{
+		var local_second_col = new_row_second_col;
+		var function_with_local_scope = function()
+		{
+			query_folder = this.value;					
+			//Because arrays aren't immutable in javascript, the following does *not* work with a local copy of hidable_info_items
+			for(var hidable_info_items in hidable_info_items)
+			{
+				hidable_info_items[hidable_info_index].hidden = true;
+			}
+			local_second_col.hidden = false;
+		}
+		return function_with_local_scope;
+	}();//Note that the function is executed to get local scope.
+
+	$("all_indexes_table").appendChild(new_row);
 }
+
 window.onload = function()
 {
    /*First we get the list of all corpora we have indexes on */
+   	//We put this list into the variable list_all_result.
+	var list_all_result = {};
 	var all_indexes_request = new XMLHttpRequest;
-	all_indexes_request.timeout = 10000;
+	//Setting a timeout might work on some browsers...
+	all_indexes_request.timeout = 300;
 	all_indexes_request.ontimeout = function()
 	{
-		$("error_log").appendChild(document.createTextNode("Request timed out"));
-		$("error_log").appendChild(document.createElement("br"));
+		log_error("Request timed out (timeout set to 5 minutes). For a longer timeout, change the timeout value in the source code of this page..");
 	}
-	var list_all_result = {};
+
 	all_indexes_request.onload = function()
 	{
-		$("needs_id_because_firefox_is_buggy").checked = true;
-		$("notification_web").checked = true;
-		all_indexes_request.responseText.split("\n").forEach(
-			function(entry)
+		all_indexes_request.responseText.split("\n").forEach( function(entry)
 			{
 				if(entry[0] == "/")				
 				{
-					var newTextNode = document.createTextNode(entry);
-					var newlineNode = document.createElement("br");
-					$("error_log").appendChild(newTextNode);
-					$("error_log").appendChild(newlineNode);
+					log_error(entry);
 				}else
 				{
 					//Empty the table of indexes:	
@@ -99,145 +211,23 @@ window.onload = function()
 					}catch(e)
 					{
 						if(entry)
-						{
-							var newTextNode = document.createTextNode(entry);
-							var newlineNode = document.createElement("br");
-							$("error_log").appendChild(newTextNode);
-							$("error_log").appendChild(newlineNode);
-						}
+							log_error("Received invalid result from server: " + entry);
 					}
 					var hidable_info_cols = [];
 					for( var i in list_all_result)
 					{
-						var this_row = document.createElement("tr");
-						var this_row_first_col = this_row.appendChild(document.createElement("td"));
-						var radio_button = this_row_first_col.appendChild(document.createElement("input"));
-						radio_button.type="radio";
-						radio_button.name = "select_corpus";
-						radio_button.value = i;
-						radio_button.checked = true;
-						query_folder = i;
-						this_row_first_col.appendChild(document.createTextNode(i));
-						var some_ngramsize_that_exists;
-						for(var ngramsize in list_all_result[i])
-							some_ngramsize_that_exists = ngramsize;
-						if(list_all_result[i][some_ngramsize_that_exists]["isPos"])
-						{
-							this_row_first_col.appendChild(document.createElement("br"));
-							var pos_flair = document.createElement("div");
-							pos_flair.appendChild(document.createTextNode( "\u00A0\u00A0\u00A0\u00A0[POS]"));
-							pos_flair.style.color="green";
-							this_row_first_col.appendChild(pos_flair);
-						}
-
-						var this_row_second_col = this_row.appendChild(document.createElement("td"));
-						hidable_info_cols.forEach(function(cur){cur.hidden = true;});
-						hidable_info_cols.push(this_row_second_col);
-						for(var ngramsize in list_all_result[i])
-						{
-							var header_text_node = document.createElement("h6");
-							var header_text_node_contents = document.createTextNode(ngramsize+"-grams");
-							header_text_node.appendChild(header_text_node_contents);
-							this_row_second_col.appendChild(header_text_node);
-							var metadata_file_attrs = list_all_result[i][ngramsize];
-							var keys = [];
-							for(var attribute_name in metadata_file_attrs)
-								keys.push(attribute_name);
-								keys.sort(function(a,b) { return metadata_key_to_number(a) - metadata_key_to_number(b)});
-							for(var attribute_index in keys)
-							{
-								var attribute_name = keys[attribute_index];
-								switch(attribute_name)
-								{
-								case "isPos":
-								case "Filename":
-								case "WordlengthStatsExist":
-								case "Numwords":
-									this_row_second_col.appendChild(document.createTextNode(
-									"\u00A0\u00A0\u00A0" + attribute_name + ":\u00A0\u00A0" + list_all_result[i][ngramsize][attribute_name]
-									));
-									this_row_second_col.appendChild(document.createElement("br"));
-								break;
-								case "Indexes":
-								case "InvertedIndexes":
-									this_row_second_col.appendChild(document.createTextNode(
-										"\u00A0\u00A0\u00A0" + attribute_name
-									));
-									this_row_second_col.appendChild(document.createElement("br"));
-									for(var index in list_all_result[i][ngramsize][attribute_name])
-									{
-										this_row_second_col.appendChild(document.createTextNode(
-										"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + index
-										));
-										this_row_second_col.appendChild(document.createElement("br"));
-									}
-								break;
-								case "EntropyInvertedIndexes":
-									this_row_second_col.appendChild(document.createTextNode(
-									"\u00A0\u00A0\u00A0" + attribute_name 
-									));
-									this_row_second_col.appendChild(document.createElement("br"));
-									for(var index in list_all_result[i][ngramsize][attribute_name])
-									{
-										var entropy_inverted_index_name = list_all_result[i][ngramsize][attribute_name][index];
-										if(!entropy_inverted_index_name.match(
-											/^entropy_([0-9]+)_index((_[0-9]+)+)$/
-										))
-										{
-
-											$("error_log").appendChild(document.createTextNode(
-												"Received invalid value from server")
-											);
-											$("error_log").appendChild(document.createElement("br"));
-										}
-										var known = RegExp.$1;
-										var order = RegExp.$2.split("_").slice(1);
-										var finished_string = [];
-										var current_order;
-										for(current_order = 0; current_order < known; current_order++)
-										{
-											finished_string[order[current_order]] = "=";
-										}
-										for(current_order = known; current_order < order.length;current_order++)
-										{
-											finished_string[order[current_order]] = "*";
-										}
-										this_row_second_col.appendChild(document.createTextNode(
-										"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + 
-										finished_string.join(" ")
-										));
-
-										this_row_second_col.appendChild(document.createElement("br"));
-									}
-								}
-							}
-						}
-
-						radio_button.onclick = function()
-						{
-						var local_second_col = this_row_second_col;
-						var function_with_local_scope = function()
-						{
-							query_folder = this.value;					
-							for(var hidable_info_index in hidable_info_cols)
-							{
-								hidable_info_cols[hidable_info_index].hidden = true;
-							}
-							local_second_col.hidden = false;
-						}
-						return function_with_local_scope;
-						}();
-
-						$("all_indexes_table").appendChild(this_row);
+						add_corpus_to_left_sidebar(i,list_all_result[i],hidable_info_cols)
 					}
-
 					respondToAnchor();
 				}
-			}
-			);
+			});
 	};
+
 	all_indexes_request.open("GET","/cgi-bin/ngramanalysis-wrapper.pl?action=list_all");
 	all_indexes_request.send(null);
+
+	$("search_radio_button_id").checked = true;
+	$("notification_web").checked = true;
 
 	var runQuery = function()
 	{
@@ -249,10 +239,10 @@ window.onload = function()
 				local_search_string = "";
 			local_search_string = local_search_string.replace("[","");
 			local_search_string = local_search_string.replace("]","");
-			var lineNode = document.createElement("tr");
-			lineNode.appendChild(document.createElement("td"));
+			var lineNode = newElem("tr");
+			lineNode.appendChild(newElem("td"));
 			lineNode.firstChild.setAttribute("colspan",2);
-			lineNode.firstChild.appendChild(document.createElement("hr"));
+			lineNode.firstChild.appendChild(newElem("hr"));
 			lineNode.firstChild.firstChild.setAttribute("color","orange");
 			results_area.appendChild(lineNode);
 
@@ -271,9 +261,7 @@ window.onload = function()
 				{
 					if(cur[0] == "/")
 					{
-						var currentTextNode = document.createTextNode(cur);
-						$("error_log").appendChild(currentTextNode);
-						$("error_log").appendChild(document.createElement("br"));
+						log_error(cur);
 					}else
 					{
 						var re = /^(.+)\t([0-9]+)$/;
@@ -300,9 +288,7 @@ window.onload = function()
 											new_words.push(RegExp.$3);
 										else
 										{
-											$("error_log").appendChild(document.createTextNode(
-												"Error in web interface"));
-											$("error_log").appendChild(document.createElement("br"));
+											log_error("Error in web interface");
 										}
 									}
 								}
@@ -313,11 +299,11 @@ window.onload = function()
 
 						}else
 						{
-							var currentResultsNode = document.createElement("tr");
-							currentResultsNode.appendChild(document.createElement("td"));
-							currentResultsNode.appendChild(document.createElement("td"));
+							var currentResultsNode = newElem("tr");
+							currentResultsNode.appendChild(newElem("td"));
+							currentResultsNode.appendChild(newElem("td"));
 							currentResultsNode.firstChild.appendChild(
-								document.createTextNode(cur)
+								asText(cur)
 								);
 							currentResultsNode.firstChild.setAttribute("colspan",2);
 							$("results_area").appendChild(currentResultsNode);
@@ -379,16 +365,16 @@ window.onload = function()
 
 				for(var ngram_number in ngrams_finally_permuted)
 				{
-					var currentResultsNode = document.createElement("tr");
-					currentResultsNode.appendChild(document.createElement("td"));
-					currentResultsNode.appendChild(document.createElement("td"));
+					var currentResultsNode = newElem("tr");
+					currentResultsNode.appendChild(newElem("td"));
+					currentResultsNode.appendChild(newElem("td"));
 
 
 					currentResultsNode.firstChild.appendChild(
-						document.createTextNode(ngrams_finally_permuted[ngram_number])
+						asText(ngrams_finally_permuted[ngram_number])
 						);
 					currentResultsNode.firstChild.nextSibling.appendChild(
-						document.createTextNode(frequencies_finally_permuted[ngram_number])
+						asText(frequencies_finally_permuted[ngram_number])
 						);
 					$("results_area").appendChild(currentResultsNode);
 				}
@@ -396,16 +382,16 @@ window.onload = function()
 			{
 				for(var ngram_number in ngrams)
 				{
-					var currentResultsNode = document.createElement("tr");
-					currentResultsNode.appendChild(document.createElement("td"));
-					currentResultsNode.appendChild(document.createElement("td"));
+					var currentResultsNode = newElem("tr");
+					currentResultsNode.appendChild(newElem("td"));
+					currentResultsNode.appendChild(newElem("td"));
 	
 	
 					currentResultsNode.firstChild.appendChild(
-						document.createTextNode(ngrams[ngram_number])
+						asText(ngrams[ngram_number])
 						);
 					currentResultsNode.firstChild.nextSibling.appendChild(
-						document.createTextNode(frequencies[ngram_number])
+						asText(frequencies[ngram_number])
 						);
 					$("results_area").appendChild(currentResultsNode);
 				}
@@ -443,9 +429,7 @@ window.onload = function()
 		}
 		query_request.open("get",url);
 		query_request.send(null);
-		var newTextNode = document.createTextNode("Sent request on folder" + query_folder+", waiting for response... (this might take a while)");
-		$("error_log").appendChild(newTextNode);
-		$("error_log").appendChild(document.createElement("br"));
+		log_error("Sent request on folder" + query_folder + " , waiting for response... (this might take a while)");
 	}
 
 	for(var i in $("actions_part_of_table").getElementsByTagName("tr"))
@@ -478,13 +462,8 @@ window.onload = function()
 		notification_type = "email";
 	}
 
-	$("clear_results_area").onclick = function()
-	{
-		while($("results_area").firstChild)
-			$("results_area").removeChild($("results_area").firstChild);
-		while($("error_log").firstChild)
-			$("error_log").removeChild($("error_log").firstChild);
-	}
+	$("clear_results_area").onclick = clear_log_and_results;
+
 	var respondToAnchor = function()
 	{
 		var original_anchorvalue =location.href.split("#")[1] ;
@@ -499,8 +478,8 @@ window.onload = function()
 		{
 			if(!keyvaluepairs[i].match(/^([^=]+)=([^=]+)$/))
 			{
-				$("error_log").appendChild(document.createTextNode("Error in anchor string"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("Error in anchor string"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 			}
 			var key = decodeURIComponent(RegExp.$1);
@@ -510,8 +489,8 @@ window.onload = function()
 		if(!("query_folder" in hash_keyvaluepairs) || !(hash_keyvaluepairs["query_folder"] in list_all_result))
 		{
 			console.log(list_all_result);
-			$("error_log").appendChild(document.createTextNode("Invalid or no query folder in anchor string"));
-			$("error_log").appendChild(document.createElement("br"));
+			$("error_log").appendChild(asText("Invalid or no query folder in anchor string"));
+			$("error_log").appendChild(newElem("br"));
 			return;
 		}
 		var folders_radiobuttons = document.getElementsByName("select_corpus");
@@ -527,8 +506,8 @@ window.onload = function()
 		if(!checked_folder)
 		{
 
-			$("error_log").appendChild(document.createTextNode("No valid query folder (collection of indexes on a corpus) in anchor string"));
-			$("error_log").appendChild(document.createElement("br"));
+			$("error_log").appendChild(asText("No valid query folder (collection of indexes on a corpus) in anchor string"));
+			$("error_log").appendChild(newElem("br"));
 			return;
 		}
 		checked_folder.onclick();
@@ -537,8 +516,8 @@ window.onload = function()
 
 		if(!("query_type" in hash_keyvaluepairs))
 		{
-			$("error_log").appendChild(document.createTextNode("No query type in anchor string"));
-			$("error_log").appendChild(document.createElement("br"));
+			$("error_log").appendChild(asText("No query type in anchor string"));
+			$("error_log").appendChild(newElem("br"));
 			return;
 		}
 		var actions_radiobuttons = document.getElementsByName("action_result");
@@ -553,8 +532,8 @@ window.onload = function()
 		}
 		if(!checked_button)
 		{
-				$("error_log").appendChild(document.createTextNode("Invalid query type in anchor"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("Invalid query type in anchor"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 		}
 		checked_button.checked = true;
@@ -567,8 +546,8 @@ window.onload = function()
 			case "entropy_of":
 			if(!("search_string" in  hash_keyvaluepairs))
 			{
-				$("error_log").appendChild(document.createTextNode("No search string in anchor string"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("No search string in anchor string"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 			}
 			$("search_string").value = hash_keyvaluepairs["search_string"];
@@ -576,8 +555,8 @@ window.onload = function()
 			case "entropy_index_get_top":
 			if(!("ngramsize" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["ngramsize"]))
 			{
-				$("error_log").appendChild(document.createTextNode("No n-gram number in anchor string"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("No n-gram number in anchor string"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 			}
 			$("ngram_number_entropy_index_get_top").value = Number(hash_keyvaluepairs["ngramsize"]);
@@ -586,8 +565,8 @@ window.onload = function()
 
 			if(!("search_string_pattern" in hash_keyvaluepairs))
 			{
-				$("error_log").appendChild(document.createTextNode("No search string pattern in anchor string"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("No search string pattern in anchor string"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 			}
 			var words = $('entropy_index_get_top_param_row_words').children;
@@ -603,15 +582,15 @@ window.onload = function()
 
 			if(!("threshold" in hash_keyvaluepairs) || isNaN(Number(hash_keyvaluepairs["threshold"])))
 			{
-				$("error_log").appendChild(document.createTextNode("No threshold in anchor string"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("No threshold in anchor string"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 			}
 			$("zero_entropy_frequency_threshold").value = hash_keyvaluepairs["threshold"];
 			if(!("howmany" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["howmany"]))
 			{
-				$("error_log").appendChild(document.createTextNode("No howmany in anchor string"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("No howmany in anchor string"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 			}
 			$("howmany_entropy_index_get_top").value = hash_keyvaluepairs["howmany"];
@@ -619,15 +598,15 @@ window.onload = function()
 			case "get_top":
 			if(!("ngramsize" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["ngramsize"]))
 			{
-				$("error_log").appendChild(document.createTextNode("No ngramsize in anchor string"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("No ngramsize in anchor string"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 			}
 			$("ngram_number_get_top").value = Number(hash_keyvaluepairs["ngramsize"]);
 			if(!("howmany" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["howmany"]))
 			{
-				$("error_log").appendChild(document.createTextNode("No howmany in anchor string"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("No howmany in anchor string"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 			}
 			$("howmany_get_top").value = Number(hash_keyvaluepairs["howmany"]);
@@ -635,15 +614,15 @@ window.onload = function()
 			case "view_wordlength_stats":
 			if(!("ngramsize" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["ngramsize"]))
 			{
-				$("error_log").appendChild(document.createTextNode("No ngramsize in anchor string"));
-				$("error_log").appendChild(document.createElement("br"));
+				$("error_log").appendChild(asText("No ngramsize in anchor string"));
+				$("error_log").appendChild(newElem("br"));
 				return;
 			}
 			$("ngram_number_wordlength_stats").value = Number(hash_keyvaluepairs["ngramsize"]);
 			break;
 			default:
-			$("error_log").appendChild(document.createTextNode("Invalid query type in anchor string"));
-			$("error_log").appendChild(document.createElement("br"));
+			$("error_log").appendChild(asText("Invalid query type in anchor string"));
+			$("error_log").appendChild(newElem("br"));
 			return;
 		}
 	runQuery();
@@ -692,7 +671,7 @@ window.onload = function()
 	<table id="actions_table">
 		<th>Action</th>
 		<tbody id="actions_part_of_table">
-		<tr><td><input type="radio" name="action_result" value="search" id="needs_id_because_firefox_is_buggy" />Search(*)</td></tr>
+		<tr><td><input type="radio" name="action_result" value="search" id="search_radio_button_id" />Search(*)</td></tr>
 		<tr><td><input type="radio" name="action_result" value="entropy_of" />Entropy (**)</td></tr>
 		<tr><td><input type="radio" name="action_result" value="entropy_index_get_top" />Show wildcards with lowest entropy (***)</td></tr>
 		<tr><td><input type="radio" name="action_result" value="get_top"/>Show most frequent n-grams</td></tr>
@@ -767,8 +746,8 @@ window.onload = function()
 					var ngramsize = Number($('ngram_number_entropy_index_get_top').value);
 					if(isNaN(ngramsize))
 					{
-						$('error_log').appendChild(document.createTextNode('Invalid n-gram size'));
-						$('error_log').appendChild(document.createElement('br'));
+						$('error_log').appendChild(asText('Invalid n-gram size'));
+						$('error_log').appendChild(newElem('br'));
 					}
 					for(var i = 0; i<ngramsize;i++)
 					{
@@ -776,7 +755,7 @@ window.onload = function()
 						(function()
 						{
 							var i_copy = i;
-							var new_button = document.createElement('input');
+							var new_button = newElem('input');
 							new_button.type = 'button';
 							new_button.value = 'known';
 							new_button.onclick = function()
