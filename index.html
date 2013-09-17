@@ -188,7 +188,7 @@ window.onload = function()
 	var list_all_result = {};
 	var all_indexes_request = new XMLHttpRequest;
 	//Setting a timeout might work on some browsers...
-	all_indexes_request.timeout = 300;
+	all_indexes_request.timeout = 300 * 1000;
 	all_indexes_request.ontimeout = function()
 	{
 		log_error("Request timed out (timeout set to 5 minutes). For a longer timeout, change the timeout value in the source code of this page..");
