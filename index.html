@@ -474,7 +474,6 @@ window.onload = function()
 	var respondToAnchor = function()
 	{
 		var anchorvalue =location.href.split("#")[1] ;
-		console.log(anchorvalue);
 		if(!anchorvalue)
 		{
 			return;
@@ -499,7 +498,6 @@ window.onload = function()
 		}
 		if(!("query_folder" in hash_keyvaluepairs) || !(hash_keyvaluepairs["query_folder"] in list_all_result))
 		{
-			console.log(list_all_result);
 			$("error_log").appendChild(asText("Invalid or no query folder in anchor string"));
 			$("error_log").appendChild(newElem("br"));
 			return;
@@ -667,7 +665,6 @@ window.onload = function()
 		break;
 		}
 		anchor_tag += "&make_pos_results_look_nicer="+encodeURIComponent($("make_pos_results_look_nicer").checked ? "true" : "false");
-		console.log(anchor_tag,window.location.hash);
 		var old_anchor_tag = window.location.hash;
 		window.location.hash = anchor_tag;
 		if(window.location.hash == old_anchor_tag)
@@ -821,7 +818,7 @@ window.onload = function()
 		<th> Notification Type </th>
 		<tr><td><input type="radio" name="notification_type" value="web" checked="true" id="notification_web"/>On this website (results will appear below)</td></tr>
 
-		<tr><td>Show POS tags only for words containing wildcards in web interface?<input type="checkbox" checked="true" id="make_pos_results_look_nicer"/></td></tr>
+		<tr><td><input type="checkbox" checked="true" id="make_pos_results_look_nicer"/>Show POS tags only for words containing wildcards in web interface?</td></tr>
 		<tr><td><input type="radio" name="notification_type" value="email" id="notification_email"/>Per email to <input type="text" id="email_input"/></td></tr>
 		<tr><td><input type="button" value="Go!" id="run_query"/></td></tr>
 		<th> Log </th>
