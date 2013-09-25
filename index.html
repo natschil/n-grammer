@@ -227,16 +227,11 @@ window.onload = function()
 	//This function runs the actual query. It gets its parameters from the global variables defined above..
 	var runQuery = function()
 	{
+		$("run_query").disabled = true;
+		$("disco_ball").hidden = false;
 		var query_request = new XMLHttpRequest;
 		query_request.onload = function()
 		{
-			//Let's put a horizonal orange line below the output we have so far, to separate it from previous outputs.
-			var lineNode = newElem("tr");
-			lineNode.appendChild(newElem("td"));
-			lineNode.firstChild.setAttribute("colspan",2);
-			lineNode.firstChild.appendChild(newElem("hr"));
-			lineNode.firstChild.firstChild.setAttribute("color","orange");
-			results_area.appendChild(lineNode);
 
 			//Our results generally take the following form:
 				//foo bar baz 2
@@ -255,6 +250,7 @@ window.onload = function()
 				current_query_is_pos = true;
 			else
 				current_query_is_pos = false;
+			var current_results_div = newElem("tbody");
 
 			//We split or query and handle each of the rows separately.
 			this.responseText.split("\n").forEach(function(cur)
@@ -264,7 +260,7 @@ window.onload = function()
 					log_error(cur);
 				}else
 				{
-					var re = /^(.+)\t([0-9]+)$/;
+					var re = /^(.+)\t([+-]?[0-9]+.?e?[+-]?[0-9]*)$/;
 					if(cur.match(re))
 					{
 						var ngram = RegExp.$1;
@@ -311,7 +307,7 @@ window.onload = function()
 							asText(cur.replace("\t"," "))
 							);
 						currentResultsNode.firstChild.setAttribute("colspan",2);
-						$("results_area").appendChild(currentResultsNode);
+						current_results_div.appendChild(currentResultsNode);
 					} 
 
 				}
@@ -383,7 +379,7 @@ window.onload = function()
 					currentResultsNode.firstChild.nextSibling.appendChild(
 						asText(frequencies_finally_permuted[ngram_number])
 						);
-					$("results_area").appendChild(currentResultsNode);
+					current_results_div.appendChild(currentResultsNode);
 				}
 			}else //We simply show what we got from the server:
 			{
@@ -400,9 +396,30 @@ window.onload = function()
 					currentResultsNode.firstChild.nextSibling.appendChild(
 						asText(frequencies[ngram_number])
 						);
-					$("results_area").appendChild(currentResultsNode);
+					current_results_div.appendChild(currentResultsNode);
+				}
+				if(!ngrams.length)
+				{
+					var empty_results_node = newElem("tr");
+					empty_results_node.appendChild(newElem("td"));
+					empty_results_node.appendChild(newElem("td"));
+					empty_results_node.firstChild.appendChild(asText($("search_string").value));
+					empty_results_node.firstChild.nextSibling.appendChild(asText("0"));
+					current_results_div.appendChild(empty_results_node);
 				}
 			}
+			//Let's put a horizonal orange line below the output we have so far, to separate it from previous outputs.
+			var lineNode = newElem("tr");
+			lineNode.appendChild(newElem("td"));
+			lineNode.firstChild.setAttribute("colspan",2);
+			lineNode.firstChild.appendChild(newElem("hr"));
+			lineNode.firstChild.firstChild.setAttribute("color","orange");
+		
+			current_results_div.setAttribute("colspan",2);
+			results_area.insertBefore(current_results_div,results_area.firstChild);
+			results_area.insertBefore(lineNode,results_area.firstChild);
+			$("run_query").disabled = false;
+			$("disco_ball").hidden = true;
 		}
 		var url ="/cgi-bin/ngramanalysis-wrapper.pl?";
 		url += "folder=" + encodeURIComponent(query_folder);
@@ -680,10 +697,17 @@ window.onload = function()
 </script>
 </head>
 <body>
+	<h2 style="text-align:center"> The QL N-Gram Search Tool/Entropy Calculator</h2>
+	<div id="left_part">
 	<table id="all_indexes_table">
 		<th>Index Name </th>
 		<th>Details</th>
 	</table>
+	<table id="error_table">
+		<th>Log </th>
+		<tr><td><div id="error_log"></div></td></tr>
+	</table>
+</div>
 	<table id="actions_table">
 		<th>Action</th>
 		<tbody id="actions_part_of_table">
@@ -820,12 +844,11 @@ window.onload = function()
 
 		<tr><td><input type="checkbox" checked="true" id="make_pos_results_look_nicer"/>Show POS tags only for words containing wildcards in web interface?</td></tr>
 		<tr><td><input type="radio" name="notification_type" value="email" id="notification_email"/>Per email to <input type="text" id="email_input"/></td></tr>
-		<tr><td><input type="button" value="Go!" id="run_query"/></td></tr>
-		<th> Log </th>
-		<tr><td id="error_log"/></tr>
+		<tr><td><input type="button" value="Go!" id="run_query"/><img src="DiscoBallAnimatedSmall.gif" id="disco_ball" hidden=true /></td></tr>
 		<th> Results</th>
 		<tr><td><input type="button" value="Clear Log and Results" id="clear_results_area"/></td></tr>
 		<tr><td><table id="results_area" style="border:none;"/></td></tr>
+
 
 	</table>
 	</table>

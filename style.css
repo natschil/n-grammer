@@ -16,14 +16,29 @@ td
 {
 	float:center;
 }
-
+#left_part
+{
+	float:left;
+}
 #all_indexes_table
 {
-	float: left;
+	width: 500px;
 }
+
 #results_area td
 {
 	width:100%;
 	border: none;
 }
+
+#error_table
+{
+}
+#error_log
+{
+	white-space:nowrap;
+	width: 490px;
+	overflow-y:auto;
+}
+
 
