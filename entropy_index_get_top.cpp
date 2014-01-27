@@ -105,71 +105,7 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 		exit(-1);
 	}
 
-	size_t header_line_size = 1024;
-	char* header_line = (char*)malloc(header_line_size);
-	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
-	{
-		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
-		exit(-1);
-	}
-	if(strcmp(header_line,"Entropy Index File in Binary Format\n"))
-	{
-		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part one."<<endl;
-		exit(-1);
-	}
-	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
-	{
-		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
-		exit(-1);
-	}
-	if(strcmp(header_line,"---Begin Binary Reference Info---\n"))
-	{
-		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part two."<<endl;
-		exit(-1);
-	}
-	float float_to_test;
-	uint64_t uint_to_test;
-	if(fread(&float_to_test,sizeof(float_to_test),1,entropy_index_file) != 1)
-	{
-		cerr<<"Could not read reference float from entropy index file "<<entropy_index_filename<<endl;
-		exit(-1);
-	}
-	if(fread(&uint_to_test,sizeof(uint_to_test),1,entropy_index_file) != 1)
-	{
-		cerr<<"Could not read reference uint from entropy index file "<<entropy_index_filename<<endl;
-		exit(-1);
-	}
-	if((float_to_test != 123.125) || (uint_to_test != 1234567890))
-	{
-		cerr<<"It seems like the entropy indexes were not generated on this machine, and this machine uses a different binary format"<<endl;
-		exit(-1);
-	}
-	if(getc(entropy_index_file) != '\n')
-	{
-		cerr<<"Expected newline in entropy index file, did not find it, exiting"<<endl;
-		exit(-1);
-	}
-	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
-	{
-		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
-		exit(-1);
-	}
-	if(strcmp(header_line,"---End Binary Reference Info---\n"))
-	{
-		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part three."<<endl;
-		exit(-1);
-	}
-
-	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
-	{
-		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
-		exit(-1);
-	}
-	if(strcmp(header_line,"---Actual Index is in Binary Form Below---\n"))
-	{
-		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part four."<<endl;
-		exit(-1);
-	}
+	Metadata::skip_entropy_index_header(entropy_index_file,entropy_index_filename);
 
 	string currentline;
 	cerr<<"N-gram\tEntropy(in bits)"<<endl;
@@ -188,7 +124,6 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 		exit(-1);
 	}
 	posix_madvise(mmaped_frequency_index,frequency_index_file_size, POSIX_MADV_RANDOM);
-
 	for(int i = 0; i<(int) num_to_display;i++)
 	{
 		float current_entropy;
@@ -204,7 +139,6 @@ void entropy_index_get_top(map<unsigned int,Metadata> &metadatas,vector<string> 
 			cerr<<"Reached premature eof, exiting (with non-zero exit status)"<<endl;	
 			exit(-1);
 		}
-
 		pair<vector<string>,long long int> ngram = getNGramAtAddress(current_offset,mmaped_frequency_index,frequency_index_file_size);
 		if((current_entropy == 0.0) && (ngram.second < minimum_frequency_to_show))
 		{

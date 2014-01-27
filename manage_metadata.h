@@ -16,6 +16,8 @@
 #include <string.h>
 #include <algorithm>
 
+#include "util.h"
+
 
 /*
  * To prevent problems from arising having different (e.g. either obsolete or too new) expectations of the format of the output
@@ -81,6 +83,11 @@ class Metadata
 		//Whether or not wordlength statistics exist.
 		bool wordlength_stats_exist;
 
+		//A small but useful helper function for when dealing with entropy indexes.
+		string get_entropy_index(string pattern);
+
+		//Another utility function:
+		static void skip_entropy_index_header(FILE*,string);
 
 };
 

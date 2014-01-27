@@ -20,6 +20,7 @@
 #include "entropy_of.h"
 #include "entropy_index.h"
 #include "entropy_index_get_top.h"
+#include "entropy_index_stats.h"
 
 void print_usage(int argc,char* argv[])
 {
@@ -126,6 +127,9 @@ int main(int argc, char* argv[])
 	}else if(command == "entropy_index")
 	{
 		entropy_index(metadatas,arguments);	
+	}else if(command == "entropy_index_stats")
+	{
+		entropy_index_stats(metadatas,arguments);
 	}else
 	{
 		print_usage(argc,argv);

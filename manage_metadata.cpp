@@ -264,3 +264,126 @@ void Metadata::write(void)
 		outfile<<"WordlengthStatsExist:\tyes\n";
 	return;
 }
+
+
+string Metadata::get_entropy_index(string pattern)
+{
+	string index_to_use{""};
+	vector<string> tokenized_string = split_ignoring_empty(pattern,' ');
+	vector<unsigned int> known_words;
+	vector<unsigned int> unknown_words;
+	for(size_t i = 0; i< tokenized_string.size(); i++)
+	{
+		string &cur = tokenized_string[i];
+		if(cur.length() != 1)
+		{
+			cerr<<"Token "<<cur<<" is too long"<<endl;
+			return "";
+		}
+		switch(cur[0])
+		{
+			case '*': unknown_words.push_back(i);
+			break;
+			case '=': known_words.push_back(i);
+		}
+	}
+	pair<unsigned int,vector<unsigned int> > search_index_to_use;
+	unsigned int matches = 0;
+	for(auto i = this->entropy_indexes.begin(); i != this->entropy_indexes.end(); i++)
+	{
+		if(i->first != known_words.size())
+			continue;
+		unsigned int current_matches = 0;	
+		for(auto j = i->second.begin(); j != i->second.end(); j++)
+		{
+			if(find(known_words.begin(), known_words.end(),*j) != known_words.end())
+				current_matches++;
+			else
+				break;
+		}
+		if(current_matches > matches)
+		{
+			matches = current_matches;
+			search_index_to_use = *i;
+		}
+	}
+	if(matches != known_words.size())
+	{
+		cerr<<"Could not find a any entropy indexes for this search string.\n"<<endl;
+		return "";
+	}
+
+	string index_specifier = join(functional_map(search_index_to_use.second,unsigned_int_to_string),"_");
+	return "entropy_" + to_string(known_words.size()) + "_index_" +  index_specifier;
+}
+
+void Metadata::skip_entropy_index_header(FILE* entropy_index_file,string entropy_index_filename)
+{
+	size_t header_line_size = 1024;
+	char* header_line = (char*)malloc(header_line_size);
+	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
+	{
+		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(strcmp(header_line,"Entropy Index File in Binary Format\n"))
+	{
+		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part one."<<endl;
+		exit(-1);
+	}
+	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
+	{
+		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(strcmp(header_line,"---Begin Binary Reference Info---\n"))
+	{
+		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part two."<<endl;
+		exit(-1);
+	}
+	float float_to_test;
+	uint64_t uint_to_test;
+	if(fread(&float_to_test,sizeof(float_to_test),1,entropy_index_file) != 1)
+	{
+		cerr<<"Could not read reference float from entropy index file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(fread(&uint_to_test,sizeof(uint_to_test),1,entropy_index_file) != 1)
+	{
+		cerr<<"Could not read reference uint from entropy index file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if((float_to_test != 123.125) || (uint_to_test != 1234567890))
+	{
+		cerr<<"It seems like the entropy indexes were not generated on this machine, and this machine uses a different binary format"<<endl;
+		exit(-1);
+	}
+	if(getc(entropy_index_file) != '\n')
+	{
+		cerr<<"Expected newline in entropy index file, did not find it, exiting"<<endl;
+		exit(-1);
+	}
+	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
+	{
+		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(strcmp(header_line,"---End Binary Reference Info---\n"))
+	{
+		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part three."<<endl;
+		exit(-1);
+	}
+
+	if(getline(&header_line,&header_line_size,entropy_index_file) <= 0)
+	{
+		cerr<<"Could not read enough bytes from file "<<entropy_index_filename<<endl;
+		exit(-1);
+	}
+	if(strcmp(header_line,"---Actual Index is in Binary Form Below---\n"))
+	{
+		cerr<<"Entropy index file "<<entropy_index_filename<<" has incorrect header part four."<<endl;
+		exit(-1);
+	}
+	free(header_line);
+	return;
+}
