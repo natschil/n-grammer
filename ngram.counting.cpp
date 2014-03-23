@@ -110,7 +110,8 @@ long long int count_ngrams(
 		bool is_pos,
 		bool build_pos_supplement_indexes,
 		int single_wordsearch_index_to_build,
-		int wordsearch_indexes_howmany
+		int wordsearch_indexes_howmany,
+		long long int memory_to_use_for_buffers
 		);
 
 
@@ -633,7 +634,8 @@ long long int count_ngrams(
 		bool is_pos,
 		bool build_pos_supplement_indexes,
 		int single_wordsearch_index_to_build,
-		int wordsearch_indexes_howmany
+		int wordsearch_indexes_howmany,
+		long long int memory_to_use_for_buffers
 		)
 {
     //Get the current time, for timing how long the function took.
@@ -730,7 +732,7 @@ long long int count_ngrams(
 
    //We allocate the necessary memory for the buffers in advance, so that we don't run out of memory at some random point in time.
 	vector<void*> internal_buffers;
-	size_t buffer_size = MEMORY_TO_USE_FOR_BUFFERS/num_concurrent_buffers;
+	size_t buffer_size = memory_to_use_for_buffers/num_concurrent_buffers;
 
    //Align the buffer_size to the nearest 256 bits
 	buffer_size >>= 8;

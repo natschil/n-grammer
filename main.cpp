@@ -17,6 +17,7 @@ void print_usage(char* argv[])
     cerr<<"\t\t--numbuffers=b\t\t\t(Use b buffers internally, and with that at maximum b threads)\n";
     cerr<<"\t\t--corpus-has-pos-data\t\t(The corpus contains 'part of speech' information)\n";
     cerr<<"\t\t--build-pos-supplement-indexes\t\t(Build only 'part of speech' supplement indexes)\n";
+    cerr<<"\t\t--memory=x\t\t(Use up to x gigabytes of memory for buffers)\n";
   //  cerr<<"\t\t--also-build-smaller-indexes\t\t(Also build (n-1)-grams and (n-2)-grams etc..\n";
     cerr<<endl;
 }
@@ -81,6 +82,7 @@ int main (int argc, char* argv[])
   int single_wordsearch_index_to_build = -1;
   int wordsearch_indexes_howmany = -1;
 
+  unsigned long long int memory_to_use_for_buffers = DEFAULT_MEMORY_TO_USE_FOR_BUFFERS;
 
   if(argc > options_start)
   {
@@ -141,6 +143,17 @@ int main (int argc, char* argv[])
 		}else if(!strcmp(argv[i],"--build-pos-supplement-indexes"))
 		{
 			build_pos_supplement_indexes = true;
+		}else if(!strncmp(argv[i],"--memory=",strlen("--memory=")))
+		{
+			char* ptr = argv[i] + strlen("--memory=");
+			int gigabytes = atoi(ptr);
+			if(gigabytes <= 0)
+			{
+				cerr<<"\nInvalid parameter for --memory given, please give a positive integer\n\n";
+				print_usage(argv);
+				exit(1);
+			}
+			memory_to_use_for_buffers = atoi(ptr) * 1024ll * 1024ll * 1024ll;
 		}else
 		{
 			cerr<<"\nInvalid option"<<argv[i]<<"\n\n";
@@ -192,7 +205,8 @@ int main (int argc, char* argv[])
 		  has_pos,
 		  build_pos_supplement_indexes,
 		  single_wordsearch_index_to_build,
-		  wordsearch_indexes_howmany
+		  wordsearch_indexes_howmany,
+		  memory_to_use_for_buffers
 		  );
   return 0; 
 }

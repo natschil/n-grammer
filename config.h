@@ -35,8 +35,8 @@
 	//keep this value below THEORETICAL_MAX_BUFFER_SIZE, or strange things might happen.
 	
 
-	#ifndef MEMORY_TO_USE_FOR_BUFFERS
-		#define MEMORY_TO_USE_FOR_BUFFERS (800ll*1024ll*1024ll)
+	#ifndef DEFAULT_MEMORY_TO_USE_FOR_BUFFERS
+		#define DEFAULT_MEMORY_TO_USE_FOR_BUFFERS (800ll*1024ll*1024ll)
 	#endif
 
 /*Options for Indices*/

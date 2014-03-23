@@ -38,6 +38,7 @@ long long int count_ngrams(
 		bool is_pos,
 		bool build_pos_supplement_indexes,
 		int single_wordsearch_index_to_build,
-		int wordsearch_indexes_howmany
+		int wordsearch_indexes_howmany,
+		long long int memory_to_use_for_buffers
 		);
 #endif
