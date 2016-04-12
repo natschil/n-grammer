@@ -1,0 +1,14 @@
+Filename:	./corpora/very_tiny
+Numwords:	206
+Time:	0
+Indexes:
+	by_0_1_2_3_4
+	by_4_0_1_2_3
+	by_3_0_1_4_2
+	by_3_4_0_1_2
+	by_2_0_3_4_1
+	by_2_4_0_1_3
+	by_2_3_4_0_1
+	by_1_2_3_4_0
+	by_1_4_2_0_3
+	by_1_3_4_0_2

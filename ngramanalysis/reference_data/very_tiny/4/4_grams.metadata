@@ -1,0 +1,37 @@
+N-Gram-Counter-Version:	4
+Filename:	./corpora/very_tiny
+Numwords:	206
+Time:	0
+MAX_WORD_SIZE:	40
+MAX_CLASSIFICATION_SIZE:	40
+MAX_LEMMA_SIZE:	40
+Indexes:
+	by_0_1_2_3
+	by_1_2_3_0
+	by_1_3_0_2
+	by_2_0_3_1
+	by_2_3_0_1
+	by_3_0_1_2
+InvertedIndexes:
+	inverted_by_0_1_2_3
+	inverted_by_1_2_3_0
+	inverted_by_1_3_0_2
+	inverted_by_2_0_3_1
+	inverted_by_2_3_0_1
+	inverted_by_3_0_1_2
+EntropyInvertedIndexes:
+	entropy_1_index_0_1_2_3
+	entropy_1_index_1_2_3_0
+	entropy_1_index_2_0_3_1
+	entropy_1_index_3_0_1_2
+	entropy_2_index_0_1_2_3
+	entropy_2_index_1_2_3_0
+	entropy_2_index_1_3_0_2
+	entropy_2_index_2_0_3_1
+	entropy_2_index_2_3_0_1
+	entropy_2_index_3_0_1_2
+	entropy_3_index_0_1_2_3
+	entropy_3_index_1_2_3_0
+	entropy_3_index_1_3_0_2
+	entropy_3_index_2_0_3_1
+WordlengthStatsExist:	yes

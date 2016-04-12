@@ -1,0 +1,15 @@
+N-Gram-Counter-Version:	4
+Filename:	/home/nathanael/Downloads/tiny.en.txt
+Numwords:	79131
+isPos:	yes
+Time:	0
+MAX_WORD_SIZE:	40
+MAX_CLASSIFICATION_SIZE:	40
+MAX_LEMMA_SIZE:	40
+POSSupplementIndexesExist:	yes
+Indexes:
+	by_0_1
+	by_1_0
+InvertedIndexes:
+	inverted_by_0_1
+	inverted_by_1_0
