@@ -1,0 +1,44 @@
+table
+{
+	margin-right: 10px;
+	font-family: arial
+}
+table, th,td
+{
+	border: 1px solid grey;
+}
+td
+{
+	width: 0%;
+}
+
+#actions_table
+{
+	float:center;
+}
+#left_part
+{
+	float:left;
+}
+#all_indexes_table
+{
+	width: 500px;
+}
+
+#results_area td
+{
+	width:100%;
+	border: none;
+}
+
+#error_table
+{
+}
+#error_log
+{
+	white-space:nowrap;
+	width: 490px;
+	overflow-y:auto;
+}
+
+

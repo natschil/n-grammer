@@ -1,0 +1,856 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+	<meta charset='utf-8'/> 
+	<link rel="stylesheet" type="text/css" href="style.css"></link>
+<title>
+	Welcome!
+</title>
+<script>
+"use strict;"
+
+//We partially communicate info between different functions via global variables. Ugly, but it gets the job done.
+var query_folder = "";
+var query_type = "search";
+var notification_type = "web";
+
+//A few small aliases for much-used functions.
+var $ = function(x){ return document.getElementById(x);};
+var asText = function(x){ return document.createTextNode(x);};
+var newElem = function(x){return document.createElement(x);};
+
+var log_error = function(value)
+{
+	$("error_log").insertBefore(newElem("br"),$("error_log").firstChild);
+	$("error_log").insertBefore(asText(value),$("error_log").firstChild);
+}
+var clear_log_and_results = function()
+{
+	while($("error_log").firstChild)
+		$("error_log").removeChild($("error_log").firstChild);
+
+	while($("results_area").firstChild)
+		$("results_area").removeChild($("results_area").firstChild);
+}
+
+//This function takes the corpus_folder_name, a hash describing the corpus and an array containing
+//nodes of all of the shown descriptions (where only the current selected one should be shown).
+var add_corpus_to_left_sidebar = function(corpus_folder_name,corpus_description,hidable_info_items)
+{
+	//We create a new row to add to the table containing the corpora on the left
+	var new_row = newElem("tr");
+	var new_row_first_col = new_row.appendChild(newElem("td"));
+	var radio_button = new_row_first_col.appendChild(newElem("input"));
+	radio_button.type="radio";
+	radio_button.name = "select_corpus";
+	radio_button.value = corpus_folder_name;
+	//To make sure that query_folder and the checked corpus correspond, we simply set each new corpus that comes along as checked.
+	radio_button.checked = true;
+	query_folder = corpus_folder_name;
+	new_row_first_col.appendChild(asText(corpus_folder_name));
+	var some_ngramsize_that_exists;
+		for(var ngramsize in corpus_description)
+			some_ngramsize_that_exists = ngramsize;
+	//We rely on all of the indexes in the folder to have the same POS-ness. This is documented somewhere.
+	if(corpus_description[some_ngramsize_that_exists]["isPos"])
+	{
+		new_row_first_col.appendChild(newElem("br"));
+		var pos_flair = newElem("div");//The small green box saying "[POS!]"
+		pos_flair.appendChild(asText( "\u00A0\u00A0\u00A0\u00A0[POS]"));//Note that \u00A0 is simply a space.
+		pos_flair.style.color="green";
+		new_row_first_col.appendChild(pos_flair);
+	}
+
+	//All of the corpus details go in here:
+	var new_row_second_col = new_row.appendChild(newElem("td"));
+	
+	//We make all of the previous hidable items hidden
+	hidable_info_items.forEach(function(cur){cur.hidden = true;});
+	//And we add the current (checked) item, which should not be hidden.
+	hidable_info_items.push(new_row_second_col);
+
+	for(var ngramsize in corpus_description)
+	{
+		var header_text_node = newElem("h6");
+		var header_text_node_contents = asText(ngramsize+"-grams");
+		header_text_node.appendChild(header_text_node_contents);
+		new_row_second_col.appendChild(header_text_node);
+		var metadata_file_attrs = corpus_description[ngramsize];
+		//A small sorting function which governs in what order the results are shown.
+		var metadata_key_to_number = function(key)
+		{
+			switch(key)
+			{
+				case "Filename": return 0;
+				case "isPos": return 0.5;
+				case "Numwords": return 1;
+				case "Indexes": return 2;
+				case "InvertedIndexes": return 3;
+				case "EntropyInvertedIndexes": return 4;
+				case "WorldengthStatsExist": return 5;
+				default: return 100;
+			}	
+		}
+		//We sort all of the keys using the metadata_key_to_number function.
+		var keys = [];
+		for(var attribute_name in metadata_file_attrs)
+			keys.push(attribute_name);
+		keys.sort(function(a,b) { return metadata_key_to_number(a) - metadata_key_to_number(b)});
+		//Then we append each individual key and its value to the description part.
+		for(var attribute_index in keys)
+		{
+			var attribute_name = keys[attribute_index];
+			switch(attribute_name)
+			{
+			case "isPos":
+			case "Filename":
+			case "WordlengthStatsExist":
+			case "Numwords":
+				new_row_second_col.appendChild(asText(
+				"\u00A0\u00A0\u00A0" + attribute_name + ":\u00A0\u00A0" + corpus_description[ngramsize][attribute_name]
+				));
+				new_row_second_col.appendChild(newElem("br"));
+			break;
+			case "Indexes":
+			case "InvertedIndexes":
+				new_row_second_col.appendChild(asText(
+					"\u00A0\u00A0\u00A0" + attribute_name
+				));
+				new_row_second_col.appendChild(newElem("br"));
+				for(var index in corpus_description[ngramsize][attribute_name])
+				{
+					new_row_second_col.appendChild(asText(
+					"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + index
+					));
+					new_row_second_col.appendChild(newElem("br"));
+				}
+			break;
+			case "EntropyInvertedIndexes":
+				new_row_second_col.appendChild(asText(
+				"\u00A0\u00A0\u00A0" + attribute_name 
+				));
+				new_row_second_col.appendChild(newElem("br"));
+				for(var index in corpus_description[ngramsize][attribute_name])
+				{
+					var entropy_inverted_index_name = corpus_description[ngramsize][attribute_name][index];
+					if(!entropy_inverted_index_name.match(
+						/^entropy_([0-9]+)_index((_[0-9]+)+)$/
+					))
+					{
+						log_error("Received invalid value from server");
+					}
+					var known = RegExp.$1;
+					var order = RegExp.$2.split("_").slice(1);
+					var finished_string = [];
+					var current_order;
+					for(current_order = 0; current_order < known; current_order++)
+					{
+						finished_string[order[current_order]] = "=";
+					}
+					for(current_order = known; current_order < order.length;current_order++)
+					{
+						finished_string[order[current_order]] = "*";
+					}
+					new_row_second_col.appendChild(asText(
+					"\u00A0\u00A0\u00A0" + "\u00A0\u00A0\u00A0" + 
+					finished_string.join(" ")
+					));
+
+					new_row_second_col.appendChild(newElem("br"));
+				}
+			}
+		}
+	}
+	//We set a callback to unhide the current item once the current radio button is clicked.
+	radio_button.onclick = function()
+	{
+		query_folder = this.value;					
+		//Because arrays aren't immutable in javascript, the following does *not* work with a local copy of hidable_info_items
+		for(var hidable_info_index in hidable_info_items)
+		{
+			hidable_info_items[hidable_info_index].hidden = true;
+		}
+		new_row_second_col.hidden = false;
+	};
+
+	$("all_indexes_table").appendChild(new_row);
+}
+
+window.onload = function()
+{
+	//Since we default to query_type of search and notification type of web...
+	$("search_radio_button_id").checked = true;
+	$("notification_web").checked = true;
+
+   /*To start with, we get the list of all corpora we have indexes on */
+   	//We put this list into the variable list_all_result.
+	var list_all_result = {};
+	var all_indexes_request = new XMLHttpRequest;
+	//Setting a timeout might work on some browsers...
+	all_indexes_request.timeout = 300 * 1000;
+	all_indexes_request.ontimeout = function()
+	{
+		log_error("Request timed out (timeout set to 5 minutes). For a longer timeout, change the timeout value in the source code of this page..");
+	}
+
+	all_indexes_request.onload = function()
+	{
+		all_indexes_request.responseText.split("\n").forEach( function(entry)
+			{
+				if(entry[0] == "/")				
+				{
+					log_error(entry);
+				}else
+				{
+					//Empty the table of indexes:	
+					try
+					{
+						list_all_result = JSON.parse(entry);
+					}catch(e)
+					{
+						if(entry)
+							log_error("Received invalid result from server: " + entry);
+					}
+					var hidable_info_cols = [];
+					for( var i in list_all_result)
+					{
+						add_corpus_to_left_sidebar(i,list_all_result[i],hidable_info_cols)
+					}
+					respondToAnchor();
+				}
+			});
+	};
+	all_indexes_request.open("GET","/cgi-bin/ngramanalysis-wrapper.pl?action=list_all");
+	all_indexes_request.send(null);
+
+	//This function runs the actual query. It gets its parameters from the global variables defined above..
+	var runQuery = function()
+	{
+		$("run_query").disabled = true;
+		$("disco_ball").hidden = false;
+		var query_request = new XMLHttpRequest;
+		query_request.onload = function()
+		{
+
+			//Our results generally take the following form:
+				//foo bar baz 2
+				//bar baz foo 32
+			//So we let ngrams contain the first part (that is not the number), and frequencies contain the numbers.
+			var ngrams = [];
+			var frequencies = [];
+
+			//The code below sets current_query_is_pos to whether or not the current query is on POS data.
+			var current_query_is_pos;
+			var relevant_metadata = list_all_result[query_folder];
+			var relevant_metadata_some_index;
+			for(var yetanothervariablename in relevant_metadata)
+				relevant_metadata_some_index = yetanothervariablename;
+			if(relevant_metadata[relevant_metadata_some_index]["isPos"])
+				current_query_is_pos = true;
+			else
+				current_query_is_pos = false;
+			var current_results_div = newElem("tbody");
+
+			//We split or query and handle each of the rows separately.
+			this.responseText.split("\n").forEach(function(cur)
+			{
+				if(cur[0] == "/")
+				{
+					log_error(cur);
+				}else
+				{
+					var re = /^(.+)\t([+-]?[0-9]+.?e?[+-]?[0-9]*)$/;
+					if(cur.match(re))
+					{
+						var ngram = RegExp.$1;
+						var frequency = RegExp.$2;
+						//For searches with results in POS form.
+						if((query_type == "search") && (current_query_is_pos) && $("make_pos_results_look_nicer").checked)
+						{
+							var words = ngram.split("\t");
+							var new_words = [];
+							var search_string_words = $("search_string").value.replace(/[\[\]]/g,"").split(" ");
+							for(var wordIndex in words)
+							{
+								var current_word = words[wordIndex];
+								var current_search_word = search_string_words[wordIndex];
+
+								if((current_search_word.indexOf("|") != -1)|| (current_word == "$"))
+								{
+									new_words.push(current_word);
+								}else
+								{
+									//We simply return the word part of the POS object.
+									if(current_word.match(/^([^\|]+)\|([^\|]+)\|([^\|]+)$/))
+										new_words.push(RegExp.$3);
+									else
+									{
+										log_error("Error in web interface. Don't trust its output.");
+									}
+								}
+							}
+							ngram = new_words.join(" ");
+						}else
+						{
+							ngram = ngram.replace("\t"," ");
+						}
+						ngrams.push(ngram);
+						frequencies.push(frequency);
+
+					}else //Maybe our query_type returns a different kind of result. Let's just display that.
+					{
+						var currentResultsNode = newElem("tr");
+						currentResultsNode.appendChild(newElem("td"));
+						currentResultsNode.appendChild(newElem("td"));
+						currentResultsNode.firstChild.appendChild(
+							asText(cur.replace("\t"," "))
+							);
+						currentResultsNode.firstChild.setAttribute("colspan",2);
+						current_results_div.appendChild(currentResultsNode);
+					} 
+
+				}
+			});
+			//Let's group POS results strings that look equal.
+			if((query_type == "search") && current_query_is_pos && ngrams.length && $("make_pos_results_look_nicer").checked)
+			{
+				//Sorting permutation should contain the permutation that would make ngrams be sorted by the n-gram part.
+				var sorting_permutation = [];
+				for(var ngram_number = 0; ngram_number < ngrams.length; ngram_number++)
+					sorting_permutation.push(ngram_number);
+
+				sorting_permutation.sort(function(a,b){return (ngrams[a] > ngrams[b]) - (ngrams[a] < ngrams[b]);});
+				//With this, we can sort *both* n-grams and frequencies by the n-gram:
+				var sorted_ngrams = [];
+				var sorted_frequencies = [];
+				for(var ngram_number in ngrams)
+				{
+					sorted_ngrams[ngram_number] = ngrams[sorting_permutation[ngram_number]];
+					sorted_frequencies[ngram_number] = frequencies[sorting_permutation[ngram_number]];
+				}
+				//We now group the n-grams.
+				var grouped_ngrams = [];
+				var grouped_frequencies = [];
+				var current_ngram = sorted_ngrams[0]; //Note that we know we have some results as we test for that above.
+				var current_frequency = Number(sorted_frequencies[0]);
+				for(var ngram_number = 1;ngram_number < ngrams.length; ngram_number++)
+				{
+					if(sorted_ngrams[ngram_number] === current_ngram)
+					{
+						current_frequency += Number(sorted_frequencies[ngram_number]);
+					}else
+					{
+						grouped_ngrams.push(current_ngram);
+						grouped_frequencies.push(current_frequency);
+						current_ngram = sorted_ngrams[ngram_number];
+						current_frequency = Number(sorted_frequencies[ngram_number]);
+					}
+				}
+				grouped_ngrams.push(current_ngram);
+				grouped_frequencies.push(current_frequency);
+
+				//Finally, we sort by frequency:
+				var final_permutation = [];
+				var ngrams_finally_permuted = [];
+				var frequencies_finally_permuted = [];
+				for(var ngram_number = 0; ngram_number < grouped_ngrams.length; ngram_number++)
+					final_permutation.push(ngram_number);
+				final_permutation.sort(function(a,b)
+				{
+					return (grouped_frequencies[b] > grouped_frequencies[a]) - (grouped_frequencies[b] < grouped_frequencies[a]);
+				});
+				for(var ngram_number in grouped_ngrams)
+				{
+					ngrams_finally_permuted[ngram_number] = grouped_ngrams[final_permutation[ngram_number]];
+					frequencies_finally_permuted[ngram_number] = grouped_frequencies[final_permutation[ngram_number]];
+				}
+
+				//We now display the whole thing:
+				for(var ngram_number in ngrams_finally_permuted)
+				{
+					var currentResultsNode = newElem("tr");
+					currentResultsNode.appendChild(newElem("td"));
+					currentResultsNode.appendChild(newElem("td"));
+
+					currentResultsNode.firstChild.appendChild(
+						asText(ngrams_finally_permuted[ngram_number])
+						);
+					currentResultsNode.firstChild.nextSibling.appendChild(
+						asText(frequencies_finally_permuted[ngram_number])
+						);
+					current_results_div.appendChild(currentResultsNode);
+				}
+			}else //We simply show what we got from the server:
+			{
+				for(var ngram_number in ngrams)
+				{
+					var currentResultsNode = newElem("tr");
+					currentResultsNode.appendChild(newElem("td"));
+					currentResultsNode.appendChild(newElem("td"));
+	
+	
+					currentResultsNode.firstChild.appendChild(
+						asText(ngrams[ngram_number])
+						);
+					currentResultsNode.firstChild.nextSibling.appendChild(
+						asText(frequencies[ngram_number])
+						);
+					current_results_div.appendChild(currentResultsNode);
+				}
+				if(!ngrams.length)
+				{
+					var empty_results_node = newElem("tr");
+					empty_results_node.appendChild(newElem("td"));
+					empty_results_node.appendChild(newElem("td"));
+					empty_results_node.firstChild.appendChild(asText($("search_string").value));
+					empty_results_node.firstChild.nextSibling.appendChild(asText("0"));
+					current_results_div.appendChild(empty_results_node);
+				}
+			}
+			//Let's put a horizonal orange line below the output we have so far, to separate it from previous outputs.
+			var lineNode = newElem("tr");
+			lineNode.appendChild(newElem("td"));
+			lineNode.firstChild.setAttribute("colspan",2);
+			lineNode.firstChild.appendChild(newElem("hr"));
+			lineNode.firstChild.firstChild.setAttribute("color","orange");
+		
+			current_results_div.setAttribute("colspan",2);
+			results_area.insertBefore(current_results_div,results_area.firstChild);
+			results_area.insertBefore(lineNode,results_area.firstChild);
+			$("run_query").disabled = false;
+			$("disco_ball").hidden = true;
+		}
+		var url ="/cgi-bin/ngramanalysis-wrapper.pl?";
+		url += "folder=" + encodeURIComponent(query_folder);
+		url += "&action=" + encodeURIComponent(query_type);
+		switch(query_type)
+		{
+			case "entropy_of":
+			case "search":
+				url+= "&search_string=" + encodeURIComponent($("search_string").value);
+			break;
+			case "entropy_index_get_top":
+				url+= "&ngramsize=" + encodeURIComponent($("ngram_number_entropy_index_get_top").value);
+				url+= "&howmany=" + encodeURIComponent($("howmany_entropy_index_get_top").value);
+				url+="&search_string_pattern=" + encodeURIComponent($("search_string_pattern").innerHTML);
+				url+="&zero_entropy_frequency_threshold=" + encodeURIComponent($("zero_entropy_frequency_threshold").value);
+			break;
+			case "get_top":
+				url+="&ngramsize=" + encodeURIComponent($("ngram_number_get_top").value);
+				url+="&howmany=" + encodeURIComponent($("howmany_get_top").value);
+			break;
+			case "view_wordlength_stats":
+				url+="&ngramsize=" + encodeURIComponent($("ngram_number_wordlength_stats").value);
+			break;
+		}
+
+		url+="&notification_type=" + encodeURIComponent(notification_type);
+		if(notification_type == "email")
+		{
+			url +="&email_address=" + encodeURIComponent($("email_input").value);
+		}
+		query_request.open("get",url);
+		query_request.send(null);
+		log_error("Sent request on folder" + query_folder + " , waiting for response... (this might take a while)");
+	}
+	//We make sure that clicking the search radio button updates the query_type to "search", etc...
+	for(var i in $("actions_part_of_table").getElementsByTagName("tr"))
+	{
+		var updateQueryType = function()
+		{
+			for(var j in $("params_part_of_table").getElementsByTagName("tr"))
+			{
+				if($("params_part_of_table").getElementsByTagName("tr")[j].style)
+					$("params_part_of_table").getElementsByTagName("tr")[j].style.display = "none";
+			}
+
+			if(this.value != "entropy_of")
+				$(this.value + "_param_row").style.display = "inline";
+			else
+				$("search_param_row").style.display = "inline";
+			query_type = this.value;
+
+		};
+		if($("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName)
+			$("actions_part_of_table").getElementsByTagName("tr")[i].getElementsByTagName("input")[0].onclick = updateQueryType;
+	}
+	//The same goes for the notification_type...
+	$("notification_web").onclick = function()
+	{
+		notification_type = "web";
+	}
+	$("notification_email").onclick = function()
+	{
+		notification_type = "email";
+	}
+	//Set a simple callback for the button that says "clear results area"...
+	$("clear_results_area").onclick = clear_log_and_results;
+
+	//This function gets called whenever the page anchor gets changed.
+	var respondToAnchor = function()
+	{
+		var anchorvalue =location.href.split("#")[1] ;
+		if(!anchorvalue)
+		{
+			return;
+		}
+		var keyvaluepairs = anchorvalue.split("&");
+		var hash_keyvaluepairs = {};
+		for(var i in keyvaluepairs)
+		{
+			if(!keyvaluepairs[i].match(/^([^=]+)=([^=]+)$/))
+			{
+				$("error_log").appendChild(asText("Error in anchor string"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+			}
+			var key = decodeURIComponent(RegExp.$1);
+			var value = decodeURIComponent(RegExp.$2);
+			hash_keyvaluepairs[key] = value;
+		}
+		if("make_pos_results_look_nicer" in hash_keyvaluepairs)
+		{
+			$("make_pos_results_look_nicer").checked = (hash_keyvaluepairs["make_pos_results_look_nicer"] == "true");
+		}
+		if(!("query_folder" in hash_keyvaluepairs) || !(hash_keyvaluepairs["query_folder"] in list_all_result))
+		{
+			$("error_log").appendChild(asText("Invalid or no query folder in anchor string"));
+			$("error_log").appendChild(newElem("br"));
+			return;
+		}
+		var folders_radiobuttons = document.getElementsByName("select_corpus");
+		var checked_folder = null;
+		for(var i in folders_radiobuttons)
+		{
+			if(folders_radiobuttons[i].value == hash_keyvaluepairs["query_folder"])
+			{
+				checked_folder = folders_radiobuttons[i];
+				break;
+			}
+		}
+		if(!checked_folder)
+		{
+
+			$("error_log").appendChild(asText("No valid query folder (collection of indexes on a corpus) in anchor string"));
+			$("error_log").appendChild(newElem("br"));
+			return;
+		}
+		//Appparently calling click() isn't compatible accross browsers...
+		checked_folder.onclick();
+		checked_folder.checked = true;
+		query_folder = hash_keyvaluepairs["query_folder"];
+
+		if(!("query_type" in hash_keyvaluepairs))
+		{
+			$("error_log").appendChild(asText("No query type in anchor string"));
+			$("error_log").appendChild(newElem("br"));
+			return;
+		}
+		var actions_radiobuttons = document.getElementsByName("action_result");
+		var checked_button = null;
+		for(var i in actions_radiobuttons)
+		{
+			if(actions_radiobuttons[i].value == hash_keyvaluepairs["query_type"])
+			{
+				checked_button = actions_radiobuttons[i];
+				break;
+			}
+		}
+		if(!checked_button)
+		{
+				$("error_log").appendChild(asText("Invalid query type in anchor"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+		}
+		checked_button.checked = true;
+		checked_button.onclick();
+		query_type = hash_keyvaluepairs["query_type"];
+
+		switch(hash_keyvaluepairs["query_type"])
+		{
+			case "search":
+			case "entropy_of":
+			if(!("search_string" in  hash_keyvaluepairs))
+			{
+				$("error_log").appendChild(asText("No search string in anchor string"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+			}
+			$("search_string").value = hash_keyvaluepairs["search_string"];
+			break;
+			case "entropy_index_get_top":
+			if(!("ngramsize" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["ngramsize"]))
+			{
+				$("error_log").appendChild(asText("No n-gram number in anchor string"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+			}
+			$("ngram_number_entropy_index_get_top").value = Number(hash_keyvaluepairs["ngramsize"]);
+			$("entropy_index_get_top_set_ngramsize").onclick();
+
+			if(!("search_string_pattern" in hash_keyvaluepairs))
+			{
+				$("error_log").appendChild(asText("No search string pattern in anchor string"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+			}
+			var words = $('entropy_index_get_top_param_row_words').children;
+			$('search_string_pattern').innerHTML = hash_keyvaluepairs["search_string_pattern"];
+			var split_search_string_pattern = hash_keyvaluepairs["search_string_pattern"].split(" ");
+			for(var j in words)
+			{
+				if(split_search_string_pattern[j] == "*")
+					words[j].value = "*";	
+				else
+					words[j].value = "known";
+			}
+
+			if(!("threshold" in hash_keyvaluepairs) || isNaN(Number(hash_keyvaluepairs["threshold"])))
+			{
+				$("error_log").appendChild(asText("No threshold in anchor string"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+			}
+			$("zero_entropy_frequency_threshold").value = hash_keyvaluepairs["threshold"];
+			if(!("howmany" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["howmany"]))
+			{
+				$("error_log").appendChild(asText("No howmany in anchor string"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+			}
+			$("howmany_entropy_index_get_top").value = hash_keyvaluepairs["howmany"];
+			break;
+			case "get_top":
+			if(!("ngramsize" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["ngramsize"]))
+			{
+				$("error_log").appendChild(asText("No ngramsize in anchor string"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+			}
+			$("ngram_number_get_top").value = Number(hash_keyvaluepairs["ngramsize"]);
+			if(!("howmany" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["howmany"]))
+			{
+				$("error_log").appendChild(asText("No howmany in anchor string"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+			}
+			$("howmany_get_top").value = Number(hash_keyvaluepairs["howmany"]);
+			break;
+			case "view_wordlength_stats":
+			if(!("ngramsize" in hash_keyvaluepairs) || !Number(hash_keyvaluepairs["ngramsize"]))
+			{
+				$("error_log").appendChild(asText("No ngramsize in anchor string"));
+				$("error_log").appendChild(newElem("br"));
+				return;
+			}
+			$("ngram_number_wordlength_stats").value = Number(hash_keyvaluepairs["ngramsize"]);
+			break;
+			default:
+			$("error_log").appendChild(asText("Invalid query type in anchor string"));
+			$("error_log").appendChild(newElem("br"));
+			return;
+		}
+	runQuery();
+	}
+	if("onhashchange" in window)
+		window.onhashchange = respondToAnchor;
+	$("run_query").onclick = function()
+	{
+		//We needs to build the anchor tag, set it, and then (if the system doesn't support onhashchange) call runQuery
+		var anchor_tag = "#";
+		anchor_tag += "query_folder=" + encodeURIComponent(query_folder);
+		anchor_tag += "&query_type=" + encodeURIComponent(query_type);
+		switch(query_type)
+		{
+		case "search":
+		case "entropy_of":
+			anchor_tag += "&search_string=" + encodeURIComponent($("search_string").value);
+		break;
+		case "entropy_index_get_top":
+			anchor_tag += "&ngramsize=" + encodeURIComponent($("ngram_number_entropy_index_get_top").value);
+			anchor_tag += "&search_string_pattern=" + encodeURIComponent($("search_string_pattern").innerHTML);
+			anchor_tag +="&howmany=" + encodeURIComponent($("howmany_entropy_index_get_top").value);
+			anchor_tag += "&threshold=" + encodeURIComponent($("zero_entropy_frequency_threshold").value);
+		break;
+		case "get_top":
+			anchor_tag += "&ngramsize=" + encodeURIComponent($("ngram_number_get_top").value);
+			anchor_tag += "&howmany=" + encodeURIComponent($("howmany_get_top").value);
+		break;
+		case "view_wordlength_stats":
+			anchor_tag += "&ngramsize=" + encodeURIComponent($("ngram_number_wordlength_stats").value);
+		break;
+		}
+		anchor_tag += "&make_pos_results_look_nicer="+encodeURIComponent($("make_pos_results_look_nicer").checked ? "true" : "false");
+		var old_anchor_tag = window.location.hash;
+		window.location.hash = anchor_tag;
+		if(window.location.hash == old_anchor_tag)
+		{
+			respondToAnchor();
+		}
+		if(!("onhashchange" in window))
+			respondToAnchor();	
+
+	}
+
+};
+</script>
+</head>
+<body>
+	<h2 style="text-align:center"> The QL N-Gram Search Tool/Entropy Calculator</h2>
+	<div id="left_part">
+	<table id="all_indexes_table">
+		<th>Index Name </th>
+		<th>Details</th>
+	</table>
+	<table id="error_table">
+		<th>Log </th>
+		<tr><td><div id="error_log"></div></td></tr>
+	</table>
+</div>
+	<table id="actions_table">
+		<th>Action</th>
+		<tbody id="actions_part_of_table">
+		<tr><td><input type="radio" name="action_result" value="search" id="search_radio_button_id" />Search(*)</td></tr>
+		<tr><td><input type="radio" name="action_result" value="entropy_of" />Entropy (**)</td></tr>
+		<tr><td><input type="radio" name="action_result" value="entropy_index_get_top" />Show wildcards with lowest entropy (***)</td></tr>
+		<tr><td><input type="radio" name="action_result" value="get_top"/>Show most frequent n-grams</td></tr>
+		<tr><td><input type="radio" name="action_result" value="view_wordlength_stats"/>Show wordlength statistics (in utf8 code units)</td></tr>
+		</tbody>
+		<th> Important Info (Please read at least once)<input type="button" id="show_help" value="Show it!" onclick="
+			var help_area = document.getElementById('help_area');
+			if(help_area.style.display === 'inline')
+			{
+				help_area.style.display = 'none';
+				document.getElementById('show_help').value = 'Show it!';
+			}else
+			{
+				help_area.style.display = 'inline';
+				document.getElementById('show_help').value = 'Hide it!';
+			}
+			"></th>
+		<tbody id="help_area" style="display:none">
+		<tr><td>
+<pre>
+(*) Entering a search string like "Piece * cake" would probably find
+	"piece of cake" in an english-language corpus.
+
+    For POS corpora, you can enter search strings like "[*|piece|*] of cake",
+    which would find n-grams like
+	"piece of cake"
+    or
+	"pieces of cake".
+    The POS notation above takes the form [type|lemma|word], where an asterisk
+    means a wildcard.
+
+    Note that for POS corpora, the output of words from the search string not
+    in the [foo|bar|baz] notation is simplified to only show the word if the "Show POS tags
+    only for words containing wildcards in web interface" field is checked. If this field is
+    checked, n-grams that are equal in terms of what is shown are grouped with their
+    frequencies added. For example, if searching for "[*|the|the]" results in
+	dt|the|the	4841
+	np|the|the	38
+	nn|the|the	7
+    then searching for "the" would collate these items to find
+	the	4886
+
+    Each expanded word in a search on a POS corpus has the form type|lemma|word in the result.
+
+    An output of "$" refers to a "null-word". This is generally either the start or end of
+    the corpus, a word that is longer than MAX_WORD_SIZE characters (or variations of this for
+    POS corpora), a word starting with &lt; for POS corpora (for xml tags which separate files)
+    or the special string ---END.OF.DOCUMENT---. Note that two "$"s in succession do not mean
+    that there were two null-words as all null-words are treated as if they were arbitarily long
+    sequences of null-words. "$" can be used in some search strings both in POS an non-POS corpora.
+
+(**) Use a search string with wildcards to determine the entropy of the wildcards (in bits).
+    Note that for POS corpora, all search strings are treated as if they were fully in the
+    [type|lemma|word] notation (see above). Hence entropies here may result in unexpected
+    values - searching for the entropy of "the" may result in a non-zero value, as what the
+    program is actually doing is looking for the entropy of "[*|*|the]"
+
+(***) This function uses precalculated entropy indexes to show a certain number of search
+    strings matching a certain pattern that have the lowest entropy in the corpus.
+    It takes as the first paramter the n-gram size.
+    The second parameter can be entered by clicking the appropriate buttons to declare
+    which words in the n-gram should be treated as wild-cards.
+    The third parameter is the minum frequency search strings with entropy of 0 may have
+    to be shown. This is to, for example, discard something like "asdfasdfasdfasdf *" from 
+    the results which has 0 entropy but only occurs rarely in the corpus.
+</pre>
+		</td></tr>
+	</tbody>
+		<th> Parameters </th>
+		<tbody id="params_part_of_table">
+		<tr id="search_param_row"><td >Search String:<input type="text" id="search_string"></td> </tr>
+		<tr id="entropy_index_get_top_param_row" style="display:none"><td>
+				N-gram number (i.e 2 for 2-grams) <input type="text" id="ngram_number_entropy_index_get_top"/> 
+				<input type="button" id="entropy_index_get_top_set_ngramsize" value="ok" onclick="
+					var words = $('entropy_index_get_top_param_row_words');
+					var search_string_array = [];
+					while(words.firstChild)
+						words.removeChild(words.firstChild);
+					var ngramsize = Number($('ngram_number_entropy_index_get_top').value);
+					if(isNaN(ngramsize))
+					{
+						$('error_log').appendChild(asText('Invalid n-gram size'));
+						$('error_log').appendChild(newElem('br'));
+					}
+					for(var i = 0; i<ngramsize;i++)
+					{
+						search_string_array[i] = '=';
+						(function()
+						{
+							var i_copy = i;
+							var new_button = newElem('input');
+							new_button.type = 'button';
+							new_button.value = 'known';
+							new_button.onclick = function()
+							{
+								if(new_button.value == 'known')
+								{
+									new_button.value = '*';
+									search_string_array[i_copy] = '*';
+								} else
+								{
+									new_button.value = 'known';
+									search_string_array[i_copy] = '=';
+								}
+								$('search_string_pattern').innerHTML = search_string_array.join(' ');
+							}
+							$('search_string_pattern').innerHTML = search_string_array.join(' ');
+							words.appendChild(new_button);
+						})();
+					}
+				"/>
+				<br/>
+				Known and Unknown words: <span id="entropy_index_get_top_param_row_words"></span>
+				<br/>
+				Inner representation of search string pattern:&nbsp;<span id="search_string_pattern"></span>
+				<br/>
+				Frequency threshold below which 0-entropy n-grams aren't shown: <input type="text" id="zero_entropy_frequency_threshold" value="0">
+				<br/>
+				Number of results to show: <input type="text" id="howmany_entropy_index_get_top" value="10"/>
+			</td>
+		</tr>
+		<tr id="get_top_param_row" style="display:none"><td>
+				N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_get_top"/><br/>
+				Number of results to show: <input type="text" id="howmany_get_top"/>
+		</td> </tr>
+		<tr id="view_wordlength_stats_param_row" style="display:none"><td>N-gram number (i.e. 3 for 3-grams)<input type="text" id="ngram_number_wordlength_stats"></td> </tr>
+		</tbody>
+		<th> Notification Type </th>
+		<tr><td><input type="radio" name="notification_type" value="web" checked="true" id="notification_web"/>On this website (results will appear below)</td></tr>
+
+		<tr><td><input type="checkbox" checked="true" id="make_pos_results_look_nicer"/>Show POS tags only for words containing wildcards in web interface?</td></tr>
+		<tr><td><input type="radio" name="notification_type" value="email" id="notification_email"/>Per email to <input type="text" id="email_input"/></td></tr>
+		<tr><td><input type="button" value="Go!" id="run_query"/><img src="DiscoBallAnimatedSmall.gif" id="disco_ball" hidden=true /></td></tr>
+		<th> Results</th>
+		<tr><td><input type="button" value="Clear Log and Results" id="clear_results_area"/></td></tr>
+		<tr><td><table id="results_area" style="border:none;"/></td></tr>
+
+
+	</table>
+	</table>
+</body>
+</html>
